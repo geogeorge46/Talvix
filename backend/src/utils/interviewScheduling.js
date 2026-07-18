@@ -1,0 +1,6 @@
+import { AppError } from '../shared/errors/AppError.js';
+export const normalizeTimezone=(value)=>{try{new Intl.DateTimeFormat('en-US',{timeZone:value}).format();return value;}catch{throw new AppError('Invalid IANA timezone',400);}};
+export const calculateDurationMinutes=(start,end)=>Math.round((new Date(end)-new Date(start))/60000);
+export const validateScheduleWindow=(start,end,{future=true,maxDays=365}={})=>{const from=new Date(start);const to=new Date(end);if(to<=from)throw new AppError('Interview end time must follow start time',400);if(future&&from<=new Date())throw new AppError('Interview must be scheduled in the future',400);if(from>Date.now()+maxDays*86400000)throw new AppError('Interview exceeds the scheduling horizon',400);return calculateDurationMinutes(from,to);};
+export const hasScheduleConflict=async(Model,{candidate,interviewers,startTime,endTime,excludeId})=>Boolean(await Model.exists({_id:{$ne:excludeId},status:{$nin:['cancelled','completed']},startTime:{$lt:endTime},endTime:{$gt:startTime},$or:[{candidate},{interviewers:{$in:interviewers}}]}));
+export const validateAvailability=(records,start,end)=>!records.length||records.some((record)=>record.slots.some((slot)=>slot.status==='available'&&slot.startTime<=start&&slot.endTime>=end));

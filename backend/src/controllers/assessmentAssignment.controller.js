@@ -1,0 +1,9 @@
+import * as service from '../services/assessmentAssignment.service.js';
+const handle = (action) => async (request, response, next) => { try { return await action(request, response); } catch (error) { return next(error); } };
+export const createAssignment = handle(async (r, s) => s.status(201).json({ success: true, message: 'Assessment assigned successfully', data: { assignment: await service.assignAssessment(r.company.id, r.user.id, r.body) } }));
+export const managedAssignments = handle(async (r, s) => s.json({ success: true, message: 'Assessment assignments retrieved successfully', data: await service.listManagedAssignments(r.company.id, r.validatedQuery) }));
+export const managedAssignment = handle(async (r, s) => s.json({ success: true, message: 'Assessment assignment retrieved successfully', data: { assignment: await service.getManagedAssignment(r.company.id, r.params.assignmentId) } }));
+export const cancelManagedAssignment = handle(async (r, s) => s.json({ success: true, message: 'Assessment assignment cancelled successfully', data: { assignment: await service.cancelAssignment(r.company.id, r.params.assignmentId, r.user.id, r.body.reason) } }));
+export const extendManagedAssignment = handle(async (r, s) => s.json({ success: true, message: 'Assessment assignment extended successfully', data: { assignment: await service.extendAssignment(r.company.id, r.params.assignmentId, r.user.id, r.body) } }));
+export const myAssignments = handle(async (r, s) => s.json({ success: true, message: 'Assessment assignments retrieved successfully', data: await service.listMyAssignments(r.user.id, r.validatedQuery) }));
+export const myAssignment = handle(async (r, s) => s.json({ success: true, message: 'Assessment assignment retrieved successfully', data: { assignment: await service.getMyAssignment(r.user.id, r.params.assignmentId) } }));

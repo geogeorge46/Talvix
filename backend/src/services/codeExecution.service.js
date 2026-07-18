@@ -1,0 +1,3 @@
+export const unavailableCodeExecutionAdapter = Object.freeze({ execute: async () => ({ status: 'unavailable', passedTests: 0, totalTests: 0, executionTimeMs: 0, testResults: [] }) });
+export const createDeterministicCodeExecutionAdapter = (outcomes = []) => ({ execute: async ({ testCases }) => ({ status: 'completed', passedTests: outcomes.filter(Boolean).length, totalTests: testCases.length, executionTimeMs: 0, testResults: testCases.map((test, index) => ({ passed: Boolean(outcomes[index]), weight: test.weight })) }) });
+export const executeCode = async (payload, adapter = unavailableCodeExecutionAdapter) => adapter.execute(payload);

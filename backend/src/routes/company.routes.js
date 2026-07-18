@@ -1,0 +1,23 @@
+import { Router } from 'express';
+import { USER_ROLES } from '../constants/roles.js';
+import { companyVerificationAction, pendingCompanies } from '../controllers/adminCompany.controller.js';
+import { addCompanyTeamMember, createRecruiterCompany, getCompany, getMyCompany, listCompanies, removeCompanyTeamMember, updateCompanyTeamMember, updateMyCompany } from '../controllers/company.controller.js';
+import { authenticate } from '../middleware/auth.js';
+import { authorizePermissions } from '../middleware/authorizePermissions.js';
+import { authorizeRoles } from '../middleware/authorizeRoles.js';
+import { requireCompanyAccess } from '../middleware/companyAccess.js';
+import { addTeamMemberSchema, companyAdminActionSchema, companyCreateSchema, companyIdParamsSchema, companySearchSchema, companyUpdateSchema, teamMemberParamsSchema, updateTeamMemberSchema } from '../validators/company.validator.js';
+import { pendingRecruiterQuerySchema } from '../validators/recruiter.validator.js';
+import { validateBody, validateParams, validateQuery } from '../validators/validate.js';
+
+export const companyRouter = Router();
+companyRouter.get('/admin/pending', authenticate, authorizeRoles(USER_ROLES.ADMIN), validateQuery(pendingRecruiterQuerySchema), pendingCompanies);
+for (const status of ['verified', 'rejected', 'suspended']) companyRouter.patch(`/admin/:companyId/${status === 'verified' ? 'verify' : status === 'rejected' ? 'reject' : 'suspend'}`, authenticate, authorizeRoles(USER_ROLES.ADMIN), validateParams(companyIdParamsSchema), validateBody(companyAdminActionSchema), companyVerificationAction(status));
+companyRouter.post('/', authenticate, authorizeRoles(USER_ROLES.RECRUITER), validateBody(companyCreateSchema), createRecruiterCompany);
+companyRouter.get('/me', authenticate, authorizeRoles(USER_ROLES.RECRUITER), getMyCompany);
+companyRouter.patch('/me', authenticate, authorizeRoles(USER_ROLES.RECRUITER), authorizePermissions('company.manage'), requireCompanyAccess, validateBody(companyUpdateSchema), updateMyCompany);
+companyRouter.post('/me/team', authenticate, authorizeRoles(USER_ROLES.RECRUITER), authorizePermissions('team.manage'), requireCompanyAccess, validateBody(addTeamMemberSchema), addCompanyTeamMember);
+companyRouter.patch('/me/team/:memberId', authenticate, authorizeRoles(USER_ROLES.RECRUITER), authorizePermissions('team.manage'), requireCompanyAccess, validateParams(teamMemberParamsSchema), validateBody(updateTeamMemberSchema), updateCompanyTeamMember);
+companyRouter.delete('/me/team/:memberId', authenticate, authorizeRoles(USER_ROLES.RECRUITER), authorizePermissions('team.manage'), requireCompanyAccess, validateParams(teamMemberParamsSchema), removeCompanyTeamMember);
+companyRouter.get('/', validateQuery(companySearchSchema), listCompanies);
+companyRouter.get('/:companyId', validateParams(companyIdParamsSchema), getCompany);

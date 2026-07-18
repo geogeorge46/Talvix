@@ -1,0 +1,10 @@
+import * as review from '../services/assessmentWorkflow.service.js';
+import * as analytics from '../services/assessmentAnalytics.service.js';
+const handle = (action) => async (request, response, next) => { try { return await action(request, response); } catch (error) { return next(error); } };
+export const pendingReviews = handle(async (r, s) => s.json({ success: true, message: 'Pending reviews retrieved successfully', data: { attempts: await review.listPendingReviews(r.company.id) } }));
+export const reviewAttempt = handle(async (r, s) => s.json({ success: true, message: 'Review attempt retrieved successfully', data: { attempt: await review.getReviewAttempt(r.company.id, r.params.attemptId) } }));
+export const scoreReviewQuestion = handle(async (r, s) => s.json({ success: true, message: 'Question reviewed successfully', data: { result: await review.scoreQuestion(r.company.id, r.params.attemptId, r.params.questionId, r.body) } }));
+export const completeAttemptReview = handle(async (r, s) => s.json({ success: true, message: 'Assessment review completed successfully', data: { attempt: await review.completeReview(r.company.id, r.params.attemptId, r.user.id) } }));
+export const releaseAssignmentResult = handle(async (r, s) => s.json({ success: true, message: 'Assessment result released successfully', data: { assignment: await review.releaseResult(r.company.id, r.params.assignmentId, r.user.id) } }));
+export const assessmentStatistics = handle(async (r, s) => s.json({ success: true, message: 'Assessment statistics retrieved successfully', data: { statistics: await analytics.getAssessmentStatistics(r.company.id, r.params.assessmentId) } }));
+export const assignmentPipeline = handle(async (r, s) => s.json({ success: true, message: 'Assessment pipeline retrieved successfully', data: await analytics.getAssignmentPipeline(r.company.id) }));

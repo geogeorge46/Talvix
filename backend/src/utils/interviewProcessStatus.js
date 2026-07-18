@@ -1,0 +1,1 @@
+import { AppError } from '../shared/errors/AppError.js';const transitions={draft:['active','cancelled'],active:['completed','cancelled'],completed:['archived'],cancelled:['archived'],archived:[]};export const assertProcessTransition=(from,to)=>{if(!transitions[from]?.includes(to))throw new AppError(`Interview process cannot transition from ${from} to ${to}`,409);};

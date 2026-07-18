@@ -1,0 +1,3 @@
+import { listPendingCompanies, setCompanyVerification } from '../services/adminCompany.service.js';
+export const pendingCompanies = async (request, response, next) => { try { const data = await listPendingCompanies(request.validatedQuery); return response.json({ success: true, message: 'Pending companies retrieved successfully', data }); } catch (error) { return next(error); } };
+export const companyVerificationAction = (status) => async (request, response, next) => { try { const company = await setCompanyVerification(request.params.companyId, status, request.user.id, request.body.notes); return response.json({ success: true, message: `Company ${status} successfully`, data: { company } }); } catch (error) { return next(error); } };

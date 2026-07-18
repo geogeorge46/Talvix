@@ -1,0 +1,13 @@
+import * as service from '../services/assessment.service.js';
+const handle = (action) => async (request, response, next) => { try { return await action(request, response); } catch (error) { return next(error); } };
+export const createManagedAssessment = handle(async (r, s) => s.status(201).json({ success: true, message: 'Assessment created successfully', data: { assessment: await service.createAssessment(r.company.id, r.user.id, r.body) } }));
+export const managedAssessments = handle(async (r, s) => s.json({ success: true, message: 'Assessments retrieved successfully', data: await service.listAssessments(r.company.id, r.validatedQuery) }));
+export const managedAssessment = handle(async (r, s) => s.json({ success: true, message: 'Assessment retrieved successfully', data: { assessment: await service.getAssessment(r.company.id, r.params.assessmentId) } }));
+export const updateManagedAssessment = handle(async (r, s) => s.json({ success: true, message: 'Assessment updated successfully', data: { assessment: await service.updateAssessment(r.company.id, r.params.assessmentId, r.body) } }));
+export const deleteManagedAssessment = handle(async (r, s) => { await service.removeAssessment(r.company.id, r.params.assessmentId); return s.json({ success: true, message: 'Assessment deleted successfully' }); });
+export const addManagedAssessmentQuestion = handle(async (r, s) => s.json({ success: true, message: 'Question added successfully', data: { assessment: await service.addAssessmentQuestion(r.company.id, r.params.assessmentId, r.body) } }));
+export const removeManagedAssessmentQuestion = handle(async (r, s) => s.json({ success: true, message: 'Question removed successfully', data: { assessment: await service.removeAssessmentQuestion(r.company.id, r.params.assessmentId, r.params.questionId) } }));
+export const reorderManagedAssessmentQuestions = handle(async (r, s) => s.json({ success: true, message: 'Questions reordered successfully', data: { assessment: await service.reorderAssessmentQuestions(r.company.id, r.params.assessmentId, r.body) } }));
+export const publishManagedAssessment = handle(async (r, s) => s.json({ success: true, message: 'Assessment published successfully', data: { assessment: await service.publishAssessment(r.company.id, r.params.assessmentId) } }));
+export const archiveManagedAssessment = handle(async (r, s) => s.json({ success: true, message: 'Assessment archived successfully', data: { assessment: await service.archiveAssessment(r.company.id, r.params.assessmentId) } }));
+export const cloneManagedAssessment = handle(async (r, s) => s.status(201).json({ success: true, message: 'Assessment cloned successfully', data: { assessment: await service.cloneAssessment(r.company.id, r.params.assessmentId, r.user.id) } }));

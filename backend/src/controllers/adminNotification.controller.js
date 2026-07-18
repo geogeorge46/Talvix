@@ -1,0 +1,21 @@
+import * as admin from '../services/adminNotification.service.js';
+import { cancelEvent, processOutboxBatch, retryEvent } from '../services/notificationOutbox.service.js';
+import * as templates from '../services/notificationTemplate.service.js';
+import { AppError } from '../shared/errors/AppError.js';
+
+const handler = (operation) => async (request, response, next) => { try { return await operation(request, response); } catch (error) { return next(error); } };
+export const listNotifications = handler(async (request, response) => response.json({ success: true, message: 'Notifications retrieved successfully', data: await admin.listNotifications(request.validatedQuery) }));
+export const getNotification = handler(async (request, response) => response.json({ success: true, message: 'Notification retrieved successfully', data: { notification: await admin.getNotification(request.params.notificationId) } }));
+export const emailLogs = handler(async (request, response) => response.json({ success: true, message: 'Email logs retrieved successfully', data: await admin.listEmailLogs(request.validatedQuery) }));
+export const outbox = handler(async (request, response) => response.json({ success: true, message: 'Notification outbox retrieved successfully', data: await admin.listOutbox(request.validatedQuery) }));
+export const processOutbox = handler(async (request, response) => response.json({ success: true, message: 'Notification outbox processed successfully', data: { events: await processOutboxBatch(request.body.limit) } }));
+const outboxAction = (action, message) => handler(async (request, response) => { const event = await action(request.params.eventId); if (!event) throw new AppError('Outbox event is not eligible for this action', 409); return response.json({ success: true, message, data: { event } }); });
+export const retry = outboxAction(retryEvent, 'Outbox event queued for retry');
+export const cancel = outboxAction(cancelEvent, 'Outbox event cancelled successfully');
+export const createTemplate = handler(async (request, response) => response.status(201).json({ success: true, message: 'Notification template created successfully', data: { template: await templates.createTemplate(request.user.id, request.body) } }));
+export const listTemplates = handler(async (_request, response) => response.json({ success: true, message: 'Notification templates retrieved successfully', data: { templates: await templates.listTemplates() } }));
+export const getTemplate = handler(async (request, response) => response.json({ success: true, message: 'Notification template retrieved successfully', data: { template: await templates.getTemplate(request.params.templateId) } }));
+export const updateTemplate = handler(async (request, response) => response.json({ success: true, message: 'Notification template version created successfully', data: { template: await templates.updateTemplate(request.params.templateId, request.user.id, request.body) } }));
+export const cloneTemplate = handler(async (request, response) => response.status(201).json({ success: true, message: 'Notification template cloned successfully', data: { template: await templates.cloneTemplate(request.params.templateId, request.user.id) } }));
+export const deactivateTemplate = handler(async (request, response) => response.json({ success: true, message: 'Notification template deactivated successfully', data: { template: await templates.deactivateTemplate(request.params.templateId) } }));
+export const previewTemplate = handler(async (request, response) => response.json({ success: true, message: 'Notification template preview rendered successfully', data: await templates.previewTemplate(request.params.templateId, request.body.variables) }));

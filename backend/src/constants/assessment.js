@@ -1,0 +1,11 @@
+export const QUESTION_TYPES = Object.freeze(['single-choice', 'multiple-choice', 'true-false', 'short-answer', 'long-answer', 'coding']);
+export const QUESTION_DIFFICULTIES = Object.freeze(['easy', 'medium', 'hard']);
+export const ASSESSMENT_TYPES = Object.freeze(['general', 'technical', 'aptitude', 'coding', 'mixed']);
+export const ASSESSMENT_STATUSES = Object.freeze(['draft', 'published', 'archived']);
+export const ASSIGNMENT_STATUSES = Object.freeze(['assigned', 'available', 'in-progress', 'submitted', 'evaluating', 'completed', 'expired', 'cancelled']);
+export const ATTEMPT_STATUSES = Object.freeze(['not-started', 'in-progress', 'submitted', 'auto-evaluated', 'review-pending', 'completed', 'expired', 'cancelled']);
+export const SUBMISSION_REASONS = Object.freeze(['candidate-submit', 'time-expired', 'admin-submit', 'system-submit']);
+export const SUPPORTED_CODE_LANGUAGES = Object.freeze(['javascript', 'python', 'java']);
+export const ASSESSMENT_COMPATIBLE_APPLICATION_STATUSES = Object.freeze(['shortlisted', 'assessment-pending', 'assessment-in-progress', 'assessment-completed']);
+export const MAX_CODE_SIZE = 50000;
+export const MAX_ANSWER_SIZE = 20000;

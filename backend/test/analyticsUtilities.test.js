@@ -1,0 +1,11 @@
+import { describe, expect, it } from 'vitest';
+import { resolveAnalyticsRange, fillTimeSeriesBuckets } from '../src/utils/analyticsDateRange.js';
+import { calculateAverage, calculatePercentageChange, calculateRate, reportToCsv } from '../src/utils/analyticsSerializer.js';
+
+describe('analytics utilities', () => {
+  it('resolves presets, custom ranges, automatic intervals, and equal previous periods', () => { const now = new Date('2026-07-19T12:00:00.000Z'); const preset = resolveAnalyticsRange({ preset: 'last-7-days', timezone: 'UTC' }, now); expect(preset.interval).toBe('day'); expect(preset.from.toISOString()).toBe('2026-07-13T00:00:00.000Z'); expect(preset.to.toISOString()).toBe('2026-07-19T23:59:59.999Z'); expect(preset.previous.to.getTime() + 1).toBe(preset.from.getTime()); const custom = resolveAnalyticsRange({ from: '2026-07-19T00:00:00.000Z', to: '2026-07-19T12:00:00.000Z' }); expect(custom.interval).toBe('hour'); });
+  it('rejects reversed and excessive ranges safely', () => { expect(() => resolveAnalyticsRange({ from: '2026-02-01T00:00:00.000Z', to: '2026-01-01T00:00:00.000Z' })).toThrow('invalid'); expect(() => resolveAnalyticsRange({ from: '2010-01-01T00:00:00.000Z', to: '2026-01-01T00:00:00.000Z' })).toThrow('too large'); });
+  it('fills UTC buckets across missing days, month boundaries, and leap day', () => { const result = fillTimeSeriesBuckets({ data: [{ date: new Date('2024-02-28T00:00:00.000Z'), value: 2 }, { date: new Date('2024-03-01T00:00:00.000Z'), value: 4 }], from: new Date('2024-02-28T12:00:00.000Z'), to: new Date('2024-03-01T12:00:00.000Z'), interval: 'day' }); expect(result).toEqual([{ date: '2024-02-28T00:00:00.000Z', value: 2 }, { date: '2024-02-29T00:00:00.000Z', value: 0 }, { date: '2024-03-01T00:00:00.000Z', value: 4 }]); });
+  it('calculates finite rates, averages, and zero-baseline growth', () => { expect(calculateRate(1, 0)).toBe(0); expect(calculateAverage(1, 0)).toBe(0); expect(calculatePercentageChange(0, 0)).toBe(0); expect(calculatePercentageChange(4, 0)).toBe(100); expect(calculatePercentageChange(80, 100)).toBe(-20); });
+  it('protects CSV formulas and quotes', () => { const csv = reportToCsv({ summary: { '=formula': '+value', safe: '"quoted"' } }); expect(csv).toContain("'=formula"); expect(csv).toContain("'+value"); expect(csv).toContain('""quoted""'); });
+});

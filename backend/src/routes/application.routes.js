@@ -1,0 +1,40 @@
+import { Router } from 'express';
+import { USER_ROLES } from '../constants/roles.js';
+import { adminApplication, adminApplications, archiveAdminApplication, deleteAdminApplicationNote, overrideAdminApplicationStatus } from '../controllers/adminApplication.controller.js';
+import { myApplication, myApplications, myApplicationTimeline, refreshMyApplicationSnapshot, respondToMyOffer, submitJobApplication, withdrawMyApplication } from '../controllers/application.controller.js';
+import { addManagedApplicationNote, applicationPipeline, assignManagedApplication, changeManagedApplicationStatus, deleteManagedApplicationNote, jobApplicationStatistics, managedApplication, managedApplications, rateManagedApplication, tagManagedApplication, updateManagedApplicationNote } from '../controllers/recruiterApplication.controller.js';
+import { authenticate } from '../middleware/auth.js';
+import { authorizePermissions } from '../middleware/authorizePermissions.js';
+import { authorizeRoles } from '../middleware/authorizeRoles.js';
+import { requireCompanyAccess } from '../middleware/companyAccess.js';
+import { adminApplicationsQuerySchema, adminStatusSchema, applicationIdParamsSchema, applicationJobParamsSchema, applicationSubmitSchema, assigneesSchema, candidateApplicationsQuerySchema, candidateOfferStatusSchema, noteParamsSchema, noteSchema, noteUpdateSchema, pipelineQuerySchema, ratingSchema, recruiterApplicationsQuerySchema, recruiterStatusSchema, tagsSchema, withdrawalSchema } from '../validators/application.validator.js';
+import { validateBody, validateParams, validateQuery } from '../validators/validate.js';
+
+export const applicationRouter = Router(); applicationRouter.use(authenticate);
+const candidate = authorizeRoles(USER_ROLES.CANDIDATE); const admin = authorizeRoles(USER_ROLES.ADMIN);
+applicationRouter.get('/admin', admin, validateQuery(adminApplicationsQuerySchema), adminApplications);
+applicationRouter.get('/admin/:applicationId', admin, validateParams(applicationIdParamsSchema), adminApplication);
+applicationRouter.patch('/admin/:applicationId/status', admin, validateParams(applicationIdParamsSchema), validateBody(adminStatusSchema), overrideAdminApplicationStatus);
+applicationRouter.patch('/admin/:applicationId/archive', admin, validateParams(applicationIdParamsSchema), archiveAdminApplication);
+applicationRouter.delete('/admin/:applicationId/notes/:noteId', admin, validateParams(noteParamsSchema), deleteAdminApplicationNote);
+
+const recruiterAccess = (permission) => [authorizeRoles(USER_ROLES.RECRUITER), authorizePermissions(permission), requireCompanyAccess];
+applicationRouter.get('/manage/pipeline', ...recruiterAccess('applications.view'), validateQuery(pipelineQuerySchema), applicationPipeline);
+applicationRouter.get('/manage/jobs/:jobId/statistics', ...recruiterAccess('applications.view'), validateParams(applicationJobParamsSchema), jobApplicationStatistics);
+applicationRouter.get('/manage', ...recruiterAccess('applications.view'), validateQuery(recruiterApplicationsQuerySchema), managedApplications);
+applicationRouter.get('/manage/:applicationId', ...recruiterAccess('applications.view'), validateParams(applicationIdParamsSchema), managedApplication);
+applicationRouter.patch('/manage/:applicationId/status', ...recruiterAccess('applications.manage'), validateParams(applicationIdParamsSchema), validateBody(recruiterStatusSchema), changeManagedApplicationStatus);
+applicationRouter.post('/manage/:applicationId/notes', ...recruiterAccess('applications.manage'), validateParams(applicationIdParamsSchema), validateBody(noteSchema), addManagedApplicationNote);
+applicationRouter.patch('/manage/:applicationId/notes/:noteId', ...recruiterAccess('applications.manage'), validateParams(noteParamsSchema), validateBody(noteUpdateSchema), updateManagedApplicationNote);
+applicationRouter.delete('/manage/:applicationId/notes/:noteId', ...recruiterAccess('applications.manage'), validateParams(noteParamsSchema), deleteManagedApplicationNote);
+applicationRouter.patch('/manage/:applicationId/rating', ...recruiterAccess('applications.manage'), validateParams(applicationIdParamsSchema), validateBody(ratingSchema), rateManagedApplication);
+applicationRouter.patch('/manage/:applicationId/tags', ...recruiterAccess('applications.manage'), validateParams(applicationIdParamsSchema), validateBody(tagsSchema), tagManagedApplication);
+applicationRouter.patch('/manage/:applicationId/assignees', ...recruiterAccess('applications.manage'), validateParams(applicationIdParamsSchema), validateBody(assigneesSchema), assignManagedApplication);
+
+applicationRouter.post('/', candidate, validateBody(applicationSubmitSchema), submitJobApplication);
+applicationRouter.get('/me', candidate, validateQuery(candidateApplicationsQuerySchema), myApplications);
+applicationRouter.get('/me/:applicationId', candidate, validateParams(applicationIdParamsSchema), myApplication);
+applicationRouter.patch('/me/:applicationId/withdraw', candidate, validateParams(applicationIdParamsSchema), validateBody(withdrawalSchema), withdrawMyApplication);
+applicationRouter.patch('/me/:applicationId/offer', candidate, validateParams(applicationIdParamsSchema), validateBody(candidateOfferStatusSchema), respondToMyOffer);
+applicationRouter.patch('/me/:applicationId/refresh-snapshot', candidate, validateParams(applicationIdParamsSchema), refreshMyApplicationSnapshot);
+applicationRouter.get('/me/:applicationId/timeline', candidate, validateParams(applicationIdParamsSchema), myApplicationTimeline);

@@ -1,0 +1,11 @@
+export const INTERVIEW_TYPES = Object.freeze(['screening','technical','coding','behavioral','managerial','hr','culture-fit','case-study','final','other']);
+export const CRITERION_CATEGORIES = Object.freeze(['technical','communication','problem-solving','experience','leadership','culture','motivation','role-fit','other']);
+export const RECOMMENDATIONS = Object.freeze(['strong-hire','hire','hold','no-hire','strong-no-hire']);
+export const PROCESS_STATUSES = Object.freeze(['draft','active','completed','cancelled','archived']);
+export const ROUND_STATUSES = Object.freeze(['pending','scheduling','scheduled','in-progress','awaiting-feedback','completed','cancelled','skipped','reschedule-requested','no-show']);
+export const SCHEDULE_STATUSES = Object.freeze(['proposed','confirmed','reschedule-requested','rescheduled','completed','cancelled','no-show']);
+export const INTERVIEW_MODES = Object.freeze(['video','phone','onsite','hybrid']);
+export const MEETING_PROVIDERS = Object.freeze(['google-meet','zoom','microsoft-teams','custom','phone','onsite','none']);
+export const CANDIDATE_RESPONSES = Object.freeze(['pending','accepted','declined','reschedule-requested']);
+export const PROCESS_APPLICATION_STATUSES = Object.freeze(['shortlisted','assessment-completed','interview-scheduled','interview-completed']);
+export const MAX_SCHEDULING_DAYS = 365;

@@ -1,0 +1,13 @@
+import { z } from 'zod';
+import { DOCUMENT_CATEGORIES } from '../constants/document.js';
+const id = z.string().regex(/^[a-f\d]{24}$/i, 'Invalid identifier');
+const purpose = z.string().trim().min(1).max(200).refine((value) => !/password|token|secret|credential/i.test(value), 'Sensitive credential metadata is not permitted');
+export const entityParams = z.object({ applicationId: id.optional(), attemptId: id.optional(), processId: id.optional(), offerId: id.optional(), documentId: id.optional() }).strict();
+export const upload = z.object({ uploadSessionId: id, purpose, displayName: z.string().trim().min(1).max(200).optional() }).strict();
+export const applicationUpload = upload.extend({ category: z.enum(DOCUMENT_CATEGORIES), access: z.enum(['private', 'company-private']).default('company-private') }).strict();
+export const sharedUpload = upload.extend({ access: z.enum(['company-private', 'candidate-visible']) }).strict();
+export const sharedReplacement = upload.extend({ access: z.enum(['company-private', 'candidate-visible']).optional() }).strict();
+export const access = z.object({ access: z.enum(['company-private', 'candidate-visible']) }).strict();
+export const verificationQuery = z.object({ page: z.coerce.number().int().min(1).default(1), limit: z.coerce.number().int().min(1).max(100).default(20), status: z.enum(['pending', 'verified', 'rejected']).optional(), category: z.enum(DOCUMENT_CATEGORIES).optional(), applicationId: id.optional(), candidateId: id.optional(), uploadedFrom: z.coerce.date().optional(), uploadedTo: z.coerce.date().optional(), sort: z.enum(['newest', 'oldest']).default('newest') }).strict();
+export const approve = z.object({ notes: z.string().trim().max(2000).optional() }).strict();
+export const reject = z.object({ reason: z.string().trim().min(3).max(500), notes: z.string().trim().max(2000).optional() }).strict();

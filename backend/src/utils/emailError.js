@@ -1,0 +1,1 @@
+export const normalizeEmailError=error=>{const status=error.status??error.statusCode;return{retryable:status===429||status>=500||['ETIMEDOUT','ECONNRESET'].includes(error.code),code:String(error.code??status??'EMAIL_ERROR').slice(0,100),message:'Email delivery failed'};};

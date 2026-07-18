@@ -1,0 +1,1 @@
+import{analytics as service}from'../services/offerAnalytics.service.js';export const analytics=async(r,s,n)=>{try{return s.json({success:true,message:'Offer analytics retrieved successfully',data:{analytics:await service(r.company.id)}});}catch(e){return n(e);}};
