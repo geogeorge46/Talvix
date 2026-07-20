@@ -8,6 +8,7 @@
     "start": "node src/server.js",
     "lint": "eslint .",
     "test": "vitest run",
+    "seed:demo": "node src/scripts/seedDemo.js",
     "seed:notification-templates": "node src/scripts/seedNotificationTemplates.js",
     "storage:reconcile": "node src/scripts/reconcileStorageUsage.js",
     "storage:smoke:cloudinary": "node src/scripts/smokeCloudinaryStorage.js"

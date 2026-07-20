@@ -1,0 +1,93 @@
+.showcase-header {
+  position: sticky;
+  top: var(--space-1);
+  z-index: var(--z-sticky);
+  width: min(calc(100% - var(--space-4)), var(--container-wide));
+  margin: var(--space-1) auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-2);
+  background: var(--color-surface-glass);
+  border: var(--border-thin) solid var(--color-border-glass);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-xs);
+  backdrop-filter: blur(var(--blur-glass));
+}
+.showcase-header > div {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.showcase-header > div:first-child {
+  align-items: flex-start;
+  flex-direction: column;
+  gap: 0;
+}
+.showcase {
+  width: min(calc(100% - var(--space-4)), var(--container-content));
+  margin: auto;
+  padding-block: var(--space-6);
+}
+.showcase-intro {
+  padding-block: var(--space-4) var(--space-8);
+  max-width: var(--container-narrow);
+}
+.showcase-intro h1 {
+  font-size: clamp(var(--text-page-title), 7vw, var(--text-display));
+  letter-spacing: var(--tracking-tight);
+}
+.showcase-intro h1 em {
+  color: var(--color-ai-fg);
+  font-style: normal;
+}
+.showcase-intro > p:last-child {
+  color: var(--color-text-muted);
+  font-size: var(--text-body-lg);
+}
+.showcase-section {
+  display: grid;
+  grid-template-columns: var(--component-label-column) 1fr;
+  gap: var(--space-4);
+  padding-block: var(--space-4);
+  border-top: var(--border-thin) solid var(--color-border-subtle);
+}
+.showcase-section h2 {
+  font-size: var(--text-heading);
+}
+.showcase-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+.showcase-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-3);
+}
+.showcase-stack {
+  display: grid;
+  gap: var(--space-2);
+}
+@media (max-width: 48rem) {
+  .showcase-header {
+    width: calc(100% - var(--space-2));
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .showcase-header > div:last-child .tvx-button {
+    flex: 1;
+  }
+  .showcase {
+    width: calc(100% - var(--space-2));
+  }
+  .showcase-section {
+    grid-template-columns: 1fr;
+    gap: var(--space-2);
+  }
+  .showcase-grid {
+    grid-template-columns: 1fr;
+  }
+}

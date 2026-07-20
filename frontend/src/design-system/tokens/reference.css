@@ -1,0 +1,34 @@
+:root {
+  /* Brand values are declared once here. Product and preview styles consume semantic roles. */
+  --ref-steel-gray: #24213b;
+  --ref-caribbean-green: #00cdab;
+  --ref-texas-rose: #ffb64d;
+  --ref-wafer: #e4d7cc;
+  --ref-snow: #ffffff;
+  --ref-steel-900: #171525;
+  --ref-steel-800: #24213b;
+  --ref-steel-700: #3e3a55;
+  --ref-steel-600: #59566c;
+  --ref-steel-500: #777386;
+  --ref-steel-300: #b6b3bf;
+  --ref-steel-200: #d7d5dc;
+  --ref-steel-100: #efedf1;
+  --ref-steel-050: #f7f6f8;
+  --ref-green-700: #006f5e;
+  --ref-green-100: #c9f8ef;
+  --ref-green-050: #eafcf8;
+  --ref-green-action-hover: #00b798;
+  --ref-green-action-pressed: #009d83;
+  --ref-ai-700: #075e54;
+  --ref-ai-100: #bff5ea;
+  --ref-ai-050: #e5fbf6;
+  --ref-rose-700: #865000;
+  --ref-rose-100: #ffe5bd;
+  --ref-rose-050: #fff7eb;
+  --ref-red-700: #9f2430;
+  --ref-red-100: #ffd9dd;
+  --ref-red-050: #fff1f2;
+  --ref-blue-700: #205b8f;
+  --ref-blue-100: #d5eafb;
+  --ref-blue-050: #f0f8ff;
+}

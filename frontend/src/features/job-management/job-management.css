@@ -1,0 +1,55 @@
+.jobs-page {
+  display: grid;
+  gap: var(--space-6);
+}
+.jobs-page small {
+  display: block;
+  color: var(--color-text-secondary);
+}
+.job-filters,
+.job-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+.job-filters .tvx-form-field {
+  min-width: 10rem;
+}
+.filter-note {
+  margin: calc(var(--space-4) * -1) 0 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+}
+.job-detail-grid {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: var(--space-4);
+}
+.job-detail-grid > :first-child {
+  grid-row: span 2;
+}
+.job-description {
+  white-space: pre-wrap;
+}
+.job-form {
+  display: grid;
+  gap: var(--space-5);
+  max-width: 60rem;
+}
+.job-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-4);
+}
+@media (max-width: 48rem) {
+  .job-detail-grid,
+  .job-form-grid {
+    grid-template-columns: 1fr;
+  }
+  .job-filters {
+    width: 100%;
+  }
+  .job-filters > * {
+    flex: 1 1 100%;
+  }
+}
