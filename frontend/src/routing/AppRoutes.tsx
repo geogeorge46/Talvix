@@ -86,6 +86,16 @@ import {
   TemplatesPage as OfferTemplatesPage,
   VerificationDetailPage,
 } from '../features/offers-documents';
+import {
+  AddTeamMemberPage,
+  CompanyCreatePage,
+  CompanyEditPage,
+  CompanyOverviewPage,
+  OrganizationSettingsPage,
+  TeamDetailPage,
+  TeamPage,
+  UnsupportedOrganizationPage,
+} from '../features/organization-admin';
 
 function Protected({
   requiredRole,
@@ -323,13 +333,24 @@ export function AppRoutes() {
             </CapabilityRoute>
           }
         />
+        <Route path="company" element={<CompanyOverviewPage />} />
+        <Route path="company/new" element={<CompanyCreatePage />} />
+        <Route path="company/edit" element={<CompanyEditPage />} />
+        <Route path="settings" element={<OrganizationSettingsPage />} />
+        <Route path="team" element={<TeamPage />} />
+        <Route path="team/add" element={<AddTeamMemberPage />} />
+        <Route path="team/:memberId" element={<TeamDetailPage />} />
         <Route
-          path="team/*"
-          element={
-            <CapabilityRoute anyPermission={['team.manage']}>
-              <WorkspacePlaceholder title="Team" />
-            </CapabilityRoute>
-          }
+          path="invitations"
+          element={<UnsupportedOrganizationPage kind="invitations" />}
+        />
+        <Route
+          path="analytics"
+          element={<UnsupportedOrganizationPage kind="analytics" />}
+        />
+        <Route
+          path="exports"
+          element={<UnsupportedOrganizationPage kind="exports" />}
         />
         <Route
           path="applications/:applicationId"
@@ -597,7 +618,7 @@ export function AppRoutes() {
         />
         <Route
           path="profile"
-          element={<WorkspacePlaceholder title="Company profile" />}
+          element={<Navigate to="/org/company" replace />}
         />
         <Route path="*" element={<Navigate to="/not-found" replace />} />
       </Route>

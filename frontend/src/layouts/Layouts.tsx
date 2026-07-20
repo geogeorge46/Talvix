@@ -1,4 +1,4 @@
-import { Outlet, useLocation } from 'react-router-dom';
+import { Link, Outlet, useLocation } from 'react-router-dom';
 import {
   AppShell,
   adminNavigation,
@@ -52,7 +52,7 @@ export function OrganizationWorkspaceLayout() {
   const { recruiter, capabilityStatus, refreshCapabilities } = useAuth();
   const location = useLocation();
   const restricted = organizationNavigation.filter(
-    (item) => item.id === 'profile',
+    (item) => item.id === 'company',
   );
   const stateShell = (content: React.ReactNode, items = restricted) => (
     <AppShell
@@ -72,13 +72,24 @@ export function OrganizationWorkspaceLayout() {
       />,
     );
   if (!recruiter?.isApproved) return stateShell(<PendingApprovalState />);
-  if (!recruiter.company)
+  if (!recruiter.company) {
+    if (location.pathname === '/org/company/new')
+      return stateShell(<Outlet />, restricted);
     return stateShell(
       <EmptyState
         title="Set up your organization"
         description="Create or join an organization before opening this workspace."
+        action={
+          <Link
+            className="tvx-button tvx-button--primary tvx-button--md"
+            to="/org/company/new"
+          >
+            Create company
+          </Link>
+        }
       />,
     );
+  }
   if (!recruiter.company.isActive)
     return stateShell(
       <SuspendedState
@@ -93,21 +104,42 @@ export function OrganizationWorkspaceLayout() {
         recruiter.permissions.includes(permission),
       ),
   );
-  if (recruiter.company.verificationStatus === 'suspended')
-    return stateShell(<SuspendedState title="Organization suspended" />);
-  if (recruiter.company.verificationStatus === 'rejected')
+  if (recruiter.company.verificationStatus === 'suspended') {
+    const companyRoute = location.pathname === '/org/company';
     return stateShell(
-      <UnverifiedCompanyState
-        title="Verification declined"
-        description="Organization verification was declined. Review the company profile before requesting another review."
-      />,
+      companyRoute ? (
+        <Outlet />
+      ) : (
+        <SuspendedState
+          title="Organization suspended"
+          description="Hiring and administration actions are unavailable. The company overview remains available for status context."
+        />
+      ),
     );
+  }
+  if (recruiter.company.verificationStatus === 'rejected') {
+    const recoveryRoute =
+      location.pathname === '/org/company' ||
+      location.pathname === '/org/company/edit';
+    return stateShell(
+      recoveryRoute ? (
+        <Outlet />
+      ) : (
+        <UnverifiedCompanyState
+          title="Verification declined"
+          description="Organization verification was declined. Review the company profile for supported corrections; other workspace areas remain unavailable."
+        />
+      ),
+    );
+  }
   if (recruiter.company.verificationStatus !== 'verified') {
     const pendingItems = allowed.filter((item) =>
-      ['jobs', 'profile'].includes(item.id),
+      ['jobs', 'company', 'settings', 'team'].includes(item.id),
     );
     const setupAllowed =
-      location.pathname === '/org/profile' ||
+      location.pathname.startsWith('/org/company') ||
+      location.pathname.startsWith('/org/settings') ||
+      location.pathname.startsWith('/org/team') ||
       location.pathname.startsWith('/org/jobs');
     return stateShell(
       setupAllowed ? <Outlet /> : <UnverifiedCompanyState />,
@@ -139,7 +171,7 @@ export function AuthenticatedWorkspaceLayout() {
   if (user?.role === 'recruiter')
     return (
       <AppShell
-        items={organizationNavigation.filter((item) => item.id === 'profile')}
+        items={organizationNavigation.filter((item) => item.id === 'company')}
         workspaceName={recruiter?.company?.name ?? 'Organization'}
         workspaceDetail="Recruiter"
       />

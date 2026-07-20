@@ -22,6 +22,8 @@ import {
   ClipboardCheck,
   CalendarDays,
   Users,
+  Settings,
+  BarChart3,
 } from 'lucide-react';
 import { Button, Drawer, IconButton, Menu } from '../design-system';
 import { useAuth } from '../auth/AuthProvider';
@@ -123,13 +125,6 @@ export const organizationNavigation: NavigationItem[] = [
     anyPermission: ['applications.view'],
   },
   {
-    id: 'team',
-    label: 'Team',
-    to: '/org/team',
-    icon: <Users />,
-    anyPermission: ['team.manage'],
-  },
-  {
     id: 'offers',
     label: 'Offers',
     to: '/org/offers',
@@ -144,10 +139,30 @@ export const organizationNavigation: NavigationItem[] = [
     anyPermission: ['documents.verify'],
   },
   {
-    id: 'profile',
-    label: 'Company profile',
-    to: '/org/profile',
+    id: 'company',
+    label: 'Company',
+    to: '/org/company',
     icon: <Building2 />,
+  },
+  {
+    id: 'team',
+    label: 'Team',
+    to: '/org/team',
+    icon: <Users />,
+    anyPermission: ['team.manage'],
+  },
+  {
+    id: 'settings',
+    label: 'Settings',
+    to: '/org/settings',
+    icon: <Settings />,
+    anyPermission: ['company.manage'],
+  },
+  {
+    id: 'analytics',
+    label: 'Analytics',
+    to: '/org/analytics',
+    icon: <BarChart3 />,
   },
 ];
 export const adminNavigation: NavigationItem[] = [
@@ -306,7 +321,6 @@ export function MobileNavDrawer({
   items: NavigationItem[];
   onNavigate: () => void;
 }) {
-  const location = useLocation();
   return (
     <Drawer
       open={open}
@@ -316,9 +330,6 @@ export function MobileNavDrawer({
     >
       <div className="tvx-mobile-drawer-identity">{identity}</div>
       <SideNav items={items} label="Mobile navigation" onSelect={onNavigate} />
-      <span className="visually-hidden">
-        Current location: {location.pathname}
-      </span>
     </Drawer>
   );
 }

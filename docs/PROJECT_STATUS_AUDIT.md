@@ -11,13 +11,14 @@ Percentages are evidence-based readiness scores, not estimates of elapsed engine
 
 | Area | Completion | Evidence and remaining work |
 | --- | ---: | --- |
-| Overall | 76% | Core backend and recruiter workflows plus Phase 10 offer/document journeys are functional; candidate/admin breadth, Phase 9 interview contracts, deployment automation, and browser E2E remain incomplete. |
+| Overall | 79% | Core backend and recruiter workflows plus organization administration are functional; candidate/admin breadth, Phase 9 interview contracts, deployment automation, and browser E2E remain incomplete. |
 | Backend | 94% | Modular routes/controllers/services/validators/models cover all principal domains. Remaining gaps include recruiter live interview-round DTOs, scorecard-task/overdue contracts, scheduling concurrency, and centralized audit logging. |
-| Frontend | 72% | Design system, shell/auth, dashboard, jobs, ATS, assessments, partial interviews, offers, candidate documents, and recruiter document verification are implemented. Candidate profile/applications, recruiter company/team/analytics, notifications, and admin screens remain placeholders or absent. |
+| Frontend | 78% | Design system, shell/auth, dashboard, jobs, ATS, assessments, partial interviews, offers/documents, and company/team administration are implemented. Candidate profile/applications, notifications, product-grade analytics, and admin screens remain placeholders or absent. |
 | Database/models | 92% | Major entities, indexes, snapshots, outbox, quota and workflow records exist. Interview feedback deadlines/actionable task modeling and centralized audit records are missing. |
 | Authentication/authorization | 92% | Login, registration, refresh rotation, logout, role guards, persisted recruiter permission and company checks are implemented. Password reset and email verification workflows are intentionally unsupported; browser E2E coverage remains. |
 | Candidate module | 70% | Backend profile, jobs, applications, assessments, interviews, offers and documents exist. Frontend assessment/interview, offer and owned-document surfaces exist, while profile, job discovery/application, application history and notifications remain incomplete/placeholders. |
-| Recruiter module | 81% | Dashboard, jobs, ATS, assessments, offers, offer attachments, and document verification are integrated alongside partial interviews. Company/team management, full analytics, and backend-blocked live interview scheduling/scorecard tasks remain. |
+| Recruiter module | 86% | Dashboard, jobs, ATS, assessments, offers/documents, company profile/settings, and team permission management are integrated alongside partial interviews. Organization analytics/exports and backend-blocked live interview scheduling/scorecard tasks remain. |
+| Organization administration | 88% | Company overview/create/edit, safe verification states, complete supported profile fields, protected drafts, supported settings, team search/detail/add/update/remove, and grouped permission editing use `/companies`. Invitations, organization analytics/exports, recruiter search, custom roles, owner transfer, branding uploads, and organization deletion have no supporting contracts and are explicitly unavailable. Browser E2E remains. |
 | Admin module | 40% | Backend administration exists for recruiters, companies, jobs, applications, assessments, interviews, offers, documents, notifications and analytics. Frontend admin routes are primarily placeholders. |
 | Job management | 88% | Backend lifecycle and recruiter list/detail/create/edit actions are integrated and tested. Public/candidate job discovery UI and full admin review UI remain. |
 | Application tracking | 82% | Backend candidate/recruiter/admin workflows and recruiter ATS UI are strong. Candidate application UI and admin inspection UI remain incomplete. |
@@ -58,7 +59,7 @@ Percentages are evidence-based readiness scores, not estimates of elapsed engine
 ### Partially complete
 
 - Candidate frontend: assessment, interview, offer and owned-document experiences exist; profile, job/application center and notification experiences do not.
-- Recruiter frontend: dashboard/jobs/ATS/assessments/offers/document verification exist; interviews are incomplete and company/team/analytics are not complete product pages.
+- Recruiter frontend: dashboard/jobs/ATS/assessments/offers/document verification and company/team administration exist; interviews are incomplete and organization analytics/exports are explicitly backend-blocked.
 - Interview backend: mutations exist, but managed process detail does not provide live round/schedule/scorecard state and feedback queues cannot enumerate missing/overdue work.
 - Assessment frontend: core flows are testable, but broad browser/assistive-technology coverage remains.
 - Analytics: backend reports are testable; dedicated frontend reporting is not.
@@ -67,7 +68,7 @@ Percentages are evidence-based readiness scores, not estimates of elapsed engine
 
 - Product-grade admin frontend.
 - Candidate job discovery/application, profile and notification pages.
-- Recruiter company/team and dedicated analytics pages.
+- Organization-scoped analytics/export contracts, invitation workflows, recruiter discovery, custom organization roles, and owner-transfer APIs.
 - Authoritative interview scorecard-task/deadline API and safe live-round DTO.
 - Browser E2E automation and deployment configuration.
 - Central audit-log model for administrative/export activity.
@@ -113,5 +114,5 @@ Development and production builds are available, but production deployment is no
 1. Implement the Phase 10 interview backend roadmap: live round DTOs, scorecard tasks/deadlines and scheduling concurrency.
 2. Complete candidate job/application/profile/notification frontend journeys and contextual application-document navigation.
 3. Build the admin workspace against existing administration APIs.
-4. Complete recruiter company/team/analytics modules and add broader offer/document browser E2E.
+4. Add organization analytics/export contracts if approved and broaden company/team/offer/document browser E2E.
 5. Add Playwright-style cross-role E2E tests and CI/deployment automation.

@@ -132,6 +132,20 @@
   margin-inline-start: auto;
   font-family: var(--font-mono);
 }
+@media (max-width: 30rem) {
+  .tvx-top-nav {
+    flex-wrap: nowrap;
+  }
+  .tvx-global-search {
+    flex: 0 0 var(--control-min-size);
+    max-width: var(--control-min-size);
+    padding-inline: var(--space-2);
+  }
+  .tvx-global-search span,
+  .tvx-global-search kbd {
+    display: none;
+  }
+}
 .tvx-mobile-nav-trigger {
   flex: 0 0 auto;
 }
