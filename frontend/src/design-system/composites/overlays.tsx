@@ -1,6 +1,6 @@
 import * as DialogPrimitive from '@radix-ui/react-dialog';
 import { useState, type ReactNode } from 'react';
-import { Button, IconButton } from '../components';
+import { Alert, Button, IconButton } from '../components';
 
 export interface DialogProps {
   open?: boolean;
@@ -94,19 +94,27 @@ export function ConfirmDialog({
   confirmLabel?: string;
   cancelLabel?: string;
   variant?: 'default' | 'destructive';
-  onConfirm: () => void | Promise<void>;
+  onConfirm: () => unknown;
   open?: boolean;
   onOpenChange?: (v: boolean) => void;
 }) {
   const [pending, setPending] = useState(false);
+  const [error, setError] = useState('');
   const [internal, setInternal] = useState(false);
   const controlled = open !== undefined;
   const change = onOpenChange ?? setInternal;
   const run = async () => {
     setPending(true);
+    setError('');
     try {
       await onConfirm();
       change(false);
+    } catch (cause) {
+      setError(
+        cause instanceof Error
+          ? cause.message
+          : 'The action could not be completed.',
+      );
     } finally {
       setPending(false);
     }
@@ -137,7 +145,13 @@ export function ConfirmDialog({
         </div>
       }
     >
-      <span />
+      {error ? (
+        <Alert tone="danger" title="Action failed" urgent>
+          <p>{error}</p>
+        </Alert>
+      ) : (
+        <span />
+      )}
     </Dialog>
   );
 }

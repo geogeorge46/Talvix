@@ -63,6 +63,12 @@ export const candidateNavigation: NavigationItem[] = [
     to: '/candidate/documents',
     icon: <FileText />,
   },
+  {
+    id: 'offers',
+    label: 'Offers',
+    to: '/candidate/offers',
+    icon: <BriefcaseBusiness />,
+  },
 ];
 export const organizationNavigation: NavigationItem[] = [
   { id: 'overview', label: 'Overview', to: '/org', icon: <LayoutDashboard /> },
@@ -122,6 +128,20 @@ export const organizationNavigation: NavigationItem[] = [
     to: '/org/team',
     icon: <Users />,
     anyPermission: ['team.manage'],
+  },
+  {
+    id: 'offers',
+    label: 'Offers',
+    to: '/org/offers',
+    icon: <BriefcaseBusiness />,
+    anyPermission: ['offers.view'],
+  },
+  {
+    id: 'documents',
+    label: 'Documents',
+    to: '/org/documents',
+    icon: <FileText />,
+    anyPermission: ['documents.verify'],
   },
   {
     id: 'profile',

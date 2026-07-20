@@ -68,6 +68,24 @@ import {
   TemplateFormPage,
   TemplatesPage,
 } from '../features/interviews';
+import {
+  ApprovalDetailPage,
+  ApprovalQueuePage,
+  CandidateDocumentsPage,
+  CandidateDocumentDetailPage,
+  CandidateApplicationDocumentsPage,
+  CandidateOfferDetailPage,
+  CandidateOffersPage,
+  ManagedOfferDetailPage,
+  ManagedOffersPage,
+  OfferFormPage,
+  OfferRevisionPage,
+  RecruiterDocumentsPage,
+  TemplateDetailPage as OfferTemplateDetailPage,
+  TemplateFormPage as OfferTemplateFormPage,
+  TemplatesPage as OfferTemplatesPage,
+  VerificationDetailPage,
+} from '../features/offers-documents';
 
 function Protected({
   requiredRole,
@@ -213,10 +231,8 @@ export function AppRoutes() {
           path="assessments/:assignmentId/result/:attemptId"
           element={<ResultPage />}
         />
-        <Route
-          path="offers/:offerId"
-          element={<ValidatedPlaceholder title="Offer" param="offerId" />}
-        />
+        <Route path="offers/:offerId" element={<CandidateOfferDetailPage />} />
+        <Route path="offers" element={<CandidateOffersPage />} />
         <Route
           path="profile"
           element={<WorkspacePlaceholder title="Candidate profile" />}
@@ -231,9 +247,14 @@ export function AppRoutes() {
           path="interviews/:processId"
           element={<CandidateInterviewDetailPage />}
         />
+        <Route path="documents" element={<CandidateDocumentsPage />} />
         <Route
-          path="documents"
-          element={<WorkspacePlaceholder title="Documents" />}
+          path="documents/:documentId"
+          element={<CandidateDocumentDetailPage />}
+        />
+        <Route
+          path="documents/applications/:applicationId"
+          element={<CandidateApplicationDocumentsPage />}
         />
         <Route path="*" element={<Navigate to="/not-found" replace />} />
       </Route>
@@ -474,7 +495,95 @@ export function AppRoutes() {
           path="offers/approvals/:offerId"
           element={
             <CapabilityRoute anyPermission={['offers.approve']}>
-              <WorkspacePlaceholder title="Offer approval" />
+              <ApprovalDetailPage />
+            </CapabilityRoute>
+          }
+        />
+        <Route
+          path="offers"
+          element={
+            <CapabilityRoute anyPermission={['offers.view']}>
+              <ManagedOffersPage />
+            </CapabilityRoute>
+          }
+        />
+        <Route
+          path="offers/new"
+          element={
+            <CapabilityRoute anyPermission={['offers.manage']}>
+              <OfferFormPage mode="create" />
+            </CapabilityRoute>
+          }
+        />
+        <Route
+          path="offers/templates"
+          element={
+            <CapabilityRoute anyPermission={['offers.view']}>
+              <OfferTemplatesPage />
+            </CapabilityRoute>
+          }
+        />
+        <Route
+          path="offers/templates/new"
+          element={
+            <CapabilityRoute anyPermission={['offers.manage']}>
+              <OfferTemplateFormPage mode="create" />
+            </CapabilityRoute>
+          }
+        />
+        <Route
+          path="offers/templates/:templateId"
+          element={
+            <CapabilityRoute anyPermission={['offers.view']}>
+              <OfferTemplateDetailPage />
+            </CapabilityRoute>
+          }
+        />
+        <Route
+          path="offers/templates/:templateId/edit"
+          element={
+            <CapabilityRoute anyPermission={['offers.manage']}>
+              <OfferTemplateFormPage mode="edit" />
+            </CapabilityRoute>
+          }
+        />
+        <Route
+          path="offers/approvals"
+          element={
+            <CapabilityRoute anyPermission={['offers.approve']}>
+              <ApprovalQueuePage />
+            </CapabilityRoute>
+          }
+        />
+        <Route
+          path="offers/:offerId/revise"
+          element={
+            <CapabilityRoute anyPermission={['offers.manage']}>
+              <OfferRevisionPage />
+            </CapabilityRoute>
+          }
+        />
+        <Route
+          path="offers/:offerId/edit"
+          element={
+            <CapabilityRoute anyPermission={['offers.manage']}>
+              <OfferFormPage mode="edit" />
+            </CapabilityRoute>
+          }
+        />
+        <Route
+          path="offers/:offerId"
+          element={
+            <CapabilityRoute anyPermission={['offers.view']}>
+              <ManagedOfferDetailPage />
+            </CapabilityRoute>
+          }
+        />
+        <Route
+          path="documents"
+          element={
+            <CapabilityRoute anyPermission={['documents.verify']}>
+              <RecruiterDocumentsPage />
             </CapabilityRoute>
           }
         />
@@ -482,7 +591,7 @@ export function AppRoutes() {
           path="documents/verification/:documentId"
           element={
             <CapabilityRoute anyPermission={['documents.verify']}>
-              <WorkspacePlaceholder title="Document verification" />
+              <VerificationDetailPage />
             </CapabilityRoute>
           }
         />
