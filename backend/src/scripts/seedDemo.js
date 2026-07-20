@@ -2,6 +2,7 @@ import { pathToFileURL } from 'node:url';
 import mongoose from 'mongoose';
 
 import { connectDatabase, disconnectDatabase } from '../config/database.js';
+import { env } from '../config/env.js';
 import { APPLICATION_STATUSES } from '../constants/application.js';
 import { OWNER_PERMISSIONS } from '../constants/permissions.js';
 import { Application } from '../models/Application.js';
@@ -19,6 +20,7 @@ import { InterviewRound } from '../models/InterviewRound.js';
 import { InterviewSchedule } from '../models/InterviewSchedule.js';
 import { Offer } from '../models/Offer.js';
 import { seedNotificationTemplates } from './seedNotificationTemplates.js';
+import { verifyPassword } from '../utils/password.js';
 
 // Block execution when NODE_ENV is production
 if (process.env.NODE_ENV === 'production') {
@@ -49,20 +51,41 @@ const userDefinitions = [
   { fullName: 'Bob Brown Candidate', email: 'candidate5@talvix.local', role: 'candidate', password: PASSWORD.candidate },
 ];
 
+const demoInventory = async () => {
+  const [users, companies, jobs, applications, assessments, interviews, offers, notifications] =
+    await Promise.all([
+      User.countDocuments({ email: { $in: userDefinitions.map(({ email }) => email) } }),
+      Company.countDocuments({ slug: { $in: ['talvix-labs', 'startup-labs'] } }),
+      Job.countDocuments({
+        slug: { $in: ['senior-backend-developer', 'frontend-developer', 'ui-ux-designer'] },
+      }),
+      Application.countDocuments({ applicationNumber: /^TLVX-DEMO-/ }),
+      Assessment.countDocuments({ title: 'JavaScript Screening Assessment' }),
+      InterviewProcess.countDocuments({ 'templateSnapshot.name': 'Engineering General Template' }),
+      Offer.countDocuments({ offerNumber: 'TLVX-OFFER-0001' }),
+      Notification.countDocuments({ deduplicationKey: /^demo-seed-notification-/ }),
+    ]);
+  return { users, companies, jobs, applications, assessments, interviews, offers, notifications };
+};
+
 const upsertDemoUser = async ({ fullName, email, role, password }) => {
   let user = await User.findOne({ email }).select('+password +isActive');
   if (!user) {
     user = new User({ fullName, email, role, password });
-  } else {
-    user.fullName = fullName;
-    user.role = role;
-    user.password = password; // mongoose schema hook handles hashing on save
+    user.isVerified = true;
+    user.isActive = true;
+    user.profileCompleted = true;
+    await user.save();
+    return { user, created: true };
   }
-  user.isVerified = true;
-  user.isActive = true;
-  user.profileCompleted = true;
-  await user.save();
-  return user;
+
+  if (user.role !== role || !(await verifyPassword(password, user.password))) {
+    throw new Error(
+      `Refusing to overwrite existing account ${email}. Use a clean local database or choose different demo credentials.`,
+    );
+  }
+
+  return { user, created: false };
 };
 
 const upsertCandidateProfile = async (user, index) => {
@@ -192,6 +215,7 @@ const seedAssessments = async ({ company, recruiter, candidate, application }) =
     {
       $set: {
         createdBy: recruiter._id,
+        title: 'Demo JavaScript Scope',
         type: 'single-choice',
         prompt: 'Which keyword declares a block-scoped variable?',
         skills: ['JavaScript'],
@@ -214,6 +238,7 @@ const seedAssessments = async ({ company, recruiter, candidate, application }) =
     {
       $set: {
         createdBy: recruiter._id,
+        type: 'technical',
         description: 'Demo JavaScript Screening Assessment.',
         instructions: 'Complete within 30 minutes.',
         skills: ['JavaScript'],
@@ -233,12 +258,43 @@ const seedAssessments = async ({ company, recruiter, candidate, application }) =
     { assessment: assessment._id, application: application._id },
     {
       $set: {
+        assessmentVersion: assessment.version,
         assessmentSnapshot: {
           title: assessment.title,
+          description: assessment.description,
+          instructions: assessment.instructions,
           durationMinutes: assessment.durationMinutes,
           totalMarks: assessment.totalMarks,
           passingPercentage: assessment.passingPercentage,
-          questions: [{ question: question._id, marks: 10, order: 0, isRequired: true }],
+          maximumAttempts: assessment.maximumAttempts,
+          shuffleQuestions: false,
+          shuffleOptions: false,
+          showResultImmediately: false,
+          allowBackNavigation: true,
+          negativeMarking: false,
+          negativeMarkValue: 0,
+          attachments: {
+            enabled: false,
+            maximumFiles: 0,
+            maximumFileBytes: 10 * 1024 * 1024,
+            maximumTotalBytes: 20 * 1024 * 1024,
+            allowedMimeTypes: [],
+          },
+          questions: [
+            {
+              questionId: question._id,
+              marks: 10,
+              order: 0,
+              isRequired: true,
+              type: question.type,
+              title: question.title,
+              prompt: question.prompt,
+              options: question.options,
+              correctAnswer: 'a',
+              explanation: 'let is block scoped.',
+              skills: question.skills,
+            },
+          ],
         },
         candidate: candidate._id,
         company: company._id,
@@ -435,15 +491,16 @@ const seedNotifications = async ({ admin, recruiter, pendingRecruiter, candidate
 };
 
 export const seedDemo = async () => {
+  const before = await demoInventory();
   // Ensure notification templates are seeded first
   await seedNotificationTemplates();
 
   // Create users
-  const seededUsers = await Promise.all(userDefinitions.map(upsertDemoUser));
+  const userResults = await Promise.all(userDefinitions.map(upsertDemoUser));
+  const seededUsers = userResults.map(({ user }) => user);
   const admin = seededUsers.find(u => u.email === 'admin@talvix.local');
   const recruiter = seededUsers.find(u => u.email === 'recruiter@talvix.local');
   const recruiterPending = seededUsers.find(u => u.email === 'recruiter-pending@talvix.local');
-  const primaryCandidate = seededUsers.find(u => u.email === 'candidate@talvix.local');
   const candidatesList = seededUsers.filter(u => u.role === 'candidate');
 
   // Create companies
@@ -550,14 +607,21 @@ export const seedDemo = async () => {
     jobs,
   });
 
+  const after = await demoInventory();
+  const records = Object.fromEntries(
+    Object.entries(after).map(([name, total]) => [
+      name,
+      { created: total - before[name], reused: before[name], total },
+    ]),
+  );
+
   return {
-    users: seededUsers.length,
-    companies: 2,
-    jobs: jobs.length,
-    applications: applications.length,
-    assessments: 1,
-    interviews: 1,
-    offers: 1,
+    users: {
+      created: userResults.filter(({ created }) => created).length,
+      reused: userResults.filter(({ created }) => !created).length,
+      total: seededUsers.length,
+    },
+    records,
   };
 };
 
@@ -565,14 +629,17 @@ const printSummary = (result) => {
   console.info('\n==================================================');
   console.info(' Talvix Demo Seeding Completed Successfully');
   console.info('==================================================');
-  console.info(`Records Created/Verified:`);
-  console.info(` - Users: ${result.users} (1 Admin, 2 Recruiters, 5 Candidates)`);
-  console.info(` - Companies: ${result.companies} (1 Verified, 1 Pending)`);
-  console.info(` - Jobs: ${result.jobs} (1 Published, 1 Pending Review, 1 Draft)`);
-  console.info(` - Applications: ${result.applications} (submitted, under-review, assessment-pending, interview-scheduled, offer-sent)`);
-  console.info(` - Assessments: ${result.assessments}`);
-  console.info(` - Interviews: ${result.interviews}`);
-  console.info(` - Offers: ${result.offers}`);
+  console.info('Created or safely reused records:');
+  console.info(` - Users: ${result.users.total} (${result.users.created} created, ${result.users.reused} reused; 1 Admin, 2 Recruiters, 5 Candidates)`);
+  const recordSummary = (name) =>
+    `${result.records[name].total} (${result.records[name].created} created, ${result.records[name].reused} reused)`;
+  console.info(` - Companies: ${recordSummary('companies')} — 1 Verified, 1 Pending`);
+  console.info(` - Jobs: ${recordSummary('jobs')} — Published, Pending Review, Draft`);
+  console.info(` - Applications: ${recordSummary('applications')} — five pipeline stages`);
+  console.info(` - Assessments: ${recordSummary('assessments')}`);
+  console.info(` - Interviews: ${recordSummary('interviews')}`);
+  console.info(` - Offers: ${recordSummary('offers')}`);
+  console.info(` - Notifications: ${recordSummary('notifications')}`);
   console.info('\nDemo Credentials (Local Development Only):');
   console.info(`\nAdmin:`);
   console.info(` Email: ${credentials.admin.email}`);
@@ -584,12 +651,12 @@ const printSummary = (result) => {
   console.info(` Email: ${credentials.candidate.email}`);
   console.info(` Password: ${credentials.candidate.password}`);
   console.info('\nURLs:');
-  console.info(` - Admin Login:     http://localhost:5173/login`);
-  console.info(` - Recruiter Login: http://localhost:5173/login`);
-  console.info(` - Candidate Login: http://localhost:5173/login`);
-  console.info(` - Frontend URL:     http://localhost:5173`);
-  console.info(` - Backend URL:      http://localhost:5000`);
-  console.info(` - Health-check URL: http://localhost:5000/api/v1/health`);
+  console.info(` - Admin Login:     ${env.APP_FRONTEND_URL}/login`);
+  console.info(` - Recruiter Login: ${env.APP_FRONTEND_URL}/login`);
+  console.info(` - Candidate Login: ${env.APP_FRONTEND_URL}/login`);
+  console.info(` - Frontend URL:     ${env.APP_FRONTEND_URL}`);
+  console.info(` - Backend URL:      http://localhost:${env.PORT}`);
+  console.info(` - Health-check URL: http://localhost:${env.PORT}/api/v1/health`);
   console.info('==================================================\n');
 };
 

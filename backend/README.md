@@ -22,6 +22,12 @@ so future business modules can be tested without coupling them to startup.
 Run `npm run lint` to check code quality and `npm test` to run the integration
 suite against an isolated in-memory MongoDB replica set.
 
+For a local database with representative admin, recruiter, candidate and
+workflow records, run `npm run seed:demo` before starting the server. The seed
+is idempotent, refuses to overwrite conflicting accounts, and is blocked when
+`NODE_ENV=production`. See `../docs/LOCAL_TESTING_GUIDE.md` for credentials and
+the role-based testing checklist.
+
 ## API
 
 `GET /api/v1/health` reports whether the HTTP API is running and identifies the

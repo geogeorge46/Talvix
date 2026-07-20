@@ -12,6 +12,11 @@ auditable hiring decisions.
 
 The AI service and deployment configuration remain outside the current scope.
 
+For local setup, demo credentials and the full role-based verification matrix,
+see [`docs/LOCAL_TESTING_GUIDE.md`](docs/LOCAL_TESTING_GUIDE.md). The current
+evidence-based completion assessment is in
+[`docs/PROJECT_STATUS_AUDIT.md`](docs/PROJECT_STATUS_AUDIT.md).
+
 ## Current status
 
 The backend implements authentication, profiles, companies and jobs, ATS,
