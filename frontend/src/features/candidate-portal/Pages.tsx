@@ -43,6 +43,7 @@ import {
   useSafeCandidateInterviews,
   useSafeCandidateOffers,
 } from './api';
+import type { CandidateProfile } from './model';
 import './candidate-portal.css';
 const message = (error: unknown) =>
   error instanceof Error ? error.message : 'Something went wrong.';
@@ -569,23 +570,11 @@ export function CandidateProfilePage() {
   );
 }
 type ProfileItem =
-  | { name: string; proficiency: string; yearsOfExperience: number }
-  | {
-      title: string;
-      company: string;
-      startDate?: string;
-      endDate?: string;
-      currentlyWorking?: boolean;
-    }
-  | {
-      degree: string;
-      institution: string;
-      startYear?: number;
-      endYear?: number;
-      currentlyStudying?: boolean;
-    }
-  | { title: string; description?: string }
-  | { name: string; issuingOrganization: string; expirationDate?: string };
+  | CandidateProfile['skills'][number]
+  | CandidateProfile['experience'][number]
+  | CandidateProfile['education'][number]
+  | CandidateProfile['projects'][number]
+  | CandidateProfile['certifications'][number];
 function ProfileItemContent({
   item,
   path,
@@ -594,7 +583,7 @@ function ProfileItemContent({
   path: string;
 }) {
   if (path === 'skills') {
-    const skill = item as Extract<ProfileItem, { proficiency: string }>;
+    const skill = item as CandidateProfile['skills'][number];
     return (
       <div className="candidate-item-content">
         <strong>{skill.name}</strong>
@@ -608,7 +597,7 @@ function ProfileItemContent({
     );
   }
   if (path === 'experience') {
-    const experience = item as Extract<ProfileItem, { company: string }>;
+    const experience = item as CandidateProfile['experience'][number];
     return (
       <div className="candidate-item-content">
         <strong>{experience.title}</strong>
@@ -624,7 +613,7 @@ function ProfileItemContent({
     );
   }
   if (path === 'education') {
-    const education = item as Extract<ProfileItem, { degree: string }>;
+    const education = item as CandidateProfile['education'][number];
     return (
       <div className="candidate-item-content">
         <strong>{education.degree}</strong>
@@ -640,7 +629,7 @@ function ProfileItemContent({
     );
   }
   if (path === 'projects') {
-    const project = item as Extract<ProfileItem, { description?: string }>;
+    const project = item as CandidateProfile['projects'][number];
     return (
       <div className="candidate-item-content">
         <strong>{project.title}</strong>
@@ -649,7 +638,7 @@ function ProfileItemContent({
     );
   }
   if (path === 'certifications') {
-    const certification = item as Extract<ProfileItem, { issuingOrganization: string }>;
+    const certification = item as CandidateProfile['certifications'][number];
     return (
       <div className="candidate-item-content">
         <strong>{certification.name}</strong>
