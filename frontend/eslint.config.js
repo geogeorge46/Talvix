@@ -26,4 +26,10 @@ export default tseslint.config(
       ...reactRefresh.configs.vite.rules,
     },
   },
+  {
+    files: ['scripts/**/*.mjs', '*.config.{js,ts}'],
+    languageOptions: {
+      globals: globals.node,
+    },
+  },
 );

@@ -27,13 +27,9 @@ export function PublicLayout() {
 }
 export function AuthLayout() {
   return (
-    <div className="tvx-auth-layout">
+    <div className="tvx-auth-layout-redesigned">
       <SkipLink />
-      <div className="tvx-auth-brand">
-        <strong>Talvix</strong>
-        <span>Recruitment, thoughtfully organized.</span>
-      </div>
-      <main id="main-content">
+      <main id="main-content" className="w-full">
         <Outlet />
       </main>
     </div>

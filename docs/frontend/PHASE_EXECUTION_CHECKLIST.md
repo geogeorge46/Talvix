@@ -1,5 +1,8 @@
 # Talvix frontend phase execution checklist
 
+> **Historical Phase 0 checklist.** It is retained as planning provenance and
+> does not describe current implementation status.
+
 ## Phase 0 closeout
 
 - [x] Audited complete repository boundaries, frontend inventory, backend routes/controllers/services/validators/models, auth/authorization, packages, environment key names, READMEs, product blueprint and all design-system documents.

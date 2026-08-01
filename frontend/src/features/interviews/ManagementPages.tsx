@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import {
   Alert,
   Button,
   Card,
+  ConfirmDialog,
   DataTable,
   EmptyState,
   ErrorState,
@@ -12,13 +13,15 @@ import {
   PermissionState,
   Select,
   StatusTag,
+  TextArea,
   TextField,
 } from '../../design-system';
 import { useAuth } from '../../auth/AuthProvider';
 import {
   useFeedback,
   useProcessCreate,
-  useRoundFeedback,
+  useScorecard,
+  useFeedbackAction,
   useTemplates,
 } from './api';
 import { label, type Template } from './model';
@@ -98,10 +101,14 @@ interface FeedbackRow {
   _id?: string;
   id?: string;
   round?: string;
+  roundId?: string;
   submitted?: boolean;
   submittedAt?: string;
   lastEditedAt?: string;
   recommendation?: string;
+  name?: string;
+  dueAt?: string;
+  overdue?: boolean;
 }
 export function FeedbackQueuePage() {
   const { recruiter } = useAuth(),
@@ -115,17 +122,12 @@ export function FeedbackQueuePage() {
     <div className="iv-page">
       <PageHeader
         title="My interview scorecards"
-        description="Only feedback records returned for your interviewer identity are shown."
+        description="Assigned scorecards are ordered with overdue work first."
       />
       {q.isError ? (
         <ErrorState detail={msg(q.error)} retry={() => void q.refetch()} />
       ) : (
         <>
-          <Alert tone="info" title="Completion and overdue boundary">
-            The API returns existing scorecards only. Missing pending
-            scorecards, due dates and authoritative overdue flags are
-            unavailable, so Talvix does not invent overdue work.
-          </Alert>
           <DataTable
             caption="My scorecards"
             rows={(q.data ?? []) as FeedbackRow[]}
@@ -134,14 +136,16 @@ export function FeedbackQueuePage() {
             empty={
               <EmptyState
                 title="No scorecards returned"
-                description="This does not prove there is no pending work; the backend does not return missing assignments."
+                description="You have no pending or overdue assigned scorecards."
               />
             }
             columns={[
               {
                 id: 'round',
                 header: 'Round ID',
-                render: (x) => <code>{String(x.round ?? 'Unavailable')}</code>,
+                render: (x) => (
+                  <span>{x.name || String(x.roundId ?? x.round ?? 'Unavailable')}</span>
+                ),
               },
               {
                 id: 'status',
@@ -155,16 +159,24 @@ export function FeedbackQueuePage() {
               {
                 id: 'overdue',
                 header: 'Due status',
-                render: () => <span>Unavailable</span>,
+                render: (x) => (
+                  <StatusTag tone={x.overdue ? 'danger' : 'neutral'}>
+                    {x.overdue
+                      ? 'Overdue'
+                      : x.dueAt
+                        ? new Date(x.dueAt).toLocaleString()
+                        : 'Pending'}
+                  </StatusTag>
+                ),
               },
             ]}
             renderNarrow={(x) => (
               <article className="iv-record">
-                <strong>Round {String(x.round)}</strong>
+                <strong>{x.name || `Round ${String(x.roundId ?? x.round)}`}</strong>
                 <StatusTag tone={x.submitted ? 'success' : 'warning'}>
                   {x.submitted ? 'Submitted' : 'Draft'}
                 </StatusTag>
-                <Link to={`/org/interviews/feedback/${String(x.round)}`}>
+                <Link to={`/org/interviews/feedback/${String(x.id ?? x.roundId ?? x.round)}`}>
                   Review
                 </Link>
               </article>
@@ -172,7 +184,7 @@ export function FeedbackQueuePage() {
             rowActions={(x) => (
               <Link
                 className="tvx-button tvx-button--secondary tvx-button--compact"
-                to={`/org/interviews/feedback/${String(x.round)}`}
+                to={`/org/interviews/feedback/${String(x.id ?? x.roundId ?? x.round)}`}
               >
                 Open
               </Link>
@@ -187,7 +199,26 @@ export function FeedbackDetailPage() {
   const { roundId = '' } = useParams(),
     { recruiter } = useAuth(),
     can = has(recruiter?.permissions ?? [], 'interviews.evaluate'),
-    q = useRoundFeedback(roundId, can);
+    q = useScorecard(roundId, can),
+    action = useFeedbackAction(roundId),
+    [scores, setScores] = useState<Record<string, { score: string; comment: string }>>({}),
+    [recommendation, setRecommendation] = useState(''),
+    [strengths, setStrengths] = useState(''),
+    [concerns, setConcerns] = useState(''),
+    [privateNotes, setPrivateNotes] = useState(''),
+    [visibleFeedback, setVisibleFeedback] = useState('');
+  useEffect(() => {
+    const feedback = q.data?.feedback;
+    if (!q.data || !feedback) return;
+    // Server state intentionally hydrates this persistent editing buffer.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setScores(Object.fromEntries(feedback.scores.map((x) => [x.criterionId, { score: String(x.score), comment: x.comment ?? '' }])));
+    setRecommendation(feedback.recommendation);
+    setStrengths(feedback.strengths.join('\n'));
+    setConcerns(feedback.concerns.join('\n'));
+    setPrivateNotes(feedback.privateNotes);
+    setVisibleFeedback(feedback.candidateVisibleFeedback);
+  }, [q.data]);
   if (!can)
     return (
       <PermissionState description="The interviews.evaluate permission is required." />
@@ -195,39 +226,52 @@ export function FeedbackDetailPage() {
   if (q.isLoading) return <LoadingState label="Loading scorecard" />;
   if (q.isError)
     return <ErrorState detail={msg(q.error)} retry={() => void q.refetch()} />;
-  const rows = (q.data ?? []) as FeedbackRow[];
+  const scorecard = q.data;
+  if (!scorecard) return <ErrorState detail="The scorecard was not returned." retry={() => void q.refetch()} />;
+  const immutable = scorecard.feedback?.submitted === true;
+  const payload = {
+    scores: scorecard.criteria.flatMap((criterion) => {
+      const value = scores[criterion.id];
+      return value?.score !== undefined && value.score !== '' ? [{
+        criterionId: criterion.id,
+        score: Number(value.score),
+        ...(value.comment.trim() ? { comment: value.comment.trim() } : {}),
+      }] : [];
+    }),
+    recommendation,
+    strengths: strengths.split('\n').map((x) => x.trim()).filter(Boolean),
+    concerns: concerns.split('\n').map((x) => x.trim()).filter(Boolean),
+    ...(privateNotes.trim() ? { privateNotes: privateNotes.trim() } : {}),
+    ...(visibleFeedback.trim() ? { candidateVisibleFeedback: visibleFeedback.trim() } : {}),
+  };
+  const missing = scorecard.criteria.filter((x) => x.required && !scores[x.id]?.score).map((x) => x.name);
+  const save = () => action.mutateAsync({ body: payload });
+  const submit = async () => { await save(); await action.mutateAsync({ submit: true }); };
   return (
     <div className="iv-page">
-      <PageHeader title="Round scorecard" description={`Round ${roundId}`} />
-      <Alert tone="warning" title="Scorecard criteria unavailable">
-        This endpoint returns feedback documents, not the live round scorecard
-        definition. Talvix will not manufacture criterion IDs or scoring maxima,
-        so scoring and submission are unavailable until the API provides
-        authoritative criteria.
-      </Alert>
-      {rows.length ? (
-        rows.map((x, i) => (
-          <Card
-            key={String(x.id ?? x._id ?? i)}
-            heading={x.submitted ? 'Submitted feedback' : 'Draft feedback'}
-            headingLevel={2}
-          >
-            <p>
-              Recommendation: {label(String(x.recommendation ?? 'pending'))}
-            </p>
-            <p>
-              {x.submitted
-                ? 'This feedback is immutable.'
-                : 'A feedback record exists, but criteria are unavailable for safe editing.'}
-            </p>
+      <PageHeader title={scorecard.name} description={`${label(scorecard.type)} scorecard · ${label(scorecard.status)}`} secondaryActions={<StatusTag tone={immutable ? 'success' : scorecard.overdue ? 'danger' : 'warning'}>{immutable ? 'Submitted' : scorecard.overdue ? 'Overdue' : 'Draft'}</StatusTag>} />
+      {immutable && <Alert tone="success" title="Feedback submitted">This scorecard is immutable. Submitted feedback cannot be edited.</Alert>}
+      {action.isError && <Alert tone="danger" title="Draft not saved">{msg(action.error)} Your edits remain in this form. {msg(action.error).includes('409') && <Button variant="secondary" onClick={() => void q.refetch()}>Reconcile with server</Button>}</Alert>}
+      {!immutable && missing.length > 0 && <Alert tone="warning" title={`${missing.length} required ${missing.length === 1 ? 'criterion' : 'criteria'} incomplete`}>{missing.join(', ')}</Alert>}
+      <section className="iv-scorecard" aria-label="Scoring criteria">
+        {scorecard.criteria.map((criterion, index) => (
+          <Card key={criterion.id} heading={`${index + 1}. ${criterion.name}`} headingLevel={2}>
+            <p>{criterion.description || label(criterion.category)}</p>
+            <div className="iv-score-row">
+              <TextField type="number" min={0} max={criterion.maximumScore} step={1} required={criterion.required} disabled={immutable} label={`Score out of ${criterion.maximumScore}${criterion.required ? ' (required)' : ''}`} value={scores[criterion.id]?.score ?? ''} onChange={(e) => setScores((old) => ({ ...old, [criterion.id]: { score: e.target.value, comment: old[criterion.id]?.comment ?? '' } }))} />
+              <TextArea disabled={immutable} label="Criterion comment" value={scores[criterion.id]?.comment ?? ''} onChange={(e) => setScores((old) => ({ ...old, [criterion.id]: { score: old[criterion.id]?.score ?? '', comment: e.target.value } }))} />
+            </div>
           </Card>
-        ))
-      ) : (
-        <EmptyState
-          title="No feedback documents"
-          description="No scorecard can be rendered from this response."
-        />
-      )}
+        ))}
+      </section>
+      <Card heading="Overall recommendation" headingLevel={2}>
+        <Select required disabled={immutable} label="Recommendation" value={recommendation} onChange={(e) => setRecommendation(e.target.value)} options={['strong-hire', 'hire', 'neutral', 'no-hire', 'strong-no-hire'].map((value) => ({ value, label: label(value) }))} />
+        <TextArea disabled={immutable} label="Strengths (one per line)" value={strengths} onChange={(e) => setStrengths(e.target.value)} />
+        <TextArea disabled={immutable} label="Concerns (one per line)" value={concerns} onChange={(e) => setConcerns(e.target.value)} />
+        <TextArea disabled={immutable} label="Private notes" hint="Visible only to you and authorized internal users." value={privateNotes} onChange={(e) => setPrivateNotes(e.target.value)} />
+        <TextArea disabled={immutable} label="Candidate-visible feedback" value={visibleFeedback} onChange={(e) => setVisibleFeedback(e.target.value)} />
+        {!immutable && <div className="iv-actions"><Button variant="secondary" loading={action.isPending} disabled={!recommendation} onClick={() => void save()}>Save draft</Button><ConfirmDialog title="Submit this scorecard?" description="Submission makes your feedback immutable." confirmLabel="Submit feedback" onConfirm={submit} trigger={<Button disabled={!recommendation || missing.length > 0}>Submit scorecard</Button>} /></div>}
+      </Card>
     </div>
   );
 }

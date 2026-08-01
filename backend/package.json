@@ -11,12 +11,18 @@
     "seed:demo": "node src/scripts/seedDemo.js",
     "seed:notification-templates": "node src/scripts/seedNotificationTemplates.js",
     "storage:reconcile": "node src/scripts/reconcileStorageUsage.js",
-    "storage:smoke:cloudinary": "node src/scripts/smokeCloudinaryStorage.js"
+    "storage:smoke:cloudinary": "node src/scripts/smokeCloudinaryStorage.js",
+    "backup:mongodb": "node ../ops/scripts/mongodb-backup.mjs",
+    "restore:mongodb": "node ../ops/scripts/mongodb-restore.mjs",
+    "health:check": "node ../ops/scripts/health-check.mjs"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "type": "module",
+  "engines": {
+    "node": ">=20.19.0 <21 || >=22.12.0 <23"
+  },
   "dependencies": {
     "bcrypt": "^6.0.0",
     "cloudinary": "^2.10.0",

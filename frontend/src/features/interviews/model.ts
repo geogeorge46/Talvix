@@ -9,6 +9,7 @@ export const label = (v: string) =>
 export interface Criterion {
   id: string;
   name: string;
+  description?: string;
   category: string;
   weight: number;
   maximumScore: number;
@@ -23,6 +24,9 @@ export interface RoundPlan {
   order: number;
   required: boolean;
   criteria: Criterion[];
+  status?: string;
+  interviewerIds?: string[];
+  schedule?: SafeSchedule | undefined;
 }
 export interface Template {
   id: string;
@@ -45,6 +49,33 @@ export interface Process {
   cancellationReason: string;
   rounds: RoundPlan[];
   liveRoundIds: string[];
+}
+export interface ScorecardScore {
+  criterionId: string;
+  score: number;
+  comment?: string;
+}
+export interface Scorecard {
+  id: string;
+  processId: string;
+  name: string;
+  type: string;
+  status: string;
+  dueAt: string;
+  overdue: boolean;
+  criteria: Criterion[];
+  feedback?: {
+    id: string;
+    scores: ScorecardScore[];
+    recommendation: string;
+    strengths: string[];
+    concerns: string[];
+    privateNotes: string;
+    candidateVisibleFeedback: string;
+    submitted: boolean;
+    submittedAt: string;
+    lastEditedAt: string;
+  } | undefined;
 }
 export interface SafeSchedule {
   id: string;
@@ -83,6 +114,7 @@ const criterion = (v: unknown): Criterion => {
   return {
     id: str(x.id),
     name: str(x.name),
+    description: str(x.description),
     category: str(x.category),
     weight: Number(x.weight) || 0,
     maximumScore: Number(x.maximumScore) || 0,
@@ -91,7 +123,7 @@ const criterion = (v: unknown): Criterion => {
 };
 const round = (v: unknown): RoundPlan => {
   const x = obj(v),
-    score = obj(x.scorecardTemplate);
+    score = obj(x.scorecard ?? x.scorecardTemplate);
   return {
     id: id(x),
     name: str(x.name) || 'Interview round',
@@ -101,6 +133,9 @@ const round = (v: unknown): RoundPlan => {
     order: Number(x.order) || 0,
     required: x.required !== false,
     criteria: list(score.criteria).map(criterion),
+    status: str(x.status),
+    interviewerIds: list(x.interviewerIds ?? x.interviewers).map(id),
+    schedule: x.schedule ? safeSchedule(x.schedule) : undefined,
   };
 };
 export const toTemplate = (v: unknown): Template => {
@@ -122,19 +157,49 @@ export const toProcess = (v: unknown): Process => {
     snap = obj(x.templateSnapshot);
   return {
     id: id(x),
-    applicationId: id(x.application),
-    candidateId: id(x.candidate),
-    jobId: id(x.job),
+    applicationId: id(x.applicationId ?? x.application),
+    candidateId: id(x.candidateId ?? x.candidate),
+    jobId: id(x.jobId ?? x.job),
     status: str(x.status),
     feedbackReleased: x.feedbackReleased === true,
     overallScore:
       typeof x.overallScore === 'number' ? x.overallScore : undefined,
     overallRecommendation: str(x.overallRecommendation),
     cancellationReason: str(x.cancellationReason),
-    rounds: list(snap.rounds)
+    rounds: list(x.rounds).length
+      ? list(x.rounds).map(round).sort((a, b) => a.order - b.order)
+      : list(snap.rounds)
       .map(round)
       .sort((a, b) => a.order - b.order),
     liveRoundIds: list(x.rounds).map(id),
+  };
+};
+export const toScorecard = (v: unknown): Scorecard => {
+  const x = obj(v), feedback = obj(x.feedback);
+  return {
+    id: id(x.roundId || x),
+    processId: id(x.processId),
+    name: str(x.name) || 'Interview scorecard',
+    type: str(x.type),
+    status: str(x.status),
+    dueAt: str(x.dueAt),
+    overdue: x.overdue === true,
+    criteria: list(x.criteria ?? obj(x.scorecard).criteria).map(criterion),
+    feedback: x.feedback ? {
+      id: id(feedback),
+      scores: list(feedback.scores).map((value) => {
+        const score = obj(value);
+        return { criterionId: str(score.criterionId), score: Number(score.score), ...(str(score.comment) ? { comment: str(score.comment) } : {}) };
+      }),
+      recommendation: str(feedback.recommendation),
+      strengths: list(feedback.strengths).map(str),
+      concerns: list(feedback.concerns).map(str),
+      privateNotes: str(feedback.privateNotes),
+      candidateVisibleFeedback: str(feedback.candidateVisibleFeedback),
+      submitted: feedback.submitted === true,
+      submittedAt: str(feedback.submittedAt),
+      lastEditedAt: str(feedback.lastEditedAt),
+    } : undefined,
   };
 };
 export const safeSchedule = (v: unknown): SafeSchedule => {

@@ -1,1 +1,107 @@
-import*as x from'../services/interviewFeedback.service.js';const h=f=>async(r,s,n)=>{try{return await f(r,s);}catch(e){return n(e);}};export const list=h(async(r,s)=>s.json({success:true,message:'Interview feedback retrieved successfully',data:{feedback:await x.listFeedback(r.company.id,r.user.id)}}));export const round=h(async(r,s)=>s.json({success:true,message:'Round feedback retrieved successfully',data:{feedback:await x.roundFeedback(r.company.id,r.params.roundId)}}));export const save=h(async(r,s)=>s.json({success:true,message:'Interview feedback saved successfully',data:{feedback:await x.saveFeedback(r.company.id,r.params.roundId,r.user.id,r.body)}}));export const submit=h(async(r,s)=>s.json({success:true,message:'Interview feedback submitted successfully',data:{feedback:await x.submitFeedback(r.company.id,r.params.roundId,r.user.id)}}));export const start=h(async(r,s)=>s.json({success:true,message:'Interview round started successfully',data:{round:await x.startRound(r.company.id,r.params.processId,r.params.roundId,r.user.id)}}));export const complete=h(async(r,s)=>s.json({success:true,message:'Interview round completed successfully',data:{round:await x.completeRound(r.company.id,r.params.processId,r.params.roundId,r.user.id,r.body.reason)}}));
+import * as x from "../services/interviewFeedback.service.js";
+import {
+  getScorecard,
+  listScorecards,
+} from "../services/interviewScorecard.service.js";
+const h = (f) => async (r, s, n) => {
+  try {
+    return await f(r, s);
+  } catch (e) {
+    return n(e);
+  }
+};
+export const list = h(async (r, s) =>
+  s.json({
+    success: true,
+    message: "Interview feedback retrieved successfully",
+    data: { feedback: await x.listFeedback(r.company.id, r.user.id) },
+  }),
+);
+export const pending = h(async (r, s) =>
+  s.json({
+    success: true,
+    message: "Pending scorecards retrieved successfully",
+    data: {
+      scorecards: await listScorecards(r.company.id, r.user.id, false),
+    },
+  }),
+);
+export const overdue = h(async (r, s) =>
+  s.json({
+    success: true,
+    message: "Overdue scorecards retrieved successfully",
+    data: { scorecards: await listScorecards(r.company.id, r.user.id, true) },
+  }),
+);
+export const detail = h(async (r, s) =>
+  s.json({
+    success: true,
+    message: "Scorecard retrieved successfully",
+    data: {
+      scorecard: await getScorecard(r.company.id, r.params.roundId, r.user.id),
+    },
+  }),
+);
+export const round = h(async (r, s) =>
+  s.json({
+    success: true,
+    message: "Round feedback retrieved successfully",
+    data: { feedback: await x.roundFeedback(r.company.id, r.params.roundId) },
+  }),
+);
+export const save = h(async (r, s) =>
+  s.json({
+    success: true,
+    message: "Interview feedback saved successfully",
+    data: {
+      feedback: await x.saveFeedback(
+        r.company.id,
+        r.params.roundId,
+        r.user.id,
+        r.body,
+      ),
+    },
+  }),
+);
+export const submit = h(async (r, s) =>
+  s.json({
+    success: true,
+    message: "Interview feedback submitted successfully",
+    data: {
+      feedback: await x.submitFeedback(
+        r.company.id,
+        r.params.roundId,
+        r.user.id,
+      ),
+    },
+  }),
+);
+export const start = h(async (r, s) =>
+  s.json({
+    success: true,
+    message: "Interview round started successfully",
+    data: {
+      round: await x.startRound(
+        r.company.id,
+        r.params.processId,
+        r.params.roundId,
+        r.user.id,
+      ),
+    },
+  }),
+);
+export const complete = h(async (r, s) =>
+  s.json({
+    success: true,
+    message: "Interview round completed successfully",
+    data: {
+      round: await x.completeRound(
+        r.company.id,
+        r.params.processId,
+        r.params.roundId,
+        r.user.id,
+        r.body.reason,
+      ),
+    },
+  }),
+);

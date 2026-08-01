@@ -1,5 +1,8 @@
 # Talvix frontend readiness audit
 
+> **Historical Phase 0 document.** The frontend has since been implemented
+> through Phase 12. See `../PROJECT_PROGRESS_REPORT.md` and `../AI.md`.
+
 **Phase:** 0 — planning only  
 **Evidence date:** 2026-07-19  
 **Status legend:** **Implemented** = verified in repository; **Recommended** = proposed frontend decision; **Future** = outside current API scope; **Decision Required** = approval needed; **Gap** = missing capability or contract.

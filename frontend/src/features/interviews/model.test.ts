@@ -2,6 +2,9 @@ import { describe, expect, it } from 'vitest';
 import {
   candidatePrivateKeys,
   formatZoned,
+  toProcess,
+  toScorecard,
+  zonedLocalToIso,
   toCandidateProcess,
   validateSlots,
 } from './model';
@@ -55,5 +58,23 @@ describe('interview privacy and time contracts', () => {
         { startTime: '2030-01-01T11:00', endTime: '2030-01-01T10:00' },
       ]),
     ).toContain('follow');
+  });
+  it('maps the exact recruiter detail DTO and authoritative live round', () => {
+    const process = toProcess({
+      id: 'p1',
+      applicationId: 'a1',
+      candidateId: 'c1',
+      jobId: 'j1',
+      status: 'active',
+      rounds: [{ id: 'r1', name: 'Panel', order: 0, durationMinutes: 60, status: 'scheduled', interviewerIds: ['u1'], scorecard: { criteria: [] }, schedule: { id: 's1', timezone: 'Asia/Kolkata', startTime: '2030-01-01T04:30:00.000Z' } }],
+    });
+    expect(process).toMatchObject({ applicationId: 'a1', candidateId: 'c1', jobId: 'j1' });
+    expect(process.rounds[0]).toMatchObject({ id: 'r1', status: 'scheduled', interviewerIds: ['u1'], schedule: { id: 's1' } });
+  });
+  it('converts a selected IANA local time rather than the browser timezone', () => {
+    expect(zonedLocalToIso('2030-01-01T10:00', 'Asia/Kolkata')).toBe('2030-01-01T04:30:00.000Z');
+  });
+  it('normalizes queue and detail scorecards through one DTO', () => {
+    expect(toScorecard({ roundId: 'r1', processId: 'p1', criteria: [{ id: 'c', name: 'Clarity', maximumScore: 5 }] })).toMatchObject({ id: 'r1', processId: 'p1', criteria: [{ id: 'c', maximumScore: 5 }] });
   });
 });

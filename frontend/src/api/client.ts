@@ -113,11 +113,18 @@ export interface RequestOptions extends Omit<RequestInit, 'body'> {
   auth?: boolean;
   retry401?: boolean;
 }
+const REPLAY_SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
+
+function canReplayAfterRefresh(method?: string) {
+  return REPLAY_SAFE_METHODS.has((method ?? 'GET').toUpperCase());
+}
+
 export async function apiRequest<T>(
   path: string,
   options: RequestOptions = {},
 ): Promise<T> {
   const { body, auth = true, retry401 = true, headers, ...init } = options;
+  const replayAfterRefresh = retry401 && canReplayAfterRefresh(init.method);
   const requestHeaders = new Headers(headers);
   requestHeaders.set('Accept', 'application/json');
   if (body !== undefined)
@@ -131,9 +138,14 @@ export async function apiRequest<T>(
   };
   if (body !== undefined) requestInit.body = JSON.stringify(body);
   const response = await fetch(`${API_BASE_URL}${path}`, requestInit);
-  if (response.status === 401 && auth && retry401) {
+  if (response.status === 401 && auth && replayAfterRefresh) {
     const refreshed = await refreshAccessToken();
     if (refreshed) return apiRequest<T>(path, { ...options, retry401: false });
+    tokenStore.clear();
+    onSessionExpired?.();
+  } else if (response.status === 401 && auth && retry401) {
+    const refreshed = await refreshAccessToken();
+    if (refreshed) throw await parseError(response);
     tokenStore.clear();
     onSessionExpired?.();
   }

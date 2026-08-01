@@ -3,6 +3,9 @@ import { apiRequest } from '../../api/client';
 import type { RecruiterPermission } from '../../auth/types';
 import { toCompany, type CompanyDraft, serializeCompany } from './model';
 export const companyKey = ['organization-company'] as const;
+const clearTeamCache = (qc: ReturnType<typeof useQueryClient>) => {
+  qc.removeQueries({ queryKey: [...companyKey, 'team'], exact: true });
+};
 export async function loadCompany(includeTeam = false) {
   const response = await apiRequest<{ company?: unknown }>('/companies/me');
   return toCompany(response.company, includeTeam);
@@ -36,6 +39,7 @@ export function useAddMember() {
       role: string;
       permissions: RecruiterPermission[];
     }) => apiRequest('/companies/me/team', { method: 'POST', body }),
+    onMutate: () => clearTeamCache(qc),
     onSettled: () => void qc.invalidateQueries({ queryKey: companyKey }),
   });
 }
@@ -47,6 +51,7 @@ export function useUpdateMember(id: string) {
       permissions?: RecruiterPermission[];
       status?: 'active' | 'removed';
     }) => apiRequest(`/companies/me/team/${id}`, { method: 'PATCH', body }),
+    onMutate: () => clearTeamCache(qc),
     onSettled: () => void qc.invalidateQueries({ queryKey: companyKey }),
   });
 }
@@ -55,6 +60,7 @@ export function useRemoveMember(id: string) {
   return useMutation({
     mutationFn: () =>
       apiRequest(`/companies/me/team/${id}`, { method: 'DELETE' }),
+    onMutate: () => clearTeamCache(qc),
     onSettled: () => void qc.invalidateQueries({ queryKey: companyKey }),
   });
 }

@@ -9,6 +9,8 @@ import {
   Alert,
   Button,
   Card,
+  ConfirmDialog,
+  Dialog,
   DataTable,
   DescriptionList,
   EmptyState,
@@ -27,6 +29,7 @@ import { useAuth } from '../../auth/AuthProvider';
 import {
   useProcess,
   useProcessAction,
+  useRoundAction,
   useProcesses,
   useTemplate,
   useTemplateAction,
@@ -34,11 +37,13 @@ import {
   useTemplateSave,
 } from './api';
 import {
+  formatZoned,
   label,
   type CandidateProcess,
   type Process,
   type RoundPlan,
   type Template,
+  zonedLocalToIso,
 } from './model';
 import './interviews.css';
 const has = (p: string[], v: string) => p.includes(v),
@@ -628,8 +633,12 @@ export function ProcessDetailPage() {
     { recruiter } = useAuth(),
     view = has(recruiter?.permissions ?? [], 'interviews.view'),
     manage = has(recruiter?.permissions ?? [], 'interviews.manage'),
+    schedule = has(recruiter?.permissions ?? [], 'interviews.schedule'),
+    evaluate = has(recruiter?.permissions ?? [], 'interviews.evaluate'),
     q = useProcess(processId, view && oid.test(processId)),
-    action = useProcessAction(processId);
+    action = useProcessAction(processId),
+    [reason, setReason] = useState(''),
+    [recommendation, setRecommendation] = useState('hire');
   if (!view)
     return (
       <PermissionState description="The interviews.view permission is required." />
@@ -641,8 +650,8 @@ export function ProcessDetailPage() {
   return (
     <div className="iv-page">
       <PageHeader
-        title="Interview process"
-        description={`Application ${p.applicationId}`}
+        title="Interview runbook"
+        description={`Application ${p.applicationId} · Candidate ${p.candidateId}`}
         secondaryActions={
           <StatusTag tone={tone(p.status)}>{label(p.status)}</StatusTag>
         }
@@ -653,7 +662,7 @@ export function ProcessDetailPage() {
         </Alert>
       )}
       <div className="iv-split">
-        <Card heading="Process summary" headingLevel={2}>
+        <Card heading="Process control" headingLevel={2}>
           <DescriptionList
             items={[
               { term: 'Candidate ID', description: p.candidateId },
@@ -671,51 +680,76 @@ export function ProcessDetailPage() {
           {manage && (
             <div className="iv-actions">
               {['draft', 'active'].includes(p.status) && (
-                <Button
-                  variant="danger"
-                  onClick={() =>
-                    void action.mutateAsync({
-                      action: 'cancel',
-                      body: { reason: 'Cancelled by recruiter' },
-                    })
-                  }
-                >
-                  Cancel process
-                </Button>
+                <ConfirmDialog title="Cancel interview process?" description={<TextArea required label="Reason" value={reason} onChange={(e) => setReason(e.target.value)} />} confirmLabel="Cancel process" variant="destructive" onConfirm={() => action.mutateAsync({ action: 'cancel', body: { reason } })} trigger={<Button variant="danger">Cancel process</Button>} />
               )}
               {p.status === 'completed' && !p.feedbackReleased && (
-                <Button
-                  onClick={() =>
-                    void action.mutateAsync({ action: 'release-feedback' })
-                  }
-                >
-                  Release feedback
-                </Button>
+                <ConfirmDialog title="Release feedback to the candidate?" description="Candidate-visible feedback becomes available immediately." confirmLabel="Release feedback" onConfirm={() => action.mutateAsync({ action: 'release-feedback' })} trigger={<Button>Release feedback</Button>} />
               )}
               {['completed', 'cancelled'].includes(p.status) && (
-                <Button
-                  variant="secondary"
-                  onClick={() => void action.mutateAsync({ action: 'archive' })}
-                >
-                  Archive
-                </Button>
+                <ConfirmDialog title="Archive this process?" description="It will leave the active recruiter workspace." confirmLabel="Archive" onConfirm={() => action.mutateAsync({ action: 'archive' })} trigger={<Button variant="secondary">Archive</Button>} />
               )}
             </div>
           )}
         </Card>
-        <Card heading="Live workflow unavailable" headingLevel={2}>
-          <Alert
-            tone="warning"
-            title="Scheduling and interviewer assignment cannot be opened here"
-          >
-            The API returns round identifiers but no live round records. Talvix
-            will not infer statuses or pair snapshot rounds to IDs. Scheduling
-            becomes available when the backend provides an authoritative
-            recruiter round endpoint.
-          </Alert>
+        <Card heading="Final decision" headingLevel={2}>
+          <p>Finalize only after every required round is completed or skipped.</p>
+          {manage && !['completed', 'cancelled', 'archived'].includes(p.status) && <>
+            <Select label="Recommendation" value={recommendation} onChange={(e) => setRecommendation(e.target.value)} options={['strong-hire','hire','neutral','no-hire','strong-no-hire'].map((value) => ({ value, label: label(value) }))} />
+            <TextArea required label="Decision or override reason" value={reason} onChange={(e) => setReason(e.target.value)} />
+            <ConfirmDialog title="Finalize interview process?" description="This computes the aggregate result and completes the process." confirmLabel="Finalize" onConfirm={() => action.mutateAsync({ action: 'finalize', body: { recommendation, reason } })} trigger={<Button disabled={!reason}>Finalize process</Button>} />
+          </>}
         </Card>
       </div>
-      <Rail rounds={p.rounds} definition />
+      {action.isError && <Alert tone="danger" title="Process action failed">{err(action.error)}</Alert>}
+      <section className="iv-runbook" aria-label="Live interview rounds">
+        <header><h2>Round timeline</h2><p>Live state from the interview service</p></header>
+        <ol>
+          {p.rounds.map((round, index) => <LiveRound key={round.id} processId={p.id} round={round} index={index} canSchedule={schedule} canEvaluate={evaluate} />)}
+        </ol>
+      </section>
     </div>
   );
+}
+
+function LiveRound({ processId, round, index, canSchedule, canEvaluate }: { processId: string; round: RoundPlan; index: number; canSchedule: boolean; canEvaluate: boolean }) {
+  const action = useRoundAction(processId, round.id);
+  const [open, setOpen] = useState(false), [reason, setReason] = useState(''), [party, setParty] = useState('candidate'), [formError, setFormError] = useState('');
+  const [interviewers, setInterviewers] = useState((round.interviewerIds ?? []).join(', '));
+  const [timezone, setTimezone] = useState(round.schedule?.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone);
+  const [start, setStart] = useState(''), [mode, setMode] = useState(round.schedule?.mode || 'video');
+  const [provider, setProvider] = useState(round.schedule?.meetingProvider || 'custom'), [details, setDetails] = useState(round.schedule?.meetingUrl || '');
+  const scheduled = Boolean(round.schedule), isActive = ['scheduled', 'in-progress', 'awaiting-feedback'].includes(round.status ?? '');
+  const submitSchedule = () => {
+    setFormError('');
+    let startIso = '';
+    try { startIso = zonedLocalToIso(start, timezone); } catch (cause) { setFormError(err(cause)); return Promise.reject(cause); }
+    if (mode === 'video' && !/^https:\/\//i.test(details)) { const cause = new Error('Enter a valid HTTPS meeting URL.'); setFormError(cause.message); return Promise.reject(cause); }
+    const startTime = new Date(startIso), endTime = new Date(startTime.getTime() + round.durationMinutes * 60000);
+    const body: Record<string, unknown> = { interviewerIds: interviewers.split(',').map((x) => x.trim()).filter(Boolean), timezone, startTime: startTime.toISOString(), endTime: endTime.toISOString(), mode, meetingProvider: provider, ...(scheduled ? { reason } : {}) };
+    if (mode === 'video') body.meetingUrl = details;
+    if (mode === 'phone') body.phoneDetails = { phoneNumber: details };
+    if (mode === 'onsite') body.location = { name: 'Interview location', address: details };
+    return action.mutateAsync({ action: scheduled ? 'reschedule' : 'schedule', body }).then(() => setOpen(false)).catch((cause) => { setFormError(err(cause)); throw cause; });
+  };
+  return <li className={isActive ? 'iv-round iv-round--active' : 'iv-round'}>
+    <span className="iv-round__marker" aria-hidden="true">{index + 1}</span>
+    <article>
+      <header><div><small>Round {index + 1} · {label(round.type)}</small><h3>{round.name}</h3></div><StatusTag tone={tone(round.status ?? 'pending')}>{label(round.status ?? 'pending')}</StatusTag></header>
+      <p>{round.description || `${round.durationMinutes} minute structured interview`}</p>
+      <dl className="iv-round__meta"><div><dt>Duration</dt><dd>{round.durationMinutes} min</dd></div><div><dt>Interviewers</dt><dd>{round.interviewerIds?.length ? round.interviewerIds.join(', ') : 'Unassigned'}</dd></div><div><dt>Schedule</dt><dd>{round.schedule ? formatZoned(round.schedule.startTime, round.schedule.timezone) : 'Not scheduled'}</dd></div><div><dt>Mode</dt><dd>{round.schedule ? `${label(round.schedule.mode)} · ${label(round.schedule.meetingProvider)}` : '—'}</dd></div></dl>
+      {action.isError && <Alert tone="danger" title="Round action failed">{err(action.error)}</Alert>}
+      <div className="iv-actions">
+        {canSchedule && ['pending','scheduled'].includes(round.status ?? '') && <Button onClick={() => setOpen(true)}>{scheduled ? 'Reschedule' : 'Schedule round'}</Button>}
+        {canEvaluate && round.status === 'scheduled' && <Button onClick={() => void action.mutateAsync({ action: 'start' })}>Start round</Button>}
+        {canEvaluate && ['in-progress','awaiting-feedback'].includes(round.status ?? '') && <ConfirmDialog title="Complete this round?" description={<TextArea label="Reason if feedback is incomplete" value={reason} onChange={(e) => setReason(e.target.value)} />} confirmLabel="Complete round" onConfirm={() => action.mutateAsync({ action: 'complete', body: { reason } })} trigger={<Button>Complete round</Button>} />}
+        {canSchedule && scheduled && ['scheduled','in-progress'].includes(round.status ?? '') && <ConfirmDialog title="Record a no-show?" description={<div className="iv-form-grid"><Select label="Absent party" value={party} onChange={(e) => setParty(e.target.value)} options={['candidate','interviewer','both'].map((value) => ({ value, label: label(value) }))} /><TextArea required label="Reason" error={!reason.trim() ? 'A reason is required.' : undefined} value={reason} onChange={(e) => setReason(e.target.value)} /></div>} confirmLabel="Record no-show" variant="destructive" onConfirm={() => reason.trim() ? action.mutateAsync({ action: 'no-show', body: { party, reason: reason.trim() } }) : Promise.reject(new Error('A reason is required.'))} trigger={<Button variant="secondary">No-show</Button>} />}
+        {canEvaluate && round.interviewerIds?.length ? <Link to={`/org/interviews/feedback/${round.id}`}>Open scorecard</Link> : null}
+        {canSchedule && scheduled && !['completed','cancelled'].includes(round.status ?? '') && <ConfirmDialog title="Cancel this round?" description={<TextArea required label="Reason" value={reason} onChange={(e) => setReason(e.target.value)} />} confirmLabel="Cancel round" variant="destructive" onConfirm={() => action.mutateAsync({ action: 'cancel', body: { reason } })} trigger={<Button variant="danger">Cancel</Button>} />}
+      </div>
+    </article>
+    <Dialog open={open} onOpenChange={setOpen} title={scheduled ? 'Reschedule round' : 'Schedule round'} description={`The end time is fixed to ${round.durationMinutes} minutes after the start.`} footer={<div className="tvx-dialog__actions"><Button variant="secondary" onClick={() => setOpen(false)}>Close</Button><Button loading={action.isPending} disabled={!interviewers || !start || !details || (scheduled && !reason)} onClick={() => void submitSchedule()}>{scheduled ? 'Reschedule' : 'Schedule'}</Button></div>}>
+      {formError && <Alert tone="danger" title="Check the scheduling fields">{formError}</Alert>}
+      <div className="iv-form-grid"><TextField required label="Interviewer IDs (comma separated)" value={interviewers} onChange={(e) => setInterviewers(e.target.value)} /><TextField required label="IANA timezone" error={formError.toLowerCase().includes('timezone') ? formError : undefined} value={timezone} onChange={(e) => setTimezone(e.target.value)} /><TextField required type="datetime-local" label="Start time" error={formError.toLowerCase().includes('local time') ? formError : undefined} value={start} onChange={(e) => setStart(e.target.value)} /><Select label="Mode" value={mode} onChange={(e) => setMode(e.target.value)} options={['video','phone','onsite'].map((value) => ({ value, label: label(value) }))} /><Select label="Meeting provider" value={provider} onChange={(e) => setProvider(e.target.value)} options={['zoom','google-meet','microsoft-teams','custom','none'].map((value) => ({ value, label: label(value) }))} /><TextField required error={formError.toLowerCase().includes('https') ? formError : undefined} label={mode === 'video' ? 'HTTPS meeting URL' : mode === 'phone' ? 'Phone number' : 'Location address'} value={details} onChange={(e) => setDetails(e.target.value)} />{scheduled && <TextArea required label="Reschedule reason" value={reason} onChange={(e) => setReason(e.target.value)} />}</div>
+    </Dialog>
+  </li>;
 }

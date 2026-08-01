@@ -1,5 +1,10 @@
 # Talvix project status audit
 
+> **Superseded on 2026-07-21.** This rolling phase-era audit is retained for
+> historical context. Use [PROJECT_PROGRESS_REPORT.md](./PROJECT_PROGRESS_REPORT.md)
+> for current status, [FEATURE_MATRIX.md](./FEATURE_MATRIX.md) for feature
+> classification, and [AI.md](./AI.md) for as-built context.
+
 **Audit date:** 2026-07-20  
 **Classification:** Functional beta
 
@@ -11,12 +16,12 @@ Percentages are evidence-based readiness scores, not estimates of elapsed engine
 
 | Area | Completion | Evidence and remaining work |
 | --- | ---: | --- |
-| Overall | 79% | Core backend and recruiter workflows plus organization administration are functional; candidate/admin breadth, Phase 9 interview contracts, deployment automation, and browser E2E remain incomplete. |
+| Overall | 80% | Core backend, recruiter workflows, organization administration, and substantial candidate workflows are functional; candidate contract breadth, admin UI, interview contracts, deployment automation, and browser E2E remain incomplete. |
 | Backend | 94% | Modular routes/controllers/services/validators/models cover all principal domains. Remaining gaps include recruiter live interview-round DTOs, scorecard-task/overdue contracts, scheduling concurrency, and centralized audit logging. |
-| Frontend | 78% | Design system, shell/auth, dashboard, jobs, ATS, assessments, partial interviews, offers/documents, and company/team administration are implemented. Candidate profile/applications, notifications, product-grade analytics, and admin screens remain placeholders or absent. |
+| Frontend | 82% | Design system, shell/auth, recruiter domains, organization administration, and core candidate routes are integrated. Candidate profile-photo/basic-account editing, full notification bulk/detail UX, analytics/admin screens, and browser E2E remain absent. |
 | Database/models | 92% | Major entities, indexes, snapshots, outbox, quota and workflow records exist. Interview feedback deadlines/actionable task modeling and centralized audit records are missing. |
 | Authentication/authorization | 92% | Login, registration, refresh rotation, logout, role guards, persisted recruiter permission and company checks are implemented. Password reset and email verification workflows are intentionally unsupported; browser E2E coverage remains. |
-| Candidate module | 70% | Backend profile, jobs, applications, assessments, interviews, offers and documents exist. Frontend assessment/interview, offer and owned-document surfaces exist, while profile, job discovery/application, application history and notifications remain incomplete/placeholders. |
+| Candidate module | 84% | Candidate deadline/action dashboard, profile and core collection CRUD, public jobs/question-aware apply with local drafts, safe applications/timeline/withdrawal, assessments, interviews, offers, documents, notifications/preferences, privacy and account settings are routed to owned contracts. Specialized profile photo, complete optional collection fields, notification detail/bulk UX, upload polling, server-safe notification targets, browser E2E and backend-blocked security/account controls remain. |
 | Recruiter module | 86% | Dashboard, jobs, ATS, assessments, offers/documents, company profile/settings, and team permission management are integrated alongside partial interviews. Organization analytics/exports and backend-blocked live interview scheduling/scorecard tasks remain. |
 | Organization administration | 88% | Company overview/create/edit, safe verification states, complete supported profile fields, protected drafts, supported settings, team search/detail/add/update/remove, and grouped permission editing use `/companies`. Invitations, organization analytics/exports, recruiter search, custom roles, owner transfer, branding uploads, and organization deletion have no supporting contracts and are explicitly unavailable. Browser E2E remains. |
 | Admin module | 40% | Backend administration exists for recruiters, companies, jobs, applications, assessments, interviews, offers, documents, notifications and analytics. Frontend admin routes are primarily placeholders. |
@@ -25,7 +30,7 @@ Percentages are evidence-based readiness scores, not estimates of elapsed engine
 | Assessments | 80% | Backend definitions, questions, assignments, attempts, review and result release exist; recruiter/candidate frontend flows and resilience tests exist. Some authoring breadth and cross-browser verification remain. |
 | Interviews | 62% | Backend workflow is broad and candidate UI is partially integrated. Recruiter live round DTOs, authoritative overdue scorecards, concurrency, and multiple Phase 9 recruiter surfaces remain blocked/incomplete. |
 | Offers | 86% | Recruiter templates, drafts, create/edit, approval, detail, revisions, attachments and candidate list/detail/respond journeys use the real backend. Remaining gaps are server capability/version DTOs, list/approval pagination limitations, ignored managed-list filters, broader browser E2E, and admin UI. |
-| Notifications | 48% | Backend inbox, preferences, templates, outbox and failure isolation are implemented. Frontend notification center is a placeholder. |
+| Notifications | 68% | Backend inbox and preferences are surfaced through a candidate-safe notification center with strict route target allowlisting. Full preference editing, recruiter/admin notification products and browser coverage remain. |
 | Files/documents | 78% | Candidate ownership manager, server-constrained upload/replace/download/delete handling, offer attachments, and recruiter application-document verification are integrated. The backend has no organization-wide document repository, replacement-request action, offer-attachment delete/access update, or processing-status polling; admin UI and a real malware provider remain. |
 | Analytics | 45% | Backend admin analytics and exports are comprehensive; recruiter dashboard uses selected aggregates. Dedicated recruiter/admin analytics pages are missing. |
 | Testing | 85% | Backend integration coverage exercises transactions, privacy, permissions and concurrency; frontend has component/route/a11y-oriented tests. No full browser E2E suite, coverage threshold, or broad device/AT matrix exists. |
@@ -36,7 +41,7 @@ Percentages are evidence-based readiness scores, not estimates of elapsed engine
 | Module | Completed | Partial | Missing | Testable now | Integration still required |
 | --- | --- | --- | --- | --- | --- |
 | Authentication/authorization | Register/login/logout/refresh/me, role middleware, persisted recruiter permissions and company membership checks | Frontend session restoration and route guards need browser-level verification | Password reset and email-verification workflows | API integration suite and local role logins | Production cookie/CORS/CSP verification and E2E |
-| Candidate | Backend profile, application, assessment, interview, offer and document ownership contracts; assessment, interview, offer and owned-document frontend | Application documents remain contextual rather than a unified application center | Profile editor, job discovery/apply, application center and notification pages | APIs plus assessment/interview/offer/document UI | Remaining candidate pages and browser E2E |
+| Candidate | Backend ownership contracts plus candidate dashboard, profile, jobs/apply, applications, assessments, interviews, offers, documents, notifications and settings frontend | Optional nested-profile breadth, profile-photo integration and notification bulk/detail polish | Browser E2E and backend-blocked security/account controls | Integrated RTL journey and candidate APIs | Remaining contract polish and browser/AT verification |
 | Recruiter | Backend company/team and every hiring domain; dashboard, jobs, ATS, assessment, offers and document verification UI | Interview UI and document verification context hub | Company/team and dedicated analytics pages; organization-wide document repository has no API | Existing integrated UI and backend APIs | Phase 10 interview backend roadmap plus remaining recruiter pages |
 | Admin | Full backend administrative route families and analytics | Shell and validated placeholder routes | Product dashboards, queues, decisions and reports | All admin APIs | Complete admin frontend |
 | Jobs | Lifecycle, permissions, validation, public discovery, recruiter CRUD/lifecycle UI | Admin review only through API | Candidate job browsing/application UI and admin review UI | Recruiter UI and all APIs | Candidate/admin pages |
@@ -58,7 +63,7 @@ Percentages are evidence-based readiness scores, not estimates of elapsed engine
 
 ### Partially complete
 
-- Candidate frontend: assessment, interview, offer and owned-document experiences exist; profile, job/application center and notification experiences do not.
+- Candidate frontend: all principal candidate routes exist; optional profile breadth, specialized photo delivery, notification bulk/detail polish and broader assistive-technology coverage remain partial.
 - Recruiter frontend: dashboard/jobs/ATS/assessments/offers/document verification and company/team administration exist; interviews are incomplete and organization analytics/exports are explicitly backend-blocked.
 - Interview backend: mutations exist, but managed process detail does not provide live round/schedule/scorecard state and feedback queues cannot enumerate missing/overdue work.
 - Assessment frontend: core flows are testable, but broad browser/assistive-technology coverage remains.
@@ -67,7 +72,7 @@ Percentages are evidence-based readiness scores, not estimates of elapsed engine
 ### Missing
 
 - Product-grade admin frontend.
-- Candidate job discovery/application, profile and notification pages.
+- Candidate browser E2E and specialized profile-photo/account-security experiences.
 - Organization-scoped analytics/export contracts, invitation workflows, recruiter discovery, custom organization roles, and owner-transfer APIs.
 - Authoritative interview scorecard-task/deadline API and safe live-round DTO.
 - Browser E2E automation and deployment configuration.
@@ -91,6 +96,8 @@ Percentages are evidence-based readiness scores, not estimates of elapsed engine
 4. Document replacement-request, company-wide repository, offer attachment delete/access-toggle, and processing-status polling contracts do not exist; the frontend exposes these as unavailable rather than simulating them.
 5. Offer DTOs have no server capability matrix or concurrency version, candidate lists and approval queues lack usable pagination, and managed search/employment filters are not applied.
 6. No end-to-end deployed test environment or automated deployment pipeline exists.
+7. Candidate notifications do not include a server-authored safe-target DTO; the frontend ignores `actionUrl` and maps only known type/id pairs.
+8. The HTTP client can automatically retry a mutation after a 401. Phase 12 candidate mutations opt out, but the global default remains a cross-module consequential-action safety risk.
 
 ## Security concerns
 

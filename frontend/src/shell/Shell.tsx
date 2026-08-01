@@ -24,6 +24,10 @@ import {
   Users,
   Settings,
   BarChart3,
+  UserRound,
+  RadioTower,
+  MessageSquareText,
+  ListChecks,
 } from 'lucide-react';
 import { Button, Drawer, IconButton, Menu } from '../design-system';
 import { useAuth } from '../auth/AuthProvider';
@@ -42,6 +46,19 @@ export const isDesktopShell = (width: number) =>
 export const candidateNavigation: NavigationItem[] = [
   { id: 'home', label: 'Workspace', to: '/candidate', icon: <Home /> },
   {
+    id: 'profile',
+    label: 'Profile',
+    to: '/candidate/profile',
+    icon: <UserRound />,
+  },
+  { id: 'jobs', label: 'Jobs', to: '/candidate/jobs', icon: <Search /> },
+  {
+    id: 'applications',
+    label: 'Applications',
+    to: '/candidate/applications',
+    icon: <BriefcaseBusiness />,
+  },
+  {
     id: 'interviews',
     label: 'Interviews',
     to: '/candidate/interviews',
@@ -54,12 +71,6 @@ export const candidateNavigation: NavigationItem[] = [
     icon: <ClipboardCheck />,
   },
   {
-    id: 'applications',
-    label: 'Applications',
-    to: '/candidate/applications',
-    icon: <BriefcaseBusiness />,
-  },
-  {
     id: 'documents',
     label: 'Documents',
     to: '/candidate/documents',
@@ -70,6 +81,18 @@ export const candidateNavigation: NavigationItem[] = [
     label: 'Offers',
     to: '/candidate/offers',
     icon: <BriefcaseBusiness />,
+  },
+  {
+    id: 'notifications',
+    label: 'Notifications',
+    to: '/candidate/notifications',
+    icon: <Bell />,
+  },
+  {
+    id: 'settings',
+    label: 'Settings',
+    to: '/candidate/settings',
+    icon: <Settings />,
   },
 ];
 export const organizationNavigation: NavigationItem[] = [
@@ -168,16 +191,33 @@ export const organizationNavigation: NavigationItem[] = [
 export const adminNavigation: NavigationItem[] = [
   {
     id: 'overview',
-    label: 'Administration',
+    label: 'Overview',
     to: '/admin',
     icon: <ShieldCheck />,
   },
-  { id: 'users', label: 'Users', to: '/admin/users', icon: <Users /> },
   {
-    id: 'companies',
-    label: 'Companies',
-    to: '/admin/companies',
-    icon: <Building2 />,
+    id: 'approvals',
+    label: 'Approvals',
+    to: '/admin/approvals',
+    icon: <ListChecks />,
+  },
+  {
+    id: 'operations',
+    label: 'Operations',
+    to: '/admin/operations',
+    icon: <RadioTower />,
+  },
+  {
+    id: 'communications',
+    label: 'Communications',
+    to: '/admin/communications',
+    icon: <MessageSquareText />,
+  },
+  {
+    id: 'analytics',
+    label: 'Analytics',
+    to: '/admin/analytics',
+    icon: <BarChart3 />,
   },
 ];
 
@@ -256,12 +296,19 @@ export function GlobalSearch() {
 }
 export function NotificationTrigger() {
   const navigate = useNavigate();
+  const { user } = useAuth();
   return (
     <IconButton
       icon={<Bell />}
       aria-label="Notifications"
       variant="quiet"
-      onClick={() => navigate('/notifications')}
+      onClick={() =>
+        navigate(
+          user?.role === 'candidate'
+            ? '/candidate/notifications'
+            : '/notifications',
+        )
+      }
     />
   );
 }

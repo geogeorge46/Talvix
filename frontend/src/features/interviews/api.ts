@@ -4,6 +4,7 @@ import {
   safeSchedule,
   toCandidateProcess,
   toProcess,
+  toScorecard,
   toTemplate,
 } from './model';
 const paged = (v: unknown, key: string, map: (x: unknown) => unknown) => {
@@ -159,19 +160,27 @@ export const useAvailabilityDelete = () => {
 };
 export const useFeedback = (enabled = true) =>
   useQuery({
-    queryKey: ['interview-feedback'],
+    queryKey: ['interview-scorecards'],
     enabled,
-    queryFn: () => apiRequest<{ feedback?: unknown[] }>('/interviews/feedback'),
-    select: (v) => v.feedback ?? [],
+    queryFn: async () => {
+      const [pending, overdue] = await Promise.all([
+        apiRequest<{ scorecards?: unknown[] }>(
+          '/interviews/scorecards/pending',
+        ),
+        apiRequest<{ scorecards?: unknown[] }>(
+          '/interviews/scorecards/overdue',
+        ),
+      ]);
+      return [...(overdue.scorecards ?? []), ...(pending.scorecards ?? [])].map(toScorecard);
+    },
     retry: false,
   });
-export const useRoundFeedback = (id: string, enabled = true) =>
+export const useScorecard = (id: string, enabled = true) =>
   useQuery({
-    queryKey: ['interview-feedback', id],
+    queryKey: ['interview-scorecard', id],
     enabled,
-    queryFn: () =>
-      apiRequest<{ feedback?: unknown[] }>(`/interviews/feedback/${id}`),
-    select: (v) => v.feedback ?? [],
+    queryFn: () => apiRequest<{ scorecard?: unknown }>(`/interviews/scorecards/${id}`),
+    select: (v) => toScorecard(v.scorecard),
     retry: false,
   });
 export const useFeedbackAction = (roundId: string) => {
@@ -183,7 +192,10 @@ export const useFeedbackAction = (roundId: string) => {
         { method: x.submit ? 'POST' : 'PUT', body: x.body },
       ),
     onSettled: () =>
-      void qc.invalidateQueries({ queryKey: ['interview-feedback', roundId] }),
+      void Promise.all([
+        qc.invalidateQueries({ queryKey: ['interview-scorecard', roundId] }),
+        qc.invalidateQueries({ queryKey: ['interview-scorecards'] }),
+      ]),
   });
 };
 export const useCalendar = (q: string, enabled = true) =>

@@ -1,0 +1,142 @@
+/* Custom styles for Talvix premium authentication redesign */
+
+@keyframes float-slow {
+  0%, 100% {
+    transform: translateY(0) scale(1);
+  }
+  50% {
+    transform: translateY(-8px) scale(1.02);
+  }
+}
+
+@keyframes float-medium {
+  0%, 100% {
+    transform: translateY(0) rotate(0deg);
+  }
+  50% {
+    transform: translateY(-12px) rotate(1.5deg);
+  }
+}
+
+@keyframes float-fast {
+  0%, 100% {
+    transform: translateY(0) rotate(0deg);
+  }
+  50% {
+    transform: translateY(-6px) rotate(-1deg);
+  }
+}
+
+@keyframes pulse-slow {
+  0%, 100% {
+    opacity: 0.15;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.3;
+    transform: scale(1.08);
+  }
+}
+
+@keyframes draw-line {
+  0% {
+    stroke-dashoffset: 100;
+  }
+  100% {
+    stroke-dashoffset: 0;
+  }
+}
+
+.animate-float-slow {
+  animation: float-slow 8s ease-in-out infinite;
+}
+
+.animate-float-medium {
+  animation: float-medium 6s ease-in-out infinite;
+}
+
+.animate-float-fast {
+  animation: float-fast 5s ease-in-out infinite;
+}
+
+.animate-pulse-slow {
+  animation: pulse-slow 10s ease-in-out infinite;
+}
+
+/* Glassmorphism helpers */
+.glass-panel {
+  background: rgba(255, 255, 255, 0.75);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.4);
+}
+
+.glass-panel-dark {
+  background: rgba(15, 23, 42, 0.4);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+/* Auth card entries and styling overrides */
+.auth-page-root {
+  min-height: 100vh;
+  background-color: var(--ref-steel-050);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+}
+
+.auth-illustration-bg {
+  background: linear-gradient(135deg, var(--ref-steel-900) 0%, var(--ref-steel-gray) 60%, var(--ref-talvix-blue) 100%);
+}
+
+.auth-container-card {
+  width: 100%;
+  max-width: 1200px;
+  min-height: 750px;
+  background: var(--ref-snow);
+  border-radius: 24px;
+  overflow: hidden;
+  box-shadow: 0 20px 40px -15px rgba(15, 23, 42, 0.08), 0 0 0 1px rgba(15, 23, 42, 0.04);
+  display: flex;
+  flex-direction: column;
+}
+
+@media (min-width: 1024px) {
+  .auth-container-card {
+    flex-direction: row;
+  }
+}
+
+/* Override existing tvx-form-field default browser-like styles */
+.tvx-auth-card-content .tvx-form-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 16px;
+}
+
+.tvx-auth-card-content .tvx-form-field label {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ref-steel-700);
+}
+
+/* Focus styles matching Ashby/Linear design */
+.auth-input-focus:focus-within {
+  border-color: var(--ref-talvix-blue);
+  box-shadow: 0 0 0 4px rgba(30, 144, 255, 0.12);
+}
+
+/* Custom indicator active transitions */
+.role-btn-active {
+  color: var(--ref-steel-900);
+  font-weight: 600;
+}
+
+.role-btn-inactive {
+  color: var(--ref-steel-600);
+  font-weight: 500;
+}

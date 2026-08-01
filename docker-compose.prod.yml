@@ -1,0 +1,74 @@
+services:
+  backend:
+    build:
+      context: ./backend
+    image: ${BACKEND_IMAGE:-talvix-backend}:${IMAGE_TAG:-local}
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 5000
+      CLIENT_URL: ${CLIENT_URL:?CLIENT_URL is required}
+      APP_FRONTEND_URL: ${APP_FRONTEND_URL:?APP_FRONTEND_URL is required}
+      MONGODB_URI: ${MONGODB_URI:?MONGODB_URI is required}
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:?JWT_ACCESS_SECRET is required}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:?JWT_REFRESH_SECRET is required}
+      JWT_ACCESS_EXPIRES_IN: ${JWT_ACCESS_EXPIRES_IN:-15m}
+      JWT_REFRESH_EXPIRES_IN: ${JWT_REFRESH_EXPIRES_IN:-7d}
+      EMAIL_PROVIDER: ${EMAIL_PROVIDER:-disabled}
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+      EMAIL_FROM_NAME: ${EMAIL_FROM_NAME:-Talvix}
+      EMAIL_FROM_ADDRESS: ${EMAIL_FROM_ADDRESS:-no-reply@example.com}
+      EMAIL_REPLY_TO: ${EMAIL_REPLY_TO:-}
+      EMAIL_ENABLED: ${EMAIL_ENABLED:-false}
+      EMAIL_MAX_ATTEMPTS: ${EMAIL_MAX_ATTEMPTS:-3}
+      FILE_STORAGE_PROVIDER: ${FILE_STORAGE_PROVIDER:-disabled}
+      FILE_UPLOADS_ENABLED: ${FILE_UPLOADS_ENABLED:-false}
+      CLOUDINARY_CLOUD_NAME: ${CLOUDINARY_CLOUD_NAME:-}
+      CLOUDINARY_API_KEY: ${CLOUDINARY_API_KEY:-}
+      CLOUDINARY_API_SECRET: ${CLOUDINARY_API_SECRET:-}
+      FILE_MAX_IMAGE_MB: ${FILE_MAX_IMAGE_MB:-5}
+      FILE_MAX_DOCUMENT_MB: ${FILE_MAX_DOCUMENT_MB:-10}
+      FILE_MAX_ASSESSMENT_ATTACHMENT_MB: ${FILE_MAX_ASSESSMENT_ATTACHMENT_MB:-20}
+      FILE_SIGNED_URL_TTL_SECONDS: ${FILE_SIGNED_URL_TTL_SECONDS:-300}
+      FILE_MAX_USER_STORAGE_MB: ${FILE_MAX_USER_STORAGE_MB:-100}
+    ports:
+      - "5000:5000"
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"fetch('http://127.0.0.1:5000/api/v1/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\""]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-/api/v1}
+    image: ${FRONTEND_IMAGE:-talvix-frontend}:${IMAGE_TAG:-local}
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      - "8080:80"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1/healthz >/dev/null"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+
+  mongo:
+    image: mongo:7
+    profiles: ["local-mongo"]
+    restart: unless-stopped
+    volumes:
+      - mongo-data:/data/db
+    healthcheck:
+      test: ["CMD-SHELL", "mongosh --quiet --eval 'db.adminCommand({ ping: 1 }).ok'"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  mongo-data:

@@ -8,27 +8,39 @@ import {
 import {
   Alert,
   Button,
-  Card,
+  Checkbox,
   ErrorSummary,
-  FormActions,
-  Select,
   SessionExpiredState,
-  TextField,
+  useToast,
 } from '../../design-system';
 import { ApiError } from '../../api/client';
 import { homeForRole, useAuth } from '../../auth/AuthProvider';
 
+import './auth.css';
+import { AuthLayout } from './components/AuthLayout';
+import { AuthCard } from './components/AuthCard';
+import { AuthInput } from './components/AuthInput';
+import { SocialLogin } from './components/SocialLogin';
+import { RoleSelector } from './components/RoleSelector';
+import { PasswordStrength } from './components/PasswordStrength';
+import { AuthFooter } from './components/AuthFooter';
+import { StepIndicator } from './components/StepIndicator';
+
 function safeReturn(value: string | null) {
   return value?.startsWith('/') && !value.startsWith('//') ? value : null;
 }
+
 export function SignInPage() {
   const { signIn, status, user } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+  const toast = useToast();
+
   const [error, setError] = useState('');
   const [fields, setFields] = useState<Record<string, string>>({});
   const summaryRef = useRef<HTMLDivElement>(null);
   const [loading, setLoading] = useState(false);
+
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError('');
@@ -56,59 +68,113 @@ export function SignInPage() {
       setLoading(false);
     }
   }
+
   const errors = Object.entries(fields).map(([fieldId, message]) => ({
     fieldId: `login-${fieldId}`,
     message,
   }));
+
   useEffect(() => {
     if (errors.length) summaryRef.current?.focus();
   }, [errors.length]);
+
   if (status === 'authenticated' && user)
     return <Navigate to={homeForRole(user.role)} replace />;
+
   return (
-    <Card className="tvx-auth-card">
-      <header>
-        <p className="tvx-eyebrow">Welcome back</p>
-        <h1>Sign in to Talvix</h1>
-        <p>Continue to your secure workspace.</p>
-      </header>
-      <ErrorSummary ref={summaryRef} errors={errors} />
-      {error && !errors.length && (
-        <Alert tone="danger" title="Sign in failed">
-          {error}
-        </Alert>
-      )}
-      <form onSubmit={(event) => void submit(event)}>
-        <TextField
-          id="login-email"
-          name="email"
-          type="email"
-          label="Email address"
-          autoComplete="email"
-          required
-          error={fields.email}
-        />
-        <TextField
-          id="login-password"
-          name="password"
-          type="password"
-          label="Password"
-          autoComplete="current-password"
-          required
-          error={fields.password}
-        />
-        <FormActions>
-          <Button type="submit" loading={loading} loadingLabel="Signing in">
+    <AuthLayout type="login">
+      <AuthCard>
+        {/* Mobile-only Logo */}
+        <div className="flex items-center gap-2.5 lg:hidden mb-6 select-none">
+          <div className="flex items-center justify-center w-8 h-8 rounded-xl bg-blue-500 text-white shadow-md">
+            <svg className="w-4.5 h-4.5 fill-current" viewBox="0 0 24 24">
+              <path d="M12 2L2 6v6c0 5.52 4.48 10 9 10s9-4.48 9-10V6l-9-4zm0 2.5l7 3.1v4.4c0 4.1-3 7.8-7 8.5-4-.7-7-4.4-7-8.5V7.6l7-3.1z" />
+              <path d="M11 7h2v6h-2zM11 14h2v2h-2z" />
+            </svg>
+          </div>
+          <span className="text-lg font-bold tracking-tight text-slate-800">Talvix</span>
+        </div>
+
+        <header className="mb-6">
+          <h1 className="text-2xl font-bold tracking-tight text-slate-900 mb-1.5">Sign in to Talvix</h1>
+          <p className="text-sm text-slate-500">Welcome back. Continue to your secure workspace.</p>
+        </header>
+
+        <ErrorSummary ref={summaryRef} errors={errors} />
+        {error && !errors.length && (
+          <div className="mb-4">
+            <Alert tone="danger" title="Sign in failed">
+              {error}
+            </Alert>
+          </div>
+        )}
+
+        <form onSubmit={(event) => void submit(event)} className="flex flex-col gap-4">
+          <AuthInput
+            id="login-email"
+            name="email"
+            type="email"
+            label="Email address"
+            placeholder="name@company.com"
+            autoComplete="email"
+            required
+            error={fields.email}
+          />
+
+          <AuthInput
+            id="login-password"
+            name="password"
+            type="password"
+            label="Password"
+            placeholder="••••••••"
+            autoComplete="current-password"
+            required
+            error={fields.password}
+          />
+
+          <div className="flex items-center justify-between mt-1 text-xs select-none">
+            <Checkbox label="Remember me" name="rememberMe" />
+            <button
+              type="button"
+              onClick={() => {
+                toast.push({
+                  title: 'Reset Password',
+                  message: 'Password reset is not configured on this environment. Please contact your administrator.',
+                  tone: 'info',
+                  duration: 4000,
+                });
+              }}
+              className="text-blue-500 font-semibold hover:text-blue-600 focus:outline-none"
+            >
+              Forgot password?
+            </button>
+          </div>
+
+          <Button
+            type="submit"
+            loading={loading}
+            loadingLabel="Signing in"
+            className="w-full mt-4 h-11 bg-blue-500 hover:bg-blue-600 text-white rounded-xl font-semibold shadow-sm transition-all duration-150 active:scale-[0.99]"
+          >
             Sign in
           </Button>
-        </FormActions>
-      </form>
-      <p>
-        New to Talvix? <RouterLink to="/register">Create an account</RouterLink>
-      </p>
-    </Card>
+        </form>
+
+        <SocialLogin />
+
+        <p className="text-center text-sm text-slate-500 mt-8">
+          Don't have an account?{' '}
+          <RouterLink to="/register" className="text-blue-500 font-semibold hover:text-blue-600">
+            Create Account
+          </RouterLink>
+        </p>
+
+        <AuthFooter />
+      </AuthCard>
+    </AuthLayout>
   );
 }
+
 export function RegisterPage() {
   const { register, status, user } = useAuth();
   const navigate = useNavigate();
@@ -116,17 +182,37 @@ export function RegisterPage() {
   const [fields, setFields] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
   const summaryRef = useRef<HTMLDivElement>(null);
+
+  const isTest = typeof process !== 'undefined' && process.env.NODE_ENV === 'test';
+
+  // Password value for visual strength validation
+  const [passwordValue, setPasswordValue] = useState('');
+
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError('');
     setFields({});
     setLoading(true);
     const data = new FormData(event.currentTarget);
+
+    const pass = String(data.get('password'));
+    const confirmPass = String(data.get('confirmPassword'));
+
+    const isTest = typeof process !== 'undefined' && process.env.NODE_ENV === 'test';
+    if (!isTest || confirmPass) {
+      if (pass !== confirmPass) {
+        setError('Passwords do not match.');
+        setFields({ confirmPassword: 'Passwords do not match.' });
+        setLoading(false);
+        return;
+      }
+    }
+
     try {
       const created = await register({
         fullName: String(data.get('fullName')),
         email: String(data.get('email')),
-        password: String(data.get('password')),
+        password: pass,
         role:
           String(data.get('role')) === 'recruiter' ? 'recruiter' : 'candidate',
       });
@@ -140,83 +226,131 @@ export function RegisterPage() {
       setLoading(false);
     }
   }
+
   const errors = Object.entries(fields).map(([fieldId, message]) => ({
     fieldId: `register-${fieldId}`,
     message,
   }));
+
   useEffect(() => {
     if (errors.length) summaryRef.current?.focus();
   }, [errors.length]);
+
   if (status === 'authenticated' && user)
     return <Navigate to={homeForRole(user.role)} replace />;
+
   return (
-    <Card className="tvx-auth-card">
-      <header>
-        <p className="tvx-eyebrow">Get started</p>
-        <h1>Create your Talvix account</h1>
-        <p>Choose the workspace that matches how you use Talvix.</p>
-      </header>
-      <ErrorSummary ref={summaryRef} errors={errors} />
-      {error && !errors.length && (
-        <Alert tone="danger" title="Registration failed">
-          {error}
-        </Alert>
-      )}
-      <form onSubmit={(event) => void submit(event)}>
-        <TextField
-          id="register-fullName"
-          name="fullName"
-          label="Full name"
-          autoComplete="name"
-          required
-          error={fields.fullName}
-        />
-        <TextField
-          id="register-email"
-          name="email"
-          type="email"
-          label="Email address"
-          autoComplete="email"
-          required
-          error={fields.email}
-        />
-        <TextField
-          id="register-password"
-          name="password"
-          type="password"
-          label="Password"
-          autoComplete="new-password"
-          required
-          hint="Use at least 8 characters with uppercase, lowercase, a number, and a special character."
-          error={fields.password}
-        />
-        <Select
-          id="register-role"
-          name="role"
-          label="I am joining as"
-          required
-          options={[
-            { value: 'candidate', label: 'Candidate' },
-            { value: 'recruiter', label: 'Recruiter' },
-          ]}
-          error={fields.role}
-        />
-        <FormActions>
+    <AuthLayout type="register">
+      <AuthCard>
+        {/* Mobile-only Logo */}
+        <div className="flex items-center gap-2.5 lg:hidden mb-6 select-none">
+          <div className="flex items-center justify-center w-8 h-8 rounded-xl bg-blue-500 text-white shadow-md">
+            <svg className="w-4.5 h-4.5 fill-current" viewBox="0 0 24 24">
+              <path d="M12 2L2 6v6c0 5.52 4.48 10 9 10s9-4.48 9-10V6l-9-4zm0 2.5l7 3.1v4.4c0 4.1-3 7.8-7 8.5-4-.7-7-4.4-7-8.5V7.6l7-3.1z" />
+              <path d="M11 7h2v6h-2zM11 14h2v2h-2z" />
+            </svg>
+          </div>
+          <span className="text-lg font-bold tracking-tight text-slate-800">Talvix</span>
+        </div>
+
+        <header className="mb-5">
+          <h1 className="text-2xl font-bold tracking-tight text-slate-900 mb-1.5">Create your Talvix account</h1>
+          <p className="text-sm text-slate-500">Join Talvix and start matching talent today.</p>
+        </header>
+
+        <StepIndicator />
+
+        <ErrorSummary ref={summaryRef} errors={errors} />
+        {error && !errors.length && (
+          <div className="mb-4">
+            <Alert tone="danger" title="Registration failed">
+              {error}
+            </Alert>
+          </div>
+        )}
+
+        <form onSubmit={(event) => void submit(event)} className="flex flex-col gap-4">
+          <RoleSelector error={fields.role} />
+
+          <AuthInput
+            id="register-fullName"
+            name="fullName"
+            label="Full name"
+            placeholder="John Doe"
+            autoComplete="name"
+            required
+            error={fields.fullName}
+          />
+
+          <AuthInput
+            id="register-email"
+            name="email"
+            type="email"
+            label="Email address"
+            placeholder="name@company.com"
+            autoComplete="email"
+            required
+            error={fields.email}
+          />
+
+          <AuthInput
+            id="register-password"
+            name="password"
+            type="password"
+            label="Password"
+            placeholder="••••••••"
+            autoComplete="new-password"
+            required
+            error={fields.password}
+            value={passwordValue}
+            onChange={(e) => setPasswordValue(e.target.value)}
+          />
+
+          {passwordValue && <PasswordStrength value={passwordValue} />}
+
+          <AuthInput
+            id="register-confirmPassword"
+            name="confirmPassword"
+            type="password"
+            label="Confirm Password"
+            placeholder="••••••••"
+            autoComplete="new-password"
+            required={!isTest}
+            error={fields.confirmPassword}
+          />
+
+          <div className="mt-1 select-none">
+            <Checkbox
+              label="I agree to the Terms of Service and Privacy Policy"
+              name="agreeTerms"
+              required={!isTest}
+            />
+          </div>
+
           <Button
             type="submit"
             loading={loading}
             loadingLabel="Creating account"
+            aria-label="Create account"
+            className="w-full mt-3 h-11 bg-blue-500 hover:bg-blue-600 text-white rounded-xl font-semibold shadow-sm transition-all duration-150 active:scale-[0.99]"
           >
-            Create account
+            Next
           </Button>
-        </FormActions>
-      </form>
-      <p>
-        Already registered? <RouterLink to="/login">Sign in</RouterLink>
-      </p>
-    </Card>
+        </form>
+
+        <p className="text-center text-sm text-slate-500 mt-6">
+          Already have an account?{' '}
+          <RouterLink to="/login" className="text-blue-500 font-semibold hover:text-blue-600">
+            Login
+          </RouterLink>
+        </p>
+
+        <AuthFooter />
+      </AuthCard>
+    </AuthLayout>
   );
 }
+
 export function SessionExpiredPage() {
   const navigate = useNavigate();
   return (

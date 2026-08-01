@@ -1,0 +1,17 @@
+groups:
+  - name: talvix-availability
+    rules:
+      - alert: TalvixBackendHealthDown
+        expr: probe_success{job="talvix-health", instance=~".*/api/v1/health"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: Talvix backend health check is failing
+      - alert: TalvixFrontendHealthDown
+        expr: probe_success{job="talvix-health", instance=~".*/healthz"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: Talvix frontend health check is failing

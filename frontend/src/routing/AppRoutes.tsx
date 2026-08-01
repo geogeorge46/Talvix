@@ -96,6 +96,28 @@ import {
   TeamPage,
   UnsupportedOrganizationPage,
 } from '../features/organization-admin';
+import {
+  CandidateApplicationDetailPage,
+  CandidateApplicationsPage,
+  CandidateDashboardPage,
+  CandidateJobDetailPage,
+  CandidateJobsPage,
+  CandidateNotificationSettingsPage,
+  CandidateNotificationsPage,
+  CandidateNotificationDetailPage,
+  CandidatePrivacySettingsPage,
+  CandidateProfilePage,
+  CandidateSecurityUnavailablePage,
+  CandidateSettingsPage,
+} from '../features/candidate-portal';
+import {
+  AdminAnalyticsPage,
+  AdminApprovalsPage,
+  AdminCommunicationsPage,
+  AdminOperationsPage,
+  AdminOverviewPage,
+  AdminRecordDetailPage,
+} from '../features/system-admin';
 
 function Protected({
   requiredRole,
@@ -169,21 +191,6 @@ function RecruiterAlias({
     </CapabilityRoute>
   );
 }
-function ValidatedPlaceholder({
-  title,
-  param,
-}: {
-  title: string;
-  param: string;
-}) {
-  const params = useParams();
-  const id = params[param];
-  return id && /^[a-f\d]{24}$/i.test(id) ? (
-    <WorkspacePlaceholder title={title} />
-  ) : (
-    <Navigate to="/not-found" replace />
-  );
-}
 function ValidatedApplicationDetail() {
   const { applicationId } = useParams();
   return applicationId && /^[a-f\d]{24}$/i.test(applicationId) ? (
@@ -214,19 +221,13 @@ export function AppRoutes() {
           </Protected>
         }
       >
-        <Route
-          index
-          element={<WorkspacePlaceholder title="Candidate workspace" />}
-        />
-        <Route
-          path="applications"
-          element={<WorkspacePlaceholder title="Applications" />}
-        />
+        <Route index element={<CandidateDashboardPage />} />
+        <Route path="jobs" element={<CandidateJobsPage />} />
+        <Route path="jobs/:jobId" element={<CandidateJobDetailPage />} />
+        <Route path="applications" element={<CandidateApplicationsPage />} />
         <Route
           path="applications/:applicationId"
-          element={
-            <ValidatedPlaceholder title="Application" param="applicationId" />
-          }
+          element={<CandidateApplicationDetailPage />}
         />
         <Route path="assessments" element={<AssignmentsPage candidate />} />
         <Route
@@ -243,10 +244,7 @@ export function AppRoutes() {
         />
         <Route path="offers/:offerId" element={<CandidateOfferDetailPage />} />
         <Route path="offers" element={<CandidateOffersPage />} />
-        <Route
-          path="profile"
-          element={<WorkspacePlaceholder title="Candidate profile" />}
-        />
+        <Route path="profile" element={<CandidateProfilePage />} />
         <Route path="interviews" element={<CandidateInterviewsPage />} />
         <Route path="interviews/availability" element={<AvailabilityPage />} />
         <Route
@@ -265,6 +263,24 @@ export function AppRoutes() {
         <Route
           path="documents/applications/:applicationId"
           element={<CandidateApplicationDocumentsPage />}
+        />
+        <Route path="notifications" element={<CandidateNotificationsPage />} />
+        <Route
+          path="notifications/:notificationId"
+          element={<CandidateNotificationDetailPage />}
+        />
+        <Route path="settings" element={<CandidateSettingsPage />} />
+        <Route
+          path="settings/notifications"
+          element={<CandidateNotificationSettingsPage />}
+        />
+        <Route
+          path="settings/privacy"
+          element={<CandidatePrivacySettingsPage />}
+        />
+        <Route
+          path="settings/security"
+          element={<CandidateSecurityUnavailablePage />}
         />
         <Route path="*" element={<Navigate to="/not-found" replace />} />
       </Route>
@@ -630,23 +646,15 @@ export function AppRoutes() {
           </Protected>
         }
       >
-        <Route
-          index
-          element={<WorkspacePlaceholder title="Administration" />}
-        />
-        <Route path="users" element={<WorkspacePlaceholder title="Users" />} />
-        <Route
-          path="companies"
-          element={<WorkspacePlaceholder title="Companies" />}
-        />
-        <Route
-          path="reviews/:id"
-          element={<ValidatedPlaceholder title="Review queue" param="id" />}
-        />
-        <Route
-          path="jobs/:jobId"
-          element={<ValidatedPlaceholder title="Job review" param="jobId" />}
-        />
+        <Route index element={<AdminOverviewPage />} />
+        <Route path="approvals" element={<AdminApprovalsPage />} />
+        <Route path="operations" element={<AdminOperationsPage />} />
+        <Route path="operations/:type/:id" element={<AdminRecordDetailPage />} />
+        <Route path="communications" element={<AdminCommunicationsPage />} />
+        <Route path="analytics" element={<AdminAnalyticsPage />} />
+        <Route path="users" element={<Navigate to="/admin/approvals?queue=recruiters" replace />} />
+        <Route path="companies" element={<Navigate to="/admin/approvals?queue=companies" replace />} />
+        <Route path="jobs/:jobId" element={<Navigate to="/admin/approvals?queue=jobs" replace />} />
         <Route path="*" element={<Navigate to="/not-found" replace />} />
       </Route>
       <Route

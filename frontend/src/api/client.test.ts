@@ -125,4 +125,43 @@ describe('HTTP client', () => {
     expect(refreshes).toBe(1);
     expect(protectedCalls).toBe(2);
   });
+
+  it.each(['POST', 'PUT', 'PATCH', 'DELETE'])(
+    'refreshes credentials but never automatically replays a %s mutation',
+    async (method) => {
+      let mutationCalls = 0;
+      tokenStore.set('expired');
+      vi.stubGlobal(
+        'fetch',
+        vi.fn((input: string | URL | Request) => {
+          if (String(input).endsWith('/auth/refresh'))
+            return Promise.resolve(
+              new Response(
+                JSON.stringify({ data: { accessToken: 'fresh' } }),
+                {
+                  status: 200,
+                  headers: { 'Content-Type': 'application/json' },
+                },
+              ),
+            );
+          mutationCalls += 1;
+          return Promise.resolve(
+            new Response(
+              JSON.stringify({ message: 'Access token expired' }),
+              {
+                status: 401,
+                headers: { 'Content-Type': 'application/json' },
+              },
+            ),
+          );
+        }),
+      );
+
+      await expect(
+        apiRequest('/important-mutation', { method, body: { value: 1 } }),
+      ).rejects.toMatchObject({ status: 401 });
+      expect(mutationCalls).toBe(1);
+      expect(tokenStore.get()).toBe('fresh');
+    },
+  );
 });
