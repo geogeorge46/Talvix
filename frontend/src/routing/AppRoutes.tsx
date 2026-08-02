@@ -6,7 +6,7 @@ import {
   useParams,
 } from 'react-router-dom';
 import { LoadingState } from '../design-system';
-import { homeForRole, useAuth } from '../auth/AuthProvider';
+import { useAuth } from '../auth/AuthProvider';
 import type { UserRole } from '../auth/types';
 import type { RecruiterPermission } from '../auth/types';
 import {
@@ -21,7 +21,11 @@ import {
   RegisterPage,
   SessionExpiredPage,
   SignInPage,
+  ForgotPasswordPage,
+  ResetPasswordPage,
+  GithubCallbackPage,
 } from '../pages/auth/AuthPages';
+import OnboardingPage from '../pages/auth/OnboardingPage';
 import {
   ForbiddenPage,
   NotFoundPage,
@@ -119,6 +123,8 @@ import {
   AdminRecordDetailPage,
 } from '../features/system-admin';
 
+import { LandingPage } from '../features/landing-page/LandingPage';
+
 function Protected({
   requiredRole,
   children,
@@ -146,16 +152,6 @@ function Protected({
   if (requiredRole && user.role !== requiredRole)
     return <Navigate to="/unauthorized" replace />;
   return children;
-}
-function RoleHome() {
-  const { status, user } = useAuth();
-  if (status === 'restoring')
-    return <LoadingState label="Restoring your session" />;
-  return user ? (
-    <Navigate to={homeForRole(user.role)} replace />
-  ) : (
-    <Navigate to="/login" replace />
-  );
 }
 function CapabilityRoute({
   anyPermission,
@@ -203,7 +199,7 @@ export function AppRoutes() {
   return (
     <Routes>
       <Route element={<PublicLayout />}>
-        <Route index element={<RoleHome />} />
+        <Route index element={<LandingPage />} />
         <Route path="session-expired" element={<SessionExpiredPage />} />
         <Route path="unauthorized" element={<UnauthorizedPage />} />
         <Route path="forbidden" element={<ForbiddenPage />} />
@@ -212,6 +208,10 @@ export function AppRoutes() {
       <Route element={<AuthLayout />}>
         <Route path="login" element={<SignInPage />} />
         <Route path="register" element={<RegisterPage />} />
+        <Route path="onboarding" element={<OnboardingPage />} />
+        <Route path="forgot-password" element={<ForgotPasswordPage />} />
+        <Route path="reset-password" element={<ResetPasswordPage />} />
+        <Route path="auth/github/callback" element={<GithubCallbackPage />} />
       </Route>
       <Route
         path="candidate"

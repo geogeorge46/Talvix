@@ -39,6 +39,7 @@ interface AuthValue {
   }) => Promise<User>;
   logout: () => Promise<void>;
   refreshCapabilities: () => Promise<void>;
+  completeAuth: (data: { user: User; accessToken: string }) => Promise<User>;
 }
 const AuthContext = createContext<AuthValue | null>(null);
 interface AuthResponse {
@@ -113,12 +114,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return;
       }
       try {
-        const restored = await apiRequest<User>('/auth/me', {
+        const restored = await apiRequest<unknown>('/auth/me', {
           retry401: false,
         });
         if (!live) return;
-        setUser(restored);
-        await loadRecruiter(restored);
+        const currentUser = restored && typeof restored === 'object' && 'user' in restored
+          ? (restored as { user: User }).user
+          : (restored as User);
+        setUser(currentUser);
+        await loadRecruiter(currentUser);
         if (live) setStatus('authenticated');
       } catch {
         if (live) clear('anonymous');
@@ -138,6 +142,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return data.user;
     },
     [loadRecruiter, queryClient],
+  );
+  const completeAuth = useCallback(
+    async (data: { user: User; accessToken: string }) => accept(data),
+    [accept]
   );
   const signIn = useCallback(
     async (email: string, password: string) =>
@@ -186,6 +194,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       register,
       logout,
       refreshCapabilities,
+      completeAuth,
     }),
     [
       status,
@@ -196,6 +205,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       register,
       logout,
       refreshCapabilities,
+      completeAuth,
     ],
   );
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

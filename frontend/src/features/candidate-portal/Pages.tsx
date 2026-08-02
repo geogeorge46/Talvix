@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useState, useRef, type FormEvent } from 'react';
 import {
   Link,
   useNavigate,
@@ -22,7 +22,9 @@ import {
   StatusTag,
   TextArea,
   TextField,
+  useToast,
 } from '../../design-system';
+import { apiRequest, tokenStore } from '../../api/client';
 import { useAuth } from '../../auth/AuthProvider';
 import {
   useApplication,
@@ -1803,7 +1805,119 @@ export function CandidateNotificationDetailPage() {
   );
 }
 export function CandidateSettingsPage() {
-  const { user, logout } = useAuth();
+  const { user, logout, completeAuth } = useAuth();
+  const toast = useToast();
+  const linkRef = useRef<HTMLDivElement>(null);
+  const [isLinking, setIsLinking] = useState(false);
+
+  const hasGoogle = user?.providers?.includes('GOOGLE');
+
+  useEffect(() => {
+    if (hasGoogle) return;
+    let active = true;
+
+    // Load GIS script dynamically if not present
+    if (!document.getElementById('google-gsi-client')) {
+      const script = document.createElement('script');
+      script.id = 'google-gsi-client';
+      script.src = 'https://accounts.google.com/gsi/client';
+      script.async = true;
+      script.defer = true;
+      document.body.appendChild(script);
+    }
+
+    const initGoogleLink = () => {
+      if (!window.google || !active) return;
+
+      const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
+      if (!clientId) return;
+
+      window.google.accounts.id.initialize({
+        client_id: clientId,
+        callback: async (response: any) => {
+          try {
+            const data = await apiRequest<{ user: any }>('/auth/link-google', {
+              method: 'POST',
+              body: { idToken: response.credential },
+            });
+            const token = tokenStore.get();
+            if (token) {
+              await completeAuth({ user: data.user, accessToken: token });
+            }
+            toast.push({
+              title: 'Linked',
+              message: 'Google account linked successfully.',
+              tone: 'success',
+            });
+          } catch (err: any) {
+            toast.push({
+              title: 'Linking Failed',
+              message: err?.message || 'Failed to link Google account.',
+              tone: 'danger',
+            });
+          }
+        },
+      });
+
+      if (linkRef.current) {
+        window.google.accounts.id.renderButton(linkRef.current, {
+          theme: 'outline',
+          size: 'medium',
+          text: 'continue_with',
+        });
+      }
+    };
+
+    const interval = setInterval(() => {
+      if (window.google) {
+        initGoogleLink();
+        clearInterval(interval);
+      }
+    }, 100);
+
+    return () => {
+      active = false;
+      clearInterval(interval);
+    };
+  }, [hasGoogle, completeAuth, toast]);
+
+  const handleUnlink = async () => {
+    setIsLinking(true);
+    try {
+      const data = await apiRequest<{ user: any }>('/auth/unlink-google', {
+        method: 'DELETE',
+      });
+      const token = tokenStore.get();
+      if (token) {
+        await completeAuth({ user: data.user, accessToken: token });
+      }
+      toast.push({
+        title: 'Unlinked',
+        message: 'Google account unlinked successfully.',
+        tone: 'success',
+      });
+    } catch (err: any) {
+      toast.push({
+        title: 'Unlinking Failed',
+        message: err?.message || 'Failed to unlink Google account.',
+        tone: 'danger',
+      });
+    } finally {
+      setIsLinking(false);
+    }
+  };
+
+  const handleGoogleClickPlaceholder = () => {
+    if (!linkRef.current || linkRef.current.children.length === 0) {
+      toast.push({
+        title: 'Google Integration Required',
+        message: 'Please set the VITE_GOOGLE_CLIENT_ID environment variable to enable Google authentication.',
+        tone: 'warning',
+        duration: 5000,
+      });
+    }
+  };
+
   return (
     <div className="candidate-page">
       <PageHeader
@@ -1823,6 +1937,52 @@ export function CandidateSettingsPage() {
         </Button>
       </Card>
       <div className="candidate-summary">
+        <Card>
+          <h2>Connected Accounts</h2>
+          <p className="text-sm text-slate-500 mb-4">
+            Connect third-party login providers to sign in to Talvix.
+          </p>
+          {hasGoogle ? (
+            <div className="flex flex-col gap-2">
+              <div className="flex items-center gap-2 text-sm font-semibold text-emerald-600">
+                <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                <span>Google connected</span>
+              </div>
+              <Button
+                variant="secondary"
+                disabled={isLinking}
+                onClick={handleUnlink}
+                className="mt-2 text-xs py-1"
+              >
+                Unlink Google Account
+              </Button>
+            </div>
+          ) : (
+            <div className="flex flex-col gap-2">
+              <span className="text-xs text-slate-400 mb-2">Google is not connected.</span>
+              <div 
+                onClick={handleGoogleClickPlaceholder}
+                className="relative w-full max-w-[240px] flex justify-center h-[36px] cursor-pointer"
+              >
+                {/* Custom visual representation */}
+                <div className="absolute inset-0 flex items-center justify-center gap-2 py-1.5 px-3 border border-slate-200 bg-white hover:bg-slate-50/50 rounded-lg font-semibold text-[11px] text-slate-700 shadow-sm pointer-events-none select-none w-full">
+                  <svg className="w-3.5 h-3.5 shrink-0" viewBox="0 0 24 24" aria-hidden="true">
+                    <path fill="#EA4335" d="M12 5.04c1.66 0 3.2.57 4.38 1.69l3.27-3.27C17.67 1.48 14.98 0 12 0 7.31 0 3.25 2.69 1.25 6.63l3.87 3C6.06 6.88 8.81 5.04 12 5.04z"/>
+                    <path fill="#4285F4" d="M23.49 12.27c0-.81-.07-1.59-.2-2.36H12v4.51h6.46c-.29 1.48-1.14 2.73-2.4 3.58v3l3.87 3c2.26-2.09 3.56-5.17 3.56-8.73z"/>
+                    <path fill="#34A853" d="M5.12 14.37c-.24-.72-.37-1.49-.37-2.37s.13-1.65.37-2.37V6.63H1.25C.45 8.24 0 10.06 0 12s.45 3.76 1.25 5.37l3.87-3z"/>
+                    <path fill="#FBBC05" d="M12 18.96c-3.19 0-5.94-1.84-6.88-4.59l-3.87 3C3.25 21.31 7.31 24 12 24c3.24 0 6.13-1.07 8.17-2.91l-3.87-3c-1.13.75-2.6 1.17-4.3 1.17z"/>
+                  </svg>
+                  <span>Connect Google Account</span>
+                </div>
+                {/* Real hidden GSI button overlay */}
+                <div 
+                  ref={linkRef} 
+                  className="absolute inset-0 opacity-[0.01] cursor-pointer w-full [&_iframe]:w-full"
+                ></div>
+              </div>
+            </div>
+          )}
+        </Card>
         <Card>
           <h2>Notifications</h2>
           <p>Manage supported delivery channels.</p>

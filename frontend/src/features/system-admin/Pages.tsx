@@ -74,7 +74,7 @@ function ActionDialog({ action, onClose, onDone }: { action: PendingAction; onCl
   }, [onClose]);
   const mutation = useMutation({ mutationFn: () => {
     const hasBody = action.body || action.field || action.reason;
-    const body = hasBody ? { ...action.body, ...(action.field ? { [action.field.name]: fieldValue } : {}), ...(action.reason ? { reason } : {}) } : undefined;
+    const body = hasBody ? { ...action.body, ...(action.field ? { [action.field.name]: fieldValue } : {}), ...(action.reason ? { reason } : {}) } : {};
     return adminApi.mutate(action.path, action.method ?? 'PATCH', body);
   } });
   return <div className="sys-dialog-backdrop">
@@ -98,9 +98,9 @@ function Pager({ page, setPage, meta }: { page: number; setPage: (page: number) 
 }
 
 export function AdminOverviewPage() {
-  const [preset, setPreset] = useState('30d');
+  const [preset, setPreset] = useState('last-30-days');
   const overview = useQuery({ queryKey: ['system-admin', 'overview', preset], queryFn: () => adminApi.analytics('overview', { preset }) });
-  const health = useQuery({ queryKey: ['system-admin', 'health'], queryFn: () => adminApi.analytics('health', { preset: '24h' }), refetchInterval: 30_000 });
+  const health = useQuery({ queryKey: ['system-admin', 'health'], queryFn: () => adminApi.analytics('health', { preset: 'today' }), refetchInterval: 30_000 });
   const recruiterQueue = useCollection(adminPaths.recruiterQueue, { page: 1, limit: 1 });
   const companyQueue = useCollection(adminPaths.companyQueue, { page: 1, limit: 1 });
   const jobQueue = useCollection(adminPaths.jobQueue, { page: 1, limit: 1 });
@@ -113,7 +113,7 @@ export function AdminOverviewPage() {
     /degraded|backlog|warning|stale/.test(healthText) ? 'degraded' : 'healthy';
   const metrics = Object.entries(summary).filter(([, v]) => typeof v === 'number').slice(0, 8);
   return <main className="sys-page">
-    <Header eyebrow="System administration / Overview" title="Platform command center" intro="A UTC-bounded operational ledger for platform health, volume, and queues." actions={<select aria-label="Overview range" value={preset} onChange={(e) => setPreset(e.target.value)}><option value="24h">Last 24 hours</option><option value="7d">Last 7 days</option><option value="30d">Last 30 days</option><option value="90d">Last 90 days</option></select>} />
+    <Header eyebrow="System administration / Overview" title="Platform command center" intro="A UTC-bounded operational ledger for platform health, volume, and queues." actions={<select aria-label="Overview range" value={preset} onChange={(e) => setPreset(e.target.value)}><option value="today">Last 24 hours</option><option value="last-7-days">Last 7 days</option><option value="last-30-days">Last 30 days</option><option value="last-90-days">Last 90 days</option></select>} />
     <section className="sys-pulse" aria-labelledby="pulse-title"><div><Activity size={18} /><span><strong id="pulse-title">Platform pulse</strong><small>Live operational scan · UTC</small></span></div>
       <Link to="/admin/analytics?domain=health"><Status value={healthState} /></Link>
       <Link to="/admin/approvals?queue=recruiters">Recruiters · {recruiterQueue.data?.meta.total ?? '—'} <ArrowRight size={14} /></Link>

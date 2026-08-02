@@ -1,0 +1,383 @@
+/* Talvix Redesigned Landing Page custom styling */
+
+.landing-page {
+  --color-brand-primary: var(--ref-steel-900);
+  --color-brand-dark: var(--ref-steel-900);
+  --color-brand-bg: var(--ref-steel-050); /* Soft off-white background */
+  --color-brand-card: var(--ref-snow); /* Pure white cards */
+  --color-brand-text: var(--ref-steel-600);
+  --color-brand-text-dark: var(--ref-steel-900);
+  --radius-brand: 24px;
+  
+  background-color: var(--color-brand-bg);
+  background-image: 
+    radial-gradient(at 50% 0%, rgba(255, 255, 255, 0.95) 0%, transparent 60%),
+    radial-gradient(at 5% 100%, rgba(230, 242, 255, 0.7) 0%, transparent 50%),
+    radial-gradient(at 95% 100%, rgba(230, 242, 255, 0.7) 0%, transparent 50%);
+  color: var(--color-brand-text);
+  font-family: var(--font-sans);
+  overflow-x: hidden;
+  min-height: 100vh;
+  padding: 0;
+}
+
+/* Scoped primary blue buttons inside the landing page */
+.landing-page .tvx-button--primary,
+.landing-page .btn-primary-blue {
+  background-color: var(--ref-steel-900) !important;
+  color: var(--ref-snow) !important;
+  border: none !important;
+  font-weight: 600 !important;
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.15) !important;
+  transition: all 0.2s ease !important;
+}
+
+.landing-page .tvx-button--primary:hover,
+.landing-page .btn-primary-blue:hover {
+  background-color: var(--ref-steel-800) !important;
+  color: var(--ref-snow) !important;
+  box-shadow: 0 6px 20px rgba(15, 23, 42, 0.25) !important;
+  transform: translateY(-1px);
+}
+
+/* Animations */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-8px); }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.8s var(--ease-emphasized) forwards;
+}
+
+.animate-slide-up {
+  animation: slideUp 0.9s var(--ease-emphasized) forwards;
+}
+
+.animate-float {
+  animation: float 4s ease-in-out infinite;
+}
+
+/* Premium elevated cards with deep blurred shadows */
+.elevated-card {
+  background: var(--color-brand-card);
+  border: 1px solid rgba(226, 232, 240, 0.8);
+  border-radius: var(--radius-brand);
+  box-shadow: 
+    0 15px 35px -10px rgba(15, 23, 42, 0.03), 
+    0 25px 50px -20px rgba(15, 23, 42, 0.05),
+    0 0 0 1px rgba(15, 23, 42, 0.01);
+  transition: all 0.4s var(--ease-emphasized);
+  position: relative;
+}
+
+.elevated-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 
+    0 25px 45px -10px rgba(15, 23, 42, 0.06), 
+    0 35px 70px -20px rgba(15, 23, 42, 0.09);
+  border-color: var(--ref-steel-300);
+}
+
+/* Glassmorphism card container (translucent white canvas, blurry background) */
+.glass-card {
+  background: rgba(255, 255, 255, 0.55);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  border-radius: var(--radius-brand);
+  box-shadow: 
+    0 10px 30px -10px rgba(15, 23, 42, 0.03),
+    0 20px 40px -20px rgba(15, 23, 42, 0.04),
+    0 0 0 1px rgba(255, 255, 255, 0.2) inset;
+  transition: all 0.4s var(--ease-emphasized);
+  position: relative;
+}
+
+.glass-card:hover {
+  background: rgba(255, 255, 255, 0.7);
+  transform: translateY(-4px);
+  box-shadow: 
+    0 20px 45px -10px rgba(15, 23, 42, 0.06),
+    0 30px 60px -20px rgba(15, 23, 42, 0.08),
+    0 0 0 1px rgba(255, 255, 255, 0.3) inset;
+  border-color: rgba(255, 255, 255, 0.7);
+}
+
+/* Glassmorphism Dark Alert popup overlay */
+.glass-card-dark {
+  background: rgba(15, 23, 42, 0.85);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 
+    0 20px 50px -15px rgba(0, 0, 0, 0.3),
+    0 0 0 1px rgba(255, 255, 255, 0.05) inset;
+}
+
+/* Overline decorative line inside cards as requested */
+.card-overline {
+  border-top: 1px solid var(--ref-steel-200);
+  margin-top: 1.5rem;
+  padding-top: 1.5rem;
+  width: 100%;
+}
+
+/* Floating dark icon badges overlapping borders */
+.badge-overlapped {
+  position: relative;
+  overflow: visible; /* Crucial so badge is not cut off */
+}
+
+.badge-overlapped .dark-badge {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  margin-bottom: 0;
+  z-index: 10;
+}
+
+.dark-badge {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 3.25rem;
+  height: 3.25rem;
+  background-color: var(--ref-steel-900);
+  color: var(--ref-snow);
+  border-radius: 50%;
+  box-shadow: 0 10px 25px -5px rgba(15, 23, 42, 0.25), 0 0 0 1px rgba(15, 23, 42, 0.05);
+  transition: transform 0.3s var(--ease-emphasized);
+}
+
+.dark-badge:hover {
+  transform: scale(1.08) translateY(-2px);
+}
+
+/* Glassmorphism panels for headers */
+.glass-panel {
+  background: rgba(255, 255, 255, 0.75);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.4);
+}
+
+/* Hero email waitlist pill component with glassmorphism details */
+.hero-pill-input {
+  display: flex;
+  align-items: center;
+  background: rgba(255, 255, 255, 0.45);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  border-radius: 9999px;
+  padding: 0.25rem 0.25rem 0.25rem 1.25rem;
+  box-shadow: 
+    0 10px 30px -10px rgba(15, 23, 42, 0.04), 
+    0 0 0 1px rgba(255, 255, 255, 0.2) inset;
+  transition: all 0.3s var(--ease-emphasized);
+  max-width: 440px;
+  width: 100%;
+}
+
+.hero-pill-input:focus-within {
+  background: rgba(255, 255, 255, 0.85);
+  border-color: var(--ref-steel-900);
+  box-shadow: 
+    0 15px 35px -10px rgba(15, 23, 42, 0.10),
+    0 0 0 1px rgba(15, 23, 42, 0.05) inset;
+}
+
+.hero-pill-input input {
+  flex: 1;
+  border: none;
+  background: transparent;
+  outline: none;
+  font-size: 0.875rem;
+  color: var(--color-brand-text-dark);
+}
+
+.hero-pill-input input::placeholder {
+  color: var(--ref-steel-400);
+}
+
+.hero-pill-button {
+  background: var(--ref-steel-900);
+  color: var(--ref-snow);
+  font-weight: 600;
+  border-radius: 9999px;
+  padding: 0.625rem 1.5rem;
+  transition: all 0.2s ease;
+  border: none;
+  font-size: 0.875rem;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.15);
+}
+
+.hero-pill-button:hover {
+  background: var(--ref-steel-800);
+  transform: translateY(-1px);
+}
+
+/* Grid & Layout constraints */
+.landing-container {
+  max-width: 1200px;
+  margin-left: auto;
+  margin-right: auto;
+  padding-left: 1.5rem;
+  padding-right: 1.5rem;
+}
+
+/* Timelines styling */
+.journey-timeline-line {
+  position: absolute;
+  top: 24px;
+  bottom: 24px;
+  left: 16px;
+  width: 2px;
+  background: linear-gradient(180deg, var(--ref-steel-900) 0%, var(--ref-steel-200) 100%);
+}
+
+@media (min-width: 768px) {
+  .journey-timeline-line {
+    top: 50%;
+    left: 24px;
+    right: 24px;
+    bottom: auto;
+    height: 2px;
+    width: auto;
+    background: linear-gradient(90deg, var(--ref-steel-900) 0%, var(--ref-steel-200) 100%);
+  }
+}
+
+/* Timeline nodes styling */
+.journey-node {
+  position: relative;
+  z-index: 10;
+  background: var(--ref-steel-900);
+  color: var(--ref-snow);
+  border: none;
+  border-radius: 50%;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 10px rgba(15, 23, 42, 0.2);
+}
+
+/* FAQ Accordion headers and panels */
+.faq-trigger {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1.5rem;
+  font-weight: 600;
+  text-align: left;
+  border: none;
+  background: none;
+  color: var(--color-brand-text-dark);
+  transition: color 0.2s ease;
+}
+
+.faq-trigger:hover {
+  color: var(--color-brand-primary);
+}
+
+.faq-content {
+  overflow: hidden;
+  max-height: 0;
+  transition: max-height 0.3s ease-out;
+  padding: 0 1.5rem;
+}
+
+.faq-item[data-state='open'] .faq-content {
+  max-height: 200px;
+  padding-bottom: 1.5rem;
+}
+
+.faq-item[data-state='open'] .faq-icon {
+  transform: rotate(180deg);
+}
+
+.faq-icon {
+  transition: transform 0.3s ease;
+}
+
+/* Custom Interactive showcase active state */
+.showcase-tab {
+  border-bottom: 2px solid transparent;
+  transition: all 0.2s ease;
+}
+.showcase-tab.active {
+  border-bottom-color: var(--ref-steel-900);
+  color: var(--ref-steel-900);
+  font-weight: 600;
+}
+
+/* Dashboard Mockups styling */
+.mockup-header {
+  border-bottom: 1px solid var(--ref-steel-250);
+  padding: 0.75rem 1.25rem;
+  background: var(--ref-steel-100);
+  display: flex;
+  align-items: center;
+  border-top-left-radius: 24px;
+  border-top-right-radius: 24px;
+}
+
+.mockup-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  margin-right: 6px;
+}
+
+/* Keyboard focus overrides for landing page custom controls */
+.landing-page :focus-visible {
+  outline: 2px solid var(--ref-steel-900);
+  outline-offset: 4px;
+}
+
+/* Avatar overlap list for waitlist proof */
+.avatar-group {
+  display: flex;
+  align-items: center;
+}
+
+.avatar-group-item {
+  width: 2rem;
+  height: 2rem;
+  border-radius: 50%;
+  border: 2px solid var(--ref-snow);
+  margin-left: -0.5rem;
+  background: var(--ref-steel-200);
+  overflow: hidden;
+}
+
+.avatar-group-item:first-child {
+  margin-left: 0;
+}
+
+input[type="checkbox"],
+input[type="radio"] {
+  accent-color: var(--ref-steel-900) !important;
+}

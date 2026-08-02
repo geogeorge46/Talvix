@@ -35,7 +35,7 @@ export function AuthLayout({ type, children }: AuthLayoutProps) {
         </div>
 
         {/* Right Side: 60% Auth Card Content */}
-        <div className="w-full lg:w-[60%] flex items-center justify-center bg-white relative z-10">
+        <div className="w-full lg:w-[60%] flex items-center justify-center bg-transparent relative z-10">
           {children}
         </div>
       </div>

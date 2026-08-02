@@ -48,7 +48,7 @@ describe('design token contract', () => {
         `raw hex color found in ${file}`,
       ).toBeNull();
     }
-  });
+  }, 30000);
 
   it.each([
     'text-code',

@@ -12,6 +12,12 @@ const userSchema = new mongoose.Schema(
       minlength: 2,
       maxlength: 100,
     },
+    name: {
+      type: String,
+      trim: true,
+      minlength: 2,
+      maxlength: 100,
+    },
     email: {
       type: String,
       required: true,
@@ -21,25 +27,49 @@ const userSchema = new mongoose.Schema(
     },
     password: {
       type: String,
-      required: true,
+      required: false,
       select: false,
     },
     role: {
       type: String,
       enum: USER_ROLE_VALUES,
-      default: USER_ROLES.CANDIDATE,
       required: true,
     },
-    profileCompleted: {
-      type: Boolean,
-      default: false,
+    roles: {
+      type: [String],
+      enum: USER_ROLE_VALUES,
+      required: true,
+    },
+    providers: {
+      type: [String],
+      enum: ['LOCAL', 'GOOGLE', 'GITHUB'],
+      default: ['LOCAL'],
+      required: true,
+    },
+    googleId: {
+      type: String,
+      unique: true,
+      sparse: true,
+    },
+    githubId: {
+      type: String,
+      unique: true,
+      sparse: true,
     },
     avatar: {
       type: String,
       default: null,
       trim: true,
     },
+    emailVerified: {
+      type: Boolean,
+      default: false,
+    },
     isVerified: {
+      type: Boolean,
+      default: false,
+    },
+    blocked: {
       type: Boolean,
       default: false,
     },
@@ -47,6 +77,17 @@ const userSchema = new mongoose.Schema(
       type: Boolean,
       default: true,
       select: false,
+    },
+    recruiterVerificationStatus: {
+      type: String,
+      enum: ['none', 'pending', 'verified', 'rejected'],
+      default: 'none',
+      required: true,
+    },
+    tokenVersion: {
+      type: Number,
+      default: 1,
+      required: true,
     },
     lastLogin: {
       type: Date,
@@ -72,8 +113,35 @@ const userSchema = new mongoose.Schema(
   },
 );
 
+userSchema.pre('validate', function syncFields() {
+  if (this.role && (!this.roles || this.roles.length === 0)) {
+    this.roles = [this.role];
+  } else if (this.roles && this.roles.length > 0 && !this.role) {
+    this.role = this.roles[0];
+  } else if (!this.role && (!this.roles || this.roles.length === 0)) {
+    this.role = USER_ROLES.CANDIDATE;
+    this.roles = [USER_ROLES.CANDIDATE];
+  }
+  
+  if (this.fullName) {
+    this.name = this.fullName;
+  } else if (this.name) {
+    this.fullName = this.name;
+  }
+  if (this.isVerified !== undefined) {
+    this.emailVerified = this.isVerified;
+  } else if (this.emailVerified !== undefined) {
+    this.isVerified = this.emailVerified;
+  }
+  if (this.isActive !== undefined) {
+    this.blocked = !this.isActive;
+  } else if (this.blocked !== undefined) {
+    this.isActive = !this.blocked;
+  }
+});
+
 userSchema.pre('save', async function hashModifiedPassword() {
-  if (this.isModified('password')) {
+  if (this.password && this.isModified('password')) {
     this.password = await hashPassword(this.password);
   }
 });

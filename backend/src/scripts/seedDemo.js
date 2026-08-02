@@ -15,6 +15,7 @@ import { Notification } from '../models/Notification.js';
 import { Question } from '../models/Question.js';
 import { RecruiterProfile } from '../models/RecruiterProfile.js';
 import { User } from '../models/User.js';
+import { FederatedIdentity } from '../models/FederatedIdentity.js';
 import { InterviewProcess } from '../models/InterviewProcess.js';
 import { InterviewRound } from '../models/InterviewRound.js';
 import { InterviewSchedule } from '../models/InterviewSchedule.js';
@@ -70,22 +71,34 @@ const demoInventory = async () => {
 
 const upsertDemoUser = async ({ fullName, email, role, password }) => {
   let user = await User.findOne({ email }).select('+password +isActive');
+  let created = false;
   if (!user) {
     user = new User({ fullName, email, role, password });
     user.isVerified = true;
     user.isActive = true;
     user.profileCompleted = true;
     await user.save();
-    return { user, created: true };
-  }
-
-  if (user.role !== role || !(await verifyPassword(password, user.password))) {
+    created = true;
+  } else if (user.role !== role || !(await verifyPassword(password, user.password))) {
     throw new Error(
       `Refusing to overwrite existing account ${email}. Use a clean local database or choose different demo credentials.`,
     );
   }
 
-  return { user, created: false };
+  const localIdentityExists = await FederatedIdentity.exists({
+    userId: user._id,
+    provider: 'LOCAL',
+  });
+  if (!localIdentityExists) {
+    await FederatedIdentity.create({
+      userId: user._id,
+      provider: 'LOCAL',
+      providerId: user.email,
+      email: user.email,
+    });
+  }
+
+  return { user, created };
 };
 
 const upsertCandidateProfile = async (user, index) => {

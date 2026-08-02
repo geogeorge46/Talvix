@@ -19,7 +19,7 @@ export function StepIndicator() {
               <div 
                 className={`w-9 h-9 rounded-full flex items-center justify-center border-2 transition-all duration-300 ${
                   step.active 
-                    ? 'bg-blue-500 border-blue-500 text-white shadow-[0_0_12px_rgba(30,144,255,0.3)]' 
+                    ? 'bg-slate-900 border-slate-900 text-white shadow-[0_0_12px_rgba(15,23,42,0.15)]' 
                     : 'bg-white border-slate-200 text-slate-400'
                 }`}
               >
@@ -27,7 +27,7 @@ export function StepIndicator() {
               </div>
               <span 
                 className={`text-[9px] font-bold tracking-wider uppercase ${
-                  step.active ? 'text-blue-500' : 'text-slate-400'
+                  step.active ? 'text-slate-900' : 'text-slate-400'
                 }`}
               >
                 {step.label}

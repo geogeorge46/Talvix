@@ -13,9 +13,9 @@ export const authenticate = async (request, _response, next) => {
 
     const token = authorization.slice(7).trim();
     const payload = verifyAccessToken(token);
-    const user = await User.findById(payload.sub).select('+isActive');
+    const user = await User.findById(payload.sub).select('+isActive +tokenVersion +blocked');
 
-    if (!user || !user.isActive) {
+    if (!user || user.blocked || !user.isActive || (payload.tokenVersion !== undefined && payload.tokenVersion !== user.tokenVersion)) {
       throw new AppError('Authentication required', 401);
     }
 

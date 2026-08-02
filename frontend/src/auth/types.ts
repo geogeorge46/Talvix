@@ -10,6 +10,7 @@ export interface User {
   createdAt?: string;
   updatedAt?: string;
   lastLogin?: string | null;
+  providers?: string[];
 }
 export interface CompanySummary {
   _id: string;

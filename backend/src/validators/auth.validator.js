@@ -54,3 +54,35 @@ export const validateBody = (schema) => (request, _response, next) => {
   request.body = result.data;
   return next();
 };
+
+export const forgotPasswordSchema = z
+  .object({
+    email: emailSchema,
+  })
+  .strict();
+
+export const resetPasswordSchema = z
+  .object({
+    token: z.string().min(1, 'Token is required'),
+    newPassword: passwordSchema,
+  })
+  .strict();
+
+export const setPasswordSchema = z
+  .object({
+    password: passwordSchema,
+  })
+  .strict();
+
+export const changePasswordSchema = z
+  .object({
+    currentPassword: z.string().min(1, 'Current password is required'),
+    newPassword: passwordSchema,
+  })
+  .strict();
+
+export const githubAuthSchema = z
+  .object({
+    code: z.string().min(1, 'Authorization code is required'),
+  })
+  .strict();

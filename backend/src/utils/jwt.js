@@ -8,14 +8,23 @@ import { env } from '../config/env.js';
 const TOKEN_ISSUER = 'talvix-api';
 const TOKEN_AUDIENCE = 'talvix-client';
 
-const signToken = (userId, tokenType, secret, expiresIn) =>
-  jwt.sign({ type: tokenType }, secret, {
+const signToken = (userId, tokenType, secret, expiresIn, roles = [], tokenVersion = 1) => {
+  const payload = {
+    userId: userId.toString(),
+    type: tokenType,
+  };
+  if (tokenType === 'access') {
+    payload.roles = roles;
+    payload.tokenVersion = tokenVersion;
+  }
+  return jwt.sign(payload, secret, {
     subject: userId.toString(),
     issuer: TOKEN_ISSUER,
     audience: TOKEN_AUDIENCE,
     expiresIn,
     jwtid: randomUUID(),
   });
+};
 
 const verifyToken = (token, expectedType, secret) => {
   const payload = jwt.verify(token, secret, {
@@ -31,8 +40,8 @@ const verifyToken = (token, expectedType, secret) => {
 };
 
 /** Creates an access token for authenticated API requests. */
-export const generateAccessToken = (userId) =>
-  signToken(userId, 'access', env.JWT_ACCESS_SECRET, env.JWT_ACCESS_EXPIRES_IN);
+export const generateAccessToken = (userId, roles = ['candidate'], tokenVersion = 1) =>
+  signToken(userId, 'access', env.JWT_ACCESS_SECRET, env.JWT_ACCESS_EXPIRES_IN, roles, tokenVersion);
 
 /** Creates a refresh token used to rotate an authenticated session. */
 export const generateRefreshToken = (userId) =>

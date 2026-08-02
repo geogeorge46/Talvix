@@ -1,5 +1,6 @@
 import { RecruiterProfile } from '../models/RecruiterProfile.js';
 import { User } from '../models/User.js';
+import { RefreshSession } from '../models/RefreshSession.js';
 import { AppError } from '../shared/errors/AppError.js';
 import { buildPagination } from '../utils/pagination.js';
 import { DOMAIN_EVENTS } from '../constants/domainEvents.js';
@@ -39,6 +40,7 @@ export const suspendRecruiter = async (id) => {
   const profile = await findProfile(id);
   profile.isApproved = false; await profile.save();
   await User.updateOne({ _id: profile.user }, { $set: { isActive: false }, $unset: { refreshTokenHash: 1 } });
+  await RefreshSession.updateMany({ userId: profile.user }, { $set: { isActive: false } });
   await publishOptionalDomainEvent({ type: DOMAIN_EVENTS.RECRUITER_SUSPENDED, recipientIds: [String(profile.user)], payload: { recruiterId: String(profile.user) }, deduplicationKey: `recruiter.suspended:${profile.user}:${profile.updatedAt.toISOString()}` });
   return profile;
 };

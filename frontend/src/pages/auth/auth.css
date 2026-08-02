@@ -89,7 +89,7 @@
 }
 
 .auth-illustration-bg {
-  background: linear-gradient(135deg, var(--ref-steel-900) 0%, var(--ref-steel-gray) 60%, var(--ref-talvix-blue) 100%);
+  background: linear-gradient(135deg, var(--ref-steel-950) 0%, var(--ref-steel-900) 60%, var(--ref-steel-800) 100%);
 }
 
 .auth-container-card {
@@ -126,8 +126,8 @@
 
 /* Focus styles matching Ashby/Linear design */
 .auth-input-focus:focus-within {
-  border-color: var(--ref-talvix-blue);
-  box-shadow: 0 0 0 4px rgba(30, 144, 255, 0.12);
+  border-color: var(--ref-steel-900);
+  box-shadow: 0 0 0 4px rgba(15, 23, 42, 0.08);
 }
 
 /* Custom indicator active transitions */
@@ -139,4 +139,20 @@
 .role-btn-inactive {
   color: var(--ref-steel-600);
   font-weight: 500;
+}
+
+input[type="checkbox"],
+input[type="radio"] {
+  accent-color: var(--ref-steel-900) !important;
+}
+
+.auth-page-root .tvx-button--primary {
+  background-color: var(--ref-steel-900) !important;
+  background: var(--ref-steel-900) !important;
+  color: var(--ref-snow) !important;
+}
+
+.auth-page-root .tvx-button--primary:hover {
+  background-color: var(--ref-steel-800) !important;
+  background: var(--ref-steel-800) !important;
 }
