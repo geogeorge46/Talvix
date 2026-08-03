@@ -47,6 +47,11 @@ import {
   useRemoveMember,
   useSaveCompany,
   useUpdateMember,
+  useInviteMember,
+  useGetJoinRequests,
+  useReviewJoinRequest,
+  useAcceptInvitation,
+  useGetInvitationDetails,
 } from './api';
 import './organization-admin.css';
 
@@ -174,6 +179,14 @@ export function CompanyOverviewPage() {
                           ]
                             .filter(Boolean)
                             .join(', ') || 'Not provided',
+                      },
+                      {
+                        term: 'Official domain',
+                        description: c.officialEmailDomain || 'Not configured',
+                      },
+                      {
+                        term: 'Domain auto-approval',
+                        description: c.autoApproveDomainMembers ? 'Enabled' : 'Disabled',
                       },
                     ]}
                   />
@@ -410,6 +423,17 @@ function CompanyForm({ mode }: { mode: 'create' | 'edit' }) {
               error={fieldErrors.foundedYear}
               onChange={(e) => set('foundedYear', e.target.value)}
             />
+            <TextField
+              label="Official email domain (e.g. google.com)"
+              value={d.officialEmailDomain}
+              error={fieldErrors.officialEmailDomain}
+              onChange={(e) => set('officialEmailDomain', e.target.value)}
+            />
+            <Checkbox
+              label="Auto-approve domain members (automatically approve join requests matching this domain)"
+              checked={d.autoApproveDomainMembers}
+              onChange={(e) => setDraft({ ...d, autoApproveDomainMembers: e.target.checked })}
+            />
           </div>
         </FormSection>
         <FormSection heading="Location and branding URLs">
@@ -624,6 +648,18 @@ export function TeamPage() {
     [sp, setSp] = useSearchParams(),
     q = (sp.get('q') ?? '').toLowerCase(),
     status = sp.get('status') ?? '';
+
+  // Invitations local state
+  const inviteMutation = useInviteMember();
+  const [inviteEmail, setInviteEmail] = useState('');
+  const [inviteRole, setInviteRole] = useState('recruiter');
+  const [inviteError, setInviteError] = useState('');
+  const [inviteUrl, setInviteUrl] = useState('');
+
+  // Join Requests queries
+  const joinRequestsQuery = useGetJoinRequests();
+  const reviewJoinRequestMutation = useReviewJoinRequest();
+
   if (!a.canTeam)
     return (
       <PermissionState
@@ -705,6 +741,98 @@ export function TeamPage() {
                   description="Add an already registered and approved recruiter by ID."
                 />
               )}
+
+              <div style={{ marginTop: '2rem', display: 'grid', gap: '2rem', gridTemplateColumns: '1fr 1fr' }}>
+                <Card heading="Invite New Recruiter" headingLevel={2}>
+                  {inviteError && <Alert tone="danger">{inviteError}</Alert>}
+                  {inviteUrl && (
+                    <Alert tone="success" title="Invitation Generated">
+                      <p>Share this invitation link with the recruiter:</p>
+                      <code style={{ wordBreak: 'break-all', display: 'block', margin: '0.5rem 0', padding: '0.5rem', background: 'var(--color-bg-subtle)' }}>
+                        {inviteUrl}
+                      </code>
+                    </Alert>
+                  )}
+                  <form onSubmit={async (e) => {
+                    e.preventDefault();
+                    setInviteError('');
+                    setInviteUrl('');
+                    if (!inviteEmail.trim()) return setInviteError('Email is required');
+                    try {
+                      const res = await inviteMutation.mutateAsync({
+                        email: inviteEmail,
+                        role: inviteRole,
+                        permissions: inviteRole === 'primary_admin' ? [...knownPermissions] : ['jobs.create', 'jobs.update', 'applications.view', 'interviews.view']
+                      });
+                      setInviteUrl(`${window.location.origin}/accept-invite?token=${res.token}`);
+                      setInviteEmail('');
+                    } catch (err: any) {
+                      setInviteError(err?.message || 'Failed to send invitation');
+                    }
+                  }}>
+                    <TextField
+                      label="Email address"
+                      type="email"
+                      value={inviteEmail}
+                      onChange={(e) => setInviteEmail(e.target.value)}
+                      required
+                    />
+                    <Select
+                      label="Role"
+                      value={inviteRole}
+                      options={[
+                        { value: 'primary_admin', label: 'Primary Company Admin' },
+                        { value: 'hr_admin', label: 'HR Admin' },
+                        { value: 'recruiter', label: 'Recruiter' },
+                        { value: 'hiring_manager', label: 'Hiring Manager' }
+                      ]}
+                      onChange={(e) => setInviteRole(e.target.value)}
+                    />
+                    <div style={{ marginTop: '1rem' }}>
+                      <Button type="submit" variant="primary" disabled={inviteMutation.isPending}>
+                        Generate Invitation Link
+                      </Button>
+                    </div>
+                  </form>
+                </Card>
+
+                <Card heading="Pending Join Requests" headingLevel={2}>
+                  {joinRequestsQuery.isLoading ? (
+                    <p>Loading join requests...</p>
+                  ) : joinRequestsQuery.data && joinRequestsQuery.data.length > 0 ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                      {joinRequestsQuery.data.map((req: any) => (
+                        <div key={req._id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.75rem', border: '1px solid var(--color-border-subtle)', borderRadius: '6px' }}>
+                          <div>
+                            <strong>{req.user?.fullName}</strong>
+                            <div style={{ fontSize: '0.85rem', color: 'var(--color-text-subtle)' }}>{req.user?.email}</div>
+                          </div>
+                          <div style={{ display: 'flex', gap: '0.5rem' }}>
+                            <Button
+                              variant="primary"
+                              size="compact"
+                              onClick={() => reviewJoinRequestMutation.mutate({ requestId: req._id, action: 'approve' })}
+                              disabled={reviewJoinRequestMutation.isPending}
+                            >
+                              Approve
+                            </Button>
+                            <Button
+                              variant="danger"
+                              size="compact"
+                              onClick={() => reviewJoinRequestMutation.mutate({ requestId: req._id, action: 'reject' })}
+                              disabled={reviewJoinRequestMutation.isPending}
+                            >
+                              Reject
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p style={{ color: 'var(--color-text-subtle)' }}>No pending join requests.</p>
+                  )}
+                </Card>
+              </div>
             </>
           );
         }}
@@ -990,3 +1118,127 @@ export function UnsupportedOrganizationPage({
     </main>
   );
 }
+
+export function AcceptInvitePage() {
+  const [searchParams] = useSearchParams();
+  const token = searchParams.get('token');
+  const navigate = useNavigate();
+  const { user, logout } = useAuth();
+  const [actionError, setActionError] = useState('');
+  const [accepting, setAccepting] = useState(false);
+
+  const { data: invitation, isLoading, isError, error } = useGetInvitationDetails(token);
+  const acceptMutation = useAcceptInvitation();
+
+  if (!token) {
+    return (
+      <main className="org-admin-page flex items-center justify-center min-h-[50vh]">
+        <ErrorState
+          title="Missing Token"
+          detail="An invitation token is required in the link parameters."
+        />
+      </main>
+    );
+  }
+
+  if (isLoading) {
+    return (
+      <main className="org-admin-page flex items-center justify-center min-h-[50vh]">
+        <LoadingState label="Loading invitation details..." />
+      </main>
+    );
+  }
+
+  if (isError || !invitation) {
+    return (
+      <main className="org-admin-page flex items-center justify-center min-h-[50vh]">
+        <ErrorState
+          title="Invalid Invitation"
+          detail={error instanceof Error ? error.message : 'This invitation is invalid, expired, or has already been accepted.'}
+        />
+      </main>
+    );
+  }
+
+  const handleAccept = async () => {
+    setActionError('');
+    setAccepting(true);
+    try {
+      await acceptMutation.mutateAsync(token);
+      navigate('/org', { replace: true });
+      window.location.reload(); // Refresh session/workspace
+    } catch (err: any) {
+      setActionError(err?.message || 'Failed to accept invitation. Please try again.');
+    } finally {
+      setAccepting(false);
+    }
+  };
+
+  const isEmailMatch = user && user.email.toLowerCase() === invitation.email.toLowerCase();
+
+  return (
+    <main className="org-admin-page flex items-center justify-center min-h-[70vh] py-12 px-4" style={{ maxWidth: '500px', margin: '0 auto' }}>
+      <Card heading="Talvix Company Invitation" headingLevel={2}>
+        <div style={{ textAlign: 'center', marginBottom: '1.5rem' }}>
+          <p style={{ fontSize: '1.1rem', color: 'var(--color-text-subtle)' }}>
+            You have been invited to join <strong>{invitation.company.name}</strong> as a <strong>{title(invitation.role)}</strong>.
+          </p>
+        </div>
+
+        {actionError && <Alert tone="danger">{actionError}</Alert>}
+
+        {!user ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginTop: '1.5rem' }}>
+            <Alert tone="info" title="Authentication Required">
+              Please sign in or create an account with the invited email address (<strong>{invitation.email}</strong>) to accept this invitation.
+            </Alert>
+            <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center', marginTop: '0.5rem' }}>
+              <Link
+                className="tvx-button tvx-button--primary tvx-button--md"
+                to={`/register?inviteToken=${token}&email=${encodeURIComponent(invitation.email)}`}
+              >
+                Create Account
+              </Link>
+              <Link
+                className="tvx-button tvx-button--secondary tvx-button--md"
+                to={`/login?returnTo=${encodeURIComponent(window.location.pathname + window.location.search)}`}
+              >
+                Sign In
+              </Link>
+            </div>
+          </div>
+        ) : !isEmailMatch ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginTop: '1.5rem' }}>
+            <Alert tone="danger" title="Email Mismatch">
+              This invitation is for <strong>{invitation.email}</strong>, but you are currently logged in as <strong>{user.email}</strong>.
+            </Alert>
+            <Button
+              variant="secondary"
+              onClick={async () => {
+                await logout();
+                navigate(`/register?inviteToken=${token}&email=${encodeURIComponent(invitation.email)}`);
+              }}
+            >
+              Log out & Register with {invitation.email}
+            </Button>
+          </div>
+        ) : (
+          <div style={{ marginTop: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            <Alert tone="success" title="Ready to Join">
+              You are logged in as <strong>{user.email}</strong>. Click below to accept the invitation and enter the workspace.
+            </Alert>
+            <Button
+              variant="primary"
+              onClick={handleAccept}
+              disabled={accepting}
+              style={{ width: '100%' }}
+            >
+              {accepting ? 'Joining Workspace...' : 'Accept Invitation & Join'}
+            </Button>
+          </div>
+        )}
+      </Card>
+    </main>
+  );
+}
+

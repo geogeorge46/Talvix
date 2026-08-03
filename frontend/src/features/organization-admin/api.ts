@@ -64,3 +64,119 @@ export function useRemoveMember(id: string) {
     onSettled: () => void qc.invalidateQueries({ queryKey: companyKey }),
   });
 }
+
+// Invitations API
+export function useInviteMember() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: { email: string; role: string; permissions: string[] }) =>
+      apiRequest<{ token: string }>('/companies/me/invitations', { method: 'POST', body }),
+    onSettled: () => void qc.invalidateQueries({ queryKey: companyKey }),
+  });
+}
+
+export function useAcceptInvitation() {
+  return useMutation({
+    mutationFn: (token: string) =>
+      apiRequest(`/companies/invitations/${token}/accept`, { method: 'POST' }),
+  });
+}
+
+export function useGetInvitationDetails(token: string | null) {
+  return useQuery({
+    queryKey: ['invitation', token],
+    queryFn: () =>
+      apiRequest<{ invitation: { company: { name: string }; email: string; role: string } }>(
+        `/companies/invitations/${token}`,
+        { auth: false }
+      ).then((r) => r.invitation),
+    enabled: !!token,
+  });
+}
+
+// Join Requests API
+export function useJoinRequest() {
+  return useMutation({
+    mutationFn: (companyId: string) =>
+      apiRequest(`/companies/${companyId}/join-request`, { method: 'POST' }),
+  });
+}
+
+export function useGetJoinRequests() {
+  return useQuery({
+    queryKey: [...companyKey, 'join-requests'],
+    queryFn: () => apiRequest<{ data: { requests: any[] } }>('/companies/me/join-requests').then(r => r.data.requests),
+  });
+}
+
+export function useReviewJoinRequest() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ requestId, action, notes }: { requestId: string; action: 'approve' | 'reject'; notes?: string }) =>
+      apiRequest(`/companies/me/join-requests/${requestId}`, { method: 'PATCH', body: { action, notes } }),
+    onSettled: () => {
+      qc.invalidateQueries({ queryKey: [...companyKey, 'join-requests'] });
+      qc.invalidateQueries({ queryKey: companyKey });
+    },
+  });
+}
+
+// Claims API
+export function useClaimOwnership() {
+  return useMutation({
+    mutationFn: ({ companyId, officialEmail, linkedinUrl, proofUrl }: { companyId: string; officialEmail: string; linkedinUrl: string; proofUrl?: string }) =>
+      apiRequest(`/companies/${companyId}/claims`, { method: 'POST', body: { officialEmail, linkedinUrl, proofUrl } }),
+  });
+}
+
+// Platform Admin Overrides API
+export function useGetAdminClaims() {
+  return useQuery({
+    queryKey: ['admin-claims'],
+    queryFn: () => apiRequest<{ data: { claims: any[] } }>('/admin/claims').then(r => r.data.claims),
+  });
+}
+
+export function useResolveClaim() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ claimId, action, notes }: { claimId: string; action: 'approve' | 'reject'; notes?: string }) =>
+      apiRequest(`/admin/claims/${claimId}`, { method: 'PATCH', body: { action, notes } }),
+    onSettled: () => void qc.invalidateQueries({ queryKey: ['admin-claims'] }),
+  });
+}
+
+export function useTransferOwnership() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ companyId, newOwnerId }: { companyId: string; newOwnerId: string }) =>
+      apiRequest(`/admin/companies/${companyId}/transfer-ownership`, { method: 'PATCH', body: { newOwnerId } }),
+    onSettled: () => void qc.invalidateQueries({ queryKey: companyKey }),
+  });
+}
+
+export function useAdminRemoveMember() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ companyId, memberId }: { companyId: string; memberId: string }) =>
+      apiRequest(`/admin/companies/${companyId}/members/${memberId}`, { method: 'DELETE' }),
+    onSettled: () => void qc.invalidateQueries({ queryKey: companyKey }),
+  });
+}
+
+export function useRestoreCompany() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (companyId: string) =>
+      apiRequest(`/admin/companies/${companyId}/restore`, { method: 'PATCH' }),
+    onSettled: () => void qc.invalidateQueries({ queryKey: companyKey }),
+  });
+}
+
+export function useRestoreRecruiter() {
+  return useMutation({
+    mutationFn: (recruiterId: string) =>
+      apiRequest(`/admin/recruiters/admin/${recruiterId}/restore`, { method: 'PATCH' }),
+  });
+}
+

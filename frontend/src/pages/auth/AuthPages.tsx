@@ -4,6 +4,7 @@ import {
   Navigate,
   useLocation,
   useNavigate,
+  useSearchParams,
 } from 'react-router-dom';
 import {
   Alert,
@@ -170,6 +171,10 @@ export function SignInPage() {
 export function RegisterPage() {
   const { register, status, user } = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const inviteToken = searchParams.get('inviteToken');
+  const inviteEmail = searchParams.get('email');
+
   const [error, setError] = useState('');
   const [fields, setFields] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
@@ -203,12 +208,15 @@ export function RegisterPage() {
     try {
       const created = await register({
         fullName: String(data.get('fullName')),
-        email: String(data.get('email')),
+        email: inviteEmail || String(data.get('email')),
         password: pass,
-        role:
-          String(data.get('role')) === 'recruiter' ? 'recruiter' : 'candidate',
+        role: inviteToken ? 'recruiter' : (String(data.get('role')) === 'recruiter' ? 'recruiter' : 'candidate'),
       });
-      navigate(homeForRole(created.role), { replace: true });
+      if (inviteToken) {
+        navigate(`/accept-invite?token=${inviteToken}`, { replace: true });
+      } else {
+        navigate(homeForRole(created.role), { replace: true });
+      }
     } catch (cause) {
       if (cause instanceof ApiError) {
         setError(cause.message);
@@ -262,7 +270,7 @@ export function RegisterPage() {
         )}
 
         <form onSubmit={(event) => void submit(event)} className="flex flex-col gap-4">
-          <RoleSelector error={fields.role} />
+          {!inviteToken && <RoleSelector error={fields.role} />}
 
           <AuthInput
             id="register-fullName"
@@ -283,6 +291,9 @@ export function RegisterPage() {
             autoComplete="email"
             required
             error={fields.email}
+            value={inviteEmail || ''}
+            readOnly={!!inviteEmail}
+            className={inviteEmail ? 'opacity-70 pointer-events-none' : ''}
           />
 
           <AuthInput

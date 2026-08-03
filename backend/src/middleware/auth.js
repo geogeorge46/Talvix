@@ -5,13 +5,18 @@ import { verifyAccessToken } from '../utils/jwt.js';
 /** Verifies the bearer access token and attaches its active user to the request. */
 export const authenticate = async (request, _response, next) => {
   try {
+    let token = null;
     const authorization = request.get('authorization');
 
-    if (!authorization?.startsWith('Bearer ')) {
-      throw new AppError('Authentication required', 401);
+    if (authorization?.startsWith('Bearer ')) {
+      token = authorization.slice(7).trim();
+    } else if (request.query.token) {
+      token = request.query.token;
     }
 
-    const token = authorization.slice(7).trim();
+    if (!token) {
+      throw new AppError('Authentication required', 401);
+    }
     const payload = verifyAccessToken(token);
     const user = await User.findById(payload.sub).select('+isActive +tokenVersion +blocked');
 

@@ -5,6 +5,7 @@ import { AppError } from '../shared/errors/AppError.js';
 import { buildPagination } from '../utils/pagination.js';
 import { DOMAIN_EVENTS } from '../constants/domainEvents.js';
 import { publishOptionalDomainEvent } from './domainEvent.service.js';
+import { revokeUserSessions } from '../utils/sessionRevocation.js';
 
 export const listPendingRecruiters = async ({ page, limit }) => {
   const filter = { isApproved: false };
@@ -42,5 +43,17 @@ export const suspendRecruiter = async (id) => {
   await User.updateOne({ _id: profile.user }, { $set: { isActive: false }, $unset: { refreshTokenHash: 1 } });
   await RefreshSession.updateMany({ userId: profile.user }, { $set: { isActive: false } });
   await publishOptionalDomainEvent({ type: DOMAIN_EVENTS.RECRUITER_SUSPENDED, recipientIds: [String(profile.user)], payload: { recruiterId: String(profile.user) }, deduplicationKey: `recruiter.suspended:${profile.user}:${profile.updatedAt.toISOString()}` });
+  return profile;
+};
+
+export const restoreRecruiter = async (id, adminId) => {
+  const profile = await findProfile(id);
+  profile.isApproved = true;
+  profile.approvedBy = adminId;
+  profile.approvedAt = new Date();
+  await profile.save();
+  await User.updateOne({ _id: profile.user }, { $set: { isActive: true } });
+  await revokeUserSessions(profile.user);
+  await publishOptionalDomainEvent({ type: DOMAIN_EVENTS.RECRUITER_APPROVED, actor: String(adminId), recipientIds: [String(profile.user)], payload: { recruiterId: String(profile.user), actionUrl: '/recruiter/profile' }, deduplicationKey: `recruiter.restored:${profile.user}:${profile.approvedAt.toISOString()}` });
   return profile;
 };

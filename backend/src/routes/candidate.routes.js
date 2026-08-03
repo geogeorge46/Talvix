@@ -9,6 +9,7 @@ import {
   searchCandidates,
   updateCandidateCollectionEntry,
   updateMyCandidateProfile,
+  getProfileAccessLogs,
 } from '../controllers/candidate.controller.js';
 import { authenticate } from '../middleware/auth.js';
 import { authorizeRoles } from '../middleware/authorizeRoles.js';
@@ -39,6 +40,7 @@ const candidateOnly = authorizeRoles(USER_ROLES.CANDIDATE);
 const reviewerOnly = authorizeRoles(USER_ROLES.RECRUITER, USER_ROLES.ADMIN);
 
 candidateRouter.get('/me', candidateOnly, getMyCandidateProfile);
+candidateRouter.get('/me/profile-access', candidateOnly, getProfileAccessLogs);
 candidateRouter.patch(
   '/me',
   candidateOnly,

@@ -6,6 +6,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { app } from '../src/app.js';
 import { CandidateProfile } from '../src/models/CandidateProfile.js';
 import { Company } from '../src/models/Company.js';
+import { CompanyMember } from '../src/models/CompanyMember.js';
 import { Job } from '../src/models/Job.js';
 import { RecruiterProfile } from '../src/models/RecruiterProfile.js';
 import { User } from '../src/models/User.js';
@@ -25,12 +26,14 @@ const createVerifiedCompany = async (recruiter, adminAccount, name = 'Talvix Lab
   await approve(recruiter, adminAccount);
   const created = await auth('post', '/api/v1/companies', recruiter.token).send({ name, industry: 'Technology', companySize: '11-50' }).expect(201);
   await auth('patch', `/api/v1/companies/admin/${created.body.data.company._id}/verify`, adminAccount.token).send({ notes: 'Documents verified' }).expect(200);
+  const updatedUser = await User.findById(recruiter.user._id);
+  recruiter.token = generateAccessToken(updatedUser.id, [updatedUser.role], updatedUser.tokenVersion);
   return created.body.data.company;
 };
 const validJob = () => ({ title: 'Backend Engineer', description: 'Build reliable recruitment services.', employmentType: 'full-time', workMode: 'remote', skills: [{ name: 'Node.js', required: true, minimumProficiency: 'advanced', minimumYearsOfExperience: 3, weight: 80 }], salary: { minimum: 80000, maximum: 120000, currency: 'USD', period: 'yearly', isVisible: false }, minimumExperience: 2, maximumExperience: 6, openings: 2, applicationDeadline: new Date(Date.now() + 7 * 86_400_000).toISOString() });
 
-beforeAll(async () => { replicaSet = await MongoMemoryReplSet.create({ replSet: { count: 1 } }); await mongoose.connect(replicaSet.getUri()); await Promise.all([User.init(), CandidateProfile.init(), RecruiterProfile.init(), Company.init(), Job.init()]); });
-beforeEach(async () => { await Promise.all([User.deleteMany({}), CandidateProfile.deleteMany({}), RecruiterProfile.deleteMany({}), Company.deleteMany({}), Job.deleteMany({})]); });
+beforeAll(async () => { replicaSet = await MongoMemoryReplSet.create({ replSet: { count: 1 } }); await mongoose.connect(replicaSet.getUri()); await Promise.all([User.init(), CandidateProfile.init(), RecruiterProfile.init(), Company.init(), Job.init(), CompanyMember.init()]); });
+beforeEach(async () => { await Promise.all([User.deleteMany({}), CandidateProfile.deleteMany({}), RecruiterProfile.deleteMany({}), Company.deleteMany({}), Job.deleteMany({}), CompanyMember.deleteMany({})]); });
 afterAll(async () => { await mongoose.disconnect(); await replicaSet.stop(); });
 
 describe('recruiter registration and approval', () => {
@@ -59,8 +62,10 @@ describe('company ownership, permissions, and verification', () => {
     await approve(recruiter, administrator);
     const response = await auth('post', '/api/v1/companies', recruiter.token).send({ name: 'Pending Labs' }).expect(201);
     const company = await Company.findById(response.body.data.company._id);
-    expect(company.verificationStatus).toBe('pending'); expect(company.owner.toString()).toBe(recruiter.user._id); expect(company.teamMembers[0].role).toBe('owner');
-    expect((await RecruiterProfile.findOne({ user: recruiter.user._id })).permissions).toContain('team.manage');
+    expect(company.verificationStatus).toBe('pending'); expect(company.owner.toString()).toBe(recruiter.user._id);
+    const ownerMember = await CompanyMember.findOne({ company: company._id, recruiter: recruiter.user._id });
+    expect(ownerMember.role).toBe('provisional_admin');
+    expect((await RecruiterProfile.findOne({ user: recruiter.user._id })).permissions).toContain('company.manage');
     await auth('post', '/api/v1/companies', recruiter.token).send({ name: 'Second Company' }).expect(409);
     await auth('patch', `/api/v1/companies/admin/${company.id}/verify`, recruiter.token).send({}).expect(403);
   });
@@ -69,10 +74,14 @@ describe('company ownership, permissions, and verification', () => {
     const administrator = await admin(); const owner = await register(); const member = await register();
     const company = await createVerifiedCompany(owner, administrator); await approve(member, administrator);
     const added = await auth('post', '/api/v1/companies/me/team', owner.token).send({ recruiterId: member.user._id, role: 'sourcer', permissions: [] }).expect(201);
+    const addedUser = await User.findById(member.user._id);
+    member.token = generateAccessToken(addedUser.id, [addedUser.role], addedUser.tokenVersion);
     await auth('patch', '/api/v1/companies/me', member.token).send({ description: 'Forbidden' }).expect(403);
     await auth('patch', `/api/v1/companies/me/team/${added.body.data.member._id}`, owner.token).send({ permissions: ['company.manage'] }).expect(200);
+    const updatedMember = await User.findById(member.user._id);
+    member.token = generateAccessToken(updatedMember.id, [updatedMember.role], updatedMember.tokenVersion);
     await auth('patch', '/api/v1/companies/me', member.token).send({ description: 'Allowed' }).expect(200);
-    const ownerMember = (await Company.findById(company._id)).teamMembers.find((entry) => entry.recruiter.equals(owner.user._id));
+    const ownerMember = await CompanyMember.findOne({ company: company._id, recruiter: owner.user._id });
     await auth('delete', `/api/v1/companies/me/team/${ownerMember.id}`, owner.token).expect(409);
   });
 
@@ -94,6 +103,8 @@ describe('job workflow and public discovery', () => {
     await auth('patch', `/api/v1/jobs/manage/${jobId}`, recruiter.token).send({ status: 'published', isFeatured: true, viewsCount: 999 }).expect(400);
     await auth('patch', `/api/v1/jobs/manage/${jobId}/submit`, recruiter.token).expect(403);
     await auth('patch', `/api/v1/companies/admin/${companyResponse.body.data.company._id}/verify`, administrator.token).send({}).expect(200);
+    const updatedRecruiter = await User.findById(recruiter.user._id);
+    recruiter.token = generateAccessToken(updatedRecruiter.id, [updatedRecruiter.role], updatedRecruiter.tokenVersion);
     await auth('patch', `/api/v1/jobs/manage/${jobId}/publish`, recruiter.token).expect(403);
     await auth('patch', `/api/v1/jobs/manage/${jobId}/submit`, recruiter.token).expect(200);
     await auth('patch', `/api/v1/jobs/manage/${jobId}/submit`, recruiter.token).expect(409);
@@ -120,7 +131,8 @@ describe('job workflow and public discovery', () => {
 
   it('prevents cross-company changes and restricts admin actions', async () => {
     const administrator = await admin(); const first = await register(); const second = await register();
-    await createVerifiedCompany(first, administrator, 'First Labs'); await createVerifiedCompany(second, administrator, 'Second Labs');
+    const firstCompany = await createVerifiedCompany(first, administrator, 'First Labs');
+    const secondCompany = await createVerifiedCompany(second, administrator, 'Second Labs');
     const created = await auth('post', '/api/v1/jobs', first.token).send(validJob()).expect(201); const id = created.body.data.job._id;
     await auth('patch', `/api/v1/jobs/manage/${id}`, second.token).send({ title: 'Stolen Job' }).expect(404);
     await auth('patch', `/api/v1/jobs/admin/${id}/approve`, first.token).expect(403);

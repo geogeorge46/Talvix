@@ -44,6 +44,8 @@ export interface CompanyView {
   technologies: string[];
   verificationStatus: string;
   isActive: boolean;
+  officialEmailDomain?: string | undefined;
+  autoApproveDomainMembers?: boolean | undefined;
   createdAt?: string | undefined;
   updatedAt?: string | undefined;
   team: TeamMember[];
@@ -107,6 +109,8 @@ export const toCompany = (input: unknown, includeTeam = false): CompanyView => {
       : [],
     verificationStatus: text(x.verificationStatus) || 'pending',
     isActive: x.isActive !== false,
+    officialEmailDomain: optionalText(x.officialEmailDomain),
+    autoApproveDomainMembers: x.autoApproveDomainMembers === true,
     createdAt: optionalText(x.createdAt),
     updatedAt: optionalText(x.updatedAt),
     team: includeTeam
@@ -159,6 +163,8 @@ export interface CompanyDraft {
   twitter: string;
   github: string;
   facebook: string;
+  officialEmailDomain: string;
+  autoApproveDomainMembers: boolean;
 }
 export const emptyCompanyDraft: CompanyDraft = {
   name: '',
@@ -181,6 +187,8 @@ export const emptyCompanyDraft: CompanyDraft = {
   twitter: '',
   github: '',
   facebook: '',
+  officialEmailDomain: '',
+  autoApproveDomainMembers: false,
 };
 export const companyToDraft = (c: CompanyView): CompanyDraft => ({
   name: c.name,
@@ -209,6 +217,8 @@ export const companyToDraft = (c: CompanyView): CompanyDraft => ({
   twitter: c.socialLinks.twitter ?? '',
   github: c.socialLinks.github ?? '',
   facebook: c.socialLinks.facebook ?? '',
+  officialEmailDomain: c.officialEmailDomain ?? '',
+  autoApproveDomainMembers: c.autoApproveDomainMembers ?? false,
 });
 export const serializeCompany = (d: CompanyDraft) => {
   if (
@@ -268,6 +278,8 @@ export const serializeCompany = (d: CompanyDraft) => {
               facebook: d.facebook || undefined,
             }
           : undefined,
+      officialEmailDomain: d.officialEmailDomain.trim() || undefined,
+      autoApproveDomainMembers: d.autoApproveDomainMembers,
     }).filter(([, v]) => v !== undefined),
   );
 };

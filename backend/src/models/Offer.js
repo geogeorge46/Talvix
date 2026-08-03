@@ -10,4 +10,16 @@ const offerSchema = new mongoose.Schema({
 }, { timestamps: true, versionKey: false });
 offerSchema.index({ application: 1, status: 1 }); offerSchema.index({ application: 1, revision: 1 }, { unique: true }); offerSchema.index({ company: 1, status: 1 }); offerSchema.index({ candidate: 1, status: 1 }); offerSchema.index({ job: 1, status: 1 }); offerSchema.index({ expiresAt: 1 }); offerSchema.index({ createdAt: -1 }); offerSchema.index({ isArchived: 1 }); offerSchema.index({ parentOffer: 1 });
 offerSchema.index({ application: 1 }, { name: 'unique_active_offer_application', unique: true, partialFilterExpression: { status: { $in: ['draft', 'pending-approval', 'approved', 'sent', 'viewed', 'negotiation-requested', 'revised', 'accepted'] } } });
+offerSchema.post('save', function(doc) {
+  if (doc.company) {
+    Promise.all([
+      import('../services/realtime.service.js'),
+      import('../services/recruiterAnalytics.service.js')
+    ]).then(([{ broadcastToCompany }, { invalidateAnalyticsCache }]) => {
+      broadcastToCompany(doc.company, 'offer_status_update', doc);
+      invalidateAnalyticsCache(doc.company);
+    }).catch(err => console.error(err));
+  }
+});
+
 export const Offer = mongoose.model('Offer', offerSchema);

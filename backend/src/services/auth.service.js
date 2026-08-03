@@ -27,7 +27,7 @@ import {
 import { verifyPassword } from '../utils/password.js';
 
 export const createSession = async (user, deviceInfo) => {
-  const accessToken = generateAccessToken(user.id);
+  const accessToken = generateAccessToken(user.id, [user.role], user.tokenVersion);
   const refreshToken = generateRefreshToken(user.id);
 
   const tokenHash = hashRefreshToken(refreshToken);

@@ -1,3 +1,5 @@
+import mongoose from 'mongoose';
+import { AuditLog } from '../models/AuditLog.js';
 import {
   addCandidateEntries,
   deleteCandidateEntry,
@@ -114,6 +116,52 @@ export const searchCandidates = async (request, response, next) => {
       success: true,
       message: 'Candidates retrieved successfully',
       data,
+    });
+  } catch (error) {
+    return next(error);
+  }
+};
+
+export const getProfileAccessLogs = async (request, response, next) => {
+  try {
+    const page = parseInt(request.query.page || '1', 10);
+    const limit = parseInt(request.query.limit || '10', 10);
+    const skip = (page - 1) * limit;
+
+    const logs = await AuditLog.find({ action: 'resume.download', targetUser: request.user.id })
+      .sort({ timestamp: -1 })
+      .skip(skip)
+      .limit(limit)
+      .populate('actor', 'fullName email')
+      .populate('company', 'name logo');
+
+    const jobIds = logs.map(l => l.newValue?.jobId).filter(Boolean);
+    const jobs = await mongoose.model('Job').find({ _id: { $in: jobIds } }).select('title slug');
+    const jobMap = new Map(jobs.map(j => [String(j._id), j]));
+
+    const data = logs.map(log => ({
+      id: log._id,
+      recruiter: log.actor,
+      company: log.company,
+      job: log.newValue?.jobId ? jobMap.get(String(log.newValue.jobId)) || null : null,
+      accessType: log.newValue?.accessType || 'download',
+      timestamp: log.timestamp
+    }));
+
+    const total = await AuditLog.countDocuments({ action: 'resume.download', targetUser: request.user.id });
+
+    return response.status(200).json({
+      success: true,
+      message: 'Profile access logs retrieved successfully',
+      data: {
+        logs: data,
+        pagination: {
+          page,
+          limit,
+          total,
+          pages: Math.ceil(total / limit)
+        }
+      }
     });
   } catch (error) {
     return next(error);

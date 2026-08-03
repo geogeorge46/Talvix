@@ -7,6 +7,8 @@ import {
   type RefObject,
 } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
+import { apiRequest } from '../api/client';
 import {
   Bell,
   BriefcaseBusiness,
@@ -19,6 +21,7 @@ import {
   Menu as MenuIcon,
   Search,
   ShieldCheck,
+  ShieldAlert,
   ClipboardCheck,
   CalendarDays,
   Users,
@@ -28,6 +31,7 @@ import {
   RadioTower,
   MessageSquareText,
   ListChecks,
+  History as HistoryIcon,
 } from 'lucide-react';
 import { Button, Drawer, IconButton, Menu } from '../design-system';
 import { useAuth } from '../auth/AuthProvider';
@@ -187,6 +191,12 @@ export const organizationNavigation: NavigationItem[] = [
     to: '/org/analytics',
     icon: <BarChart3 />,
   },
+  {
+    id: 'activity-timeline',
+    label: 'Activity Log',
+    to: '/org/activity-timeline',
+    icon: <HistoryIcon />,
+  },
 ];
 export const adminNavigation: NavigationItem[] = [
   {
@@ -200,6 +210,12 @@ export const adminNavigation: NavigationItem[] = [
     label: 'Approvals',
     to: '/admin/approvals',
     icon: <ListChecks />,
+  },
+  {
+    id: 'claims',
+    label: 'Disputes & Claims',
+    to: '/admin/claims',
+    icon: <ShieldAlert />,
   },
   {
     id: 'operations',
@@ -294,22 +310,59 @@ export function GlobalSearch() {
     </button>
   );
 }
+function useUnreadCountQuery() {
+  return useQuery({
+    queryKey: ['global-notifications-unread-count'],
+    queryFn: async () => {
+      try {
+        const res = await apiRequest<any>('/notifications/unread-count');
+        return Number(res?.count ?? 0);
+      } catch (err) {
+        return 0;
+      }
+    },
+    refetchInterval: 10000,
+  });
+}
+
 export function NotificationTrigger() {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { data: count = 0 } = useUnreadCountQuery();
   return (
-    <IconButton
-      icon={<Bell />}
-      aria-label="Notifications"
-      variant="quiet"
-      onClick={() =>
-        navigate(
-          user?.role === 'candidate'
-            ? '/candidate/notifications'
-            : '/notifications',
-        )
-      }
-    />
+    <div style={{ position: 'relative', display: 'inline-block' }}>
+      <IconButton
+        icon={<Bell />}
+        aria-label="Notifications"
+        variant="quiet"
+        onClick={() =>
+          navigate(
+            user?.role === 'candidate'
+              ? '/candidate/notifications'
+              : '/notifications',
+          )
+        }
+      />
+      {count > 0 && (
+        <span
+          style={{
+            position: 'absolute',
+            top: '2px',
+            right: '2px',
+            background: 'var(--color-bg-accent, #0066cc)',
+            color: 'white',
+            borderRadius: '50%',
+            padding: '2px 6px',
+            fontSize: '10px',
+            fontWeight: 'bold',
+            lineHeight: 1,
+            pointerEvents: 'none',
+          }}
+        >
+          {count}
+        </span>
+      )}
+    </div>
   );
 }
 export function AccountMenu() {

@@ -68,6 +68,8 @@ describe('organization administration privacy adapter', () => {
       twitter: '',
       github: '',
       facebook: '',
+      officialEmailDomain: '',
+      autoApproveDomainMembers: false,
     });
     expect(body).toMatchObject({
       name: 'Talvix',

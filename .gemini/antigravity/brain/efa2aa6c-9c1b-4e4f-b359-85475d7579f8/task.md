@@ -1,0 +1,23 @@
+- [x] Database Schemas
+    - [x] Create `RecruiterDashboardConfig.js` model schema
+    - [x] Create `SavedAnalyticsView.js` model schema
+- [x] Real-Time SSE Infrastructure
+    - [x] Create `realtime.service.js` to manage client SSE streams and broadcasting
+    - [x] Integrate presence pings inside company access middleware
+    - [x] Mount stream endpoint `/api/v1/realtime/stream`
+- [x] Dashboard & Views APIs
+    - [x] Implement widget configuration controller and routes (`/api/v1/dashboard/widgets`)
+    - [x] Implement saved views controller and routes (`/api/v1/analytics/saved-views`)
+- [x] Notifications Enhancements
+    - [x] Extend notifications serializer with categories, priorities, and action buttons metadata
+    - [x] Set up priority mappings for recruiter events
+- [x] Caching, Grouping & Optimization
+    - [x] Implement grouping logic for duplicate timeline activities
+    - [x] Add caching wrapper in recruiter analytics service
+- [x] Frontend Pages
+    - [x] Refactor `OrganizationDashboardPage.tsx` (widgets layout drawer, SSE stream listener)
+    - [x] Refactor `RecruiterAnalyticsPage.tsx` (filters view save/load, export pings)
+    - [x] Refactor `RecruiterNotificationsPage.tsx` (priorities, actionable buttons)
+- [x] Verification
+    - [x] Write integration test suite `test/recruiterEnhancements.integration.test.js`
+    - [x] Write load simulation test `test/recruiterLoad.test.js`

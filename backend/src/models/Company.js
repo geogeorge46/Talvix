@@ -1,16 +1,8 @@
 import mongoose from 'mongoose';
-import { COMPANY_SIZES, COMPANY_VERIFICATION_STATUSES, TEAM_MEMBER_STATUSES } from '../constants/company.js';
-import { RECRUITER_PERMISSIONS } from '../constants/permissions.js';
+import { COMPANY_SIZES, COMPANY_VERIFICATION_STATUSES } from '../constants/company.js';
 
 const locationSchema = new mongoose.Schema({ city: String, state: String, country: String }, { _id: false });
 const assetSchema = new mongoose.Schema({ url: String, publicId: String }, { _id: false });
-const teamMemberSchema = new mongoose.Schema({
-  recruiter: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
-  role: { type: String, trim: true, maxlength: 100, default: 'recruiter' },
-  permissions: [{ type: String, enum: RECRUITER_PERMISSIONS }],
-  joinedAt: { type: Date, default: Date.now },
-  status: { type: String, enum: TEAM_MEMBER_STATUSES, default: 'active' },
-});
 
 const companySchema = new mongoose.Schema({
   name: { type: String, required: true, trim: true, maxlength: 150 },
@@ -29,7 +21,12 @@ const companySchema = new mongoose.Schema({
   verificationNotes: { type: String, maxlength: 2000, default: '' },
   verifiedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null }, verifiedAt: { type: Date, default: null },
   owner: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, index: true },
-  teamMembers: { type: [teamMemberSchema], default: [] }, isActive: { type: Boolean, default: true },
+  officialEmailDomain: { type: String, lowercase: true, trim: true, default: '' },
+  autoApproveDomainMembers: { type: Boolean, default: false },
+  resumeDownloadLimit: { type: Number, default: null },
+  autoApproveJobs: { type: Boolean, default: false },
+  isActive: { type: Boolean, default: true },
+  teamMembers: { type: Array },
 }, { timestamps: true, versionKey: false });
 
 companySchema.index({ name: 'text' });

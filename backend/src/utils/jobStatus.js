@@ -1,9 +1,9 @@
 import { AppError } from '../shared/errors/AppError.js';
 
 export const JOB_TRANSITIONS = Object.freeze({
-  draft: ['pending-review'],
+  draft: ['pending-review', 'published'],
   'pending-review': ['published', 'rejected'],
-  rejected: ['draft'],
+  rejected: ['draft', 'published'],
   published: ['paused', 'closed'],
   paused: ['published', 'closed'],
   closed: ['archived'],

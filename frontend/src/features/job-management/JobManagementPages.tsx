@@ -6,7 +6,7 @@ import {
   useParams,
   useSearchParams,
 } from 'react-router-dom';
-import { ApiError } from '../../api/client';
+import { ApiError, apiRequest } from '../../api/client';
 import { useAuth } from '../../auth/AuthProvider';
 import {
   Alert,
@@ -48,7 +48,7 @@ import {
   type JobView,
   workModes,
 } from './model';
-import { useJobAction, useManagedJob, useManagedJobs, useSaveJob } from './api';
+import { useJobAction, useManagedJob, useManagedJobs, useSaveJob, useCloneJob } from './api';
 import './job-management.css';
 const label = (s: string) =>
   s.replaceAll('-', ' ').replace(/\b\w/g, (c) => c.toUpperCase());
@@ -129,6 +129,8 @@ function JobRowActions({
   verified: boolean;
 }) {
   const mutation = useJobAction(job.id);
+  const cloneMutation = useCloneJob();
+  const navigate = useNavigate();
   const [action, setAction] = useState<
     null | 'submit' | 'pause' | 'resume' | 'close' | 'archive'
   >(null);
@@ -137,6 +139,7 @@ function JobRowActions({
   const choices = (
     ['submit', 'pause', 'resume', 'close', 'archive'] as const
   ).filter((x) => allowed[x]);
+  const hasCreatePermission = permissions.includes('jobs.create');
   return (
     <div className="job-actions">
       {error && (
@@ -150,6 +153,26 @@ function JobRowActions({
       >
         Details
       </Link>
+      {hasCreatePermission && (
+        <Button
+          variant="quiet"
+          disabled={cloneMutation.isPending}
+          onClick={async () => {
+            try {
+              setError(null);
+              const result = await cloneMutation.mutateAsync(job.id);
+              if (result && typeof result === 'object' && 'job' in result) {
+                const newJob = (result as { job: { _id: string } }).job;
+                navigate(`/org/jobs/${newJob._id}/edit`);
+              }
+            } catch (err) {
+              setError((err as Error)?.message ?? 'Cloning failed');
+            }
+          }}
+        >
+          {cloneMutation.isPending ? 'Cloning...' : 'Clone'}
+        </Button>
+      )}
       {choices.map((x) => (
         <Button
           key={x}
@@ -411,6 +434,8 @@ export function JobDetailsPage() {
   const a = useAccess();
   const q = useManagedJob(jobId, a.has('jobs.update') && !a.blocked);
   const m = useJobAction(jobId);
+  const cloneMutation = useCloneJob();
+  const navigate = useNavigate();
   const [confirm, setConfirm] = useState<
     null | 'submit' | 'pause' | 'resume' | 'close' | 'archive'
   >(null);
@@ -448,6 +473,29 @@ export function JobDetailsPage() {
         }
         secondaryActions={
           <div className="job-actions">
+            {a.p.includes('jobs.create') && (
+              <Button
+                variant="secondary"
+                disabled={cloneMutation.isPending}
+                onClick={async () => {
+                  try {
+                    setActionError(null);
+                    const result = await cloneMutation.mutateAsync(j.id);
+                    if (result && typeof result === 'object' && 'job' in result) {
+                      const newJob = (result as { job: { _id: string } }).job;
+                      navigate(`/org/jobs/${newJob._id}/edit`);
+                    }
+                  } catch (err) {
+                    setActionError({
+                      message: (err as Error)?.message ?? 'Cloning failed',
+                      stale: false,
+                    });
+                  }
+                }}
+              >
+                {cloneMutation.isPending ? 'Cloning...' : 'Clone job'}
+              </Button>
+            )}
             {(['submit', 'pause', 'resume', 'close', 'archive'] as const)
               .filter((x) => actions[x])
               .map((x) => (
@@ -758,6 +806,8 @@ function validate(d: JobDraft) {
     e.openings = 'Openings must be a whole number from 1 to 10,000.';
   if (d.deadline && new Date(d.deadline) <= new Date())
     e.deadline = 'Application deadline must be in the future.';
+  if (d.scheduledPublishAt && new Date(d.scheduledPublishAt) <= new Date())
+    e.scheduledPublishAt = 'Scheduled publish date must be in the future.';
   if (Number(d.minimumExperience) < 0 || Number(d.minimumExperience) > 60)
     e.minimumExperience = 'Experience must be between 0 and 60 years.';
   if (
@@ -833,6 +883,9 @@ export function JobFormPage({ mode }: { mode: 'create' | 'edit' }) {
   const [d, setD] = useState(emptyDraft),
     [dirty, setDirty] = useState(false),
     [errors, setErrors] = useState<Record<string, string>>({});
+  const [aiGenerating, setAiGenerating] = useState(false);
+  const [aiSuggesting, setAiSuggesting] = useState(false);
+  const [aiChecking, setAiChecking] = useState(false);
   const blocker = useBlocker(dirty);
   const [createdWithoutRead, setCreatedWithoutRead] = useState(false);
   const summary = useRef<HTMLDivElement>(null);
@@ -998,6 +1051,104 @@ export function JobFormPage({ mode }: { mode: 'create' | 'edit' }) {
             maxLength={150}
             onChange={(e) => set('title', e.target.value)}
           />
+          <div className="ai-assist-toolbar" style={{ display: 'flex', gap: '8px', marginBottom: '16px', alignItems: 'center', flexWrap: 'wrap' }}>
+            <span style={{ fontSize: '14px', fontWeight: '500', color: 'var(--color-text-secondary)' }}>AI Recruiter Assist:</span>
+            <Button
+              type="button"
+              variant="secondary"
+              disabled={aiGenerating}
+              onClick={async () => {
+                if (!d.title.trim()) {
+                  alert('Please enter a job title first.');
+                  return;
+                }
+                setAiGenerating(true);
+                try {
+                  const res = await apiRequest<{ description: string }>('/jobs/ai/generate-description', {
+                    method: 'POST',
+                    body: { title: d.title, keyRequirements: 'Standard tech role requirements.' }
+                  });
+                  if (res?.description) {
+                    set('description', res.description);
+                  }
+                } catch (err) {
+                  alert('Failed to generate description: ' + (err as Error).message);
+                } finally {
+                  setAiGenerating(false);
+                }
+              }}
+            >
+              {aiGenerating ? 'Generating...' : 'Generate Description'}
+            </Button>
+
+            <Button
+              type="button"
+              variant="secondary"
+              disabled={aiSuggesting}
+              onClick={async () => {
+                if (!d.title.trim() || !d.description.trim()) {
+                  alert('Please enter both job title and description first.');
+                  return;
+                }
+                setAiSuggesting(true);
+                try {
+                  const res = await apiRequest<{ skills: string[] }>('/jobs/ai/suggest-skills', {
+                    method: 'POST',
+                    body: { title: d.title, description: d.description }
+                  });
+                  if (res?.skills?.length) {
+                    const newSkills = res.skills.map(name => ({
+                      name,
+                      required: true,
+                      minimumProficiency: 'beginner',
+                      minimumYearsOfExperience: '1',
+                      weight: '50'
+                    }));
+                    const existingNames = new Set(d.skills.map(s => s.name.toLowerCase()));
+                    const filteredNew = newSkills.filter(s => !existingNames.has(s.name.toLowerCase()));
+                    set('skills', [...d.skills, ...filteredNew]);
+                  }
+                } catch (err) {
+                  alert('Failed to suggest skills: ' + (err as Error).message);
+                } finally {
+                  setAiSuggesting(false);
+                }
+              }}
+            >
+              {aiSuggesting ? 'Suggesting Skills...' : 'Suggest Skills'}
+            </Button>
+
+            <Button
+              type="button"
+              variant="secondary"
+              disabled={aiChecking}
+              onClick={async () => {
+                if (!d.title.trim() || !d.description.trim()) {
+                  alert('Please enter both job title and description first.');
+                  return;
+                }
+                setAiChecking(true);
+                try {
+                  const res = await apiRequest<{ check: { isSafe: boolean; riskScore: number; issues: string[] } }>('/jobs/ai/safety-check', {
+                    method: 'POST',
+                    body: { title: d.title, description: d.description }
+                  });
+                  if (res?.check) {
+                    alert(`AI Safety Check:
+- Safe: ${res.check.isSafe ? 'Yes' : 'No'}
+- Risk Score: ${res.check.riskScore}/100
+- Issues identified: ${res.check.issues.length > 0 ? res.check.issues.join(', ') : 'None'}`);
+                  }
+                } catch (err) {
+                  alert('Failed to run safety check: ' + (err as Error).message);
+                } finally {
+                  setAiChecking(false);
+                }
+              }}
+            >
+              {aiChecking ? 'Running safety check...' : 'AI Safety Check'}
+            </Button>
+          </div>
           <TextArea
             id="description"
             label="Description"
@@ -1046,6 +1197,14 @@ export function JobFormPage({ mode }: { mode: 'create' | 'edit' }) {
               value={d.deadline}
               error={errors.deadline}
               onChange={(e) => set('deadline', e.target.value)}
+            />
+            <TextField
+              id="scheduledPublishAt"
+              label="Scheduled publish date"
+              type="date"
+              value={d.scheduledPublishAt}
+              error={errors.scheduledPublishAt}
+              onChange={(e) => set('scheduledPublishAt', e.target.value)}
             />
           </div>
         </FormSection>

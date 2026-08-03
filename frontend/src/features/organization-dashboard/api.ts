@@ -129,3 +129,19 @@ export function useDashboardQueries(input: {
     offers,
   };
 }
+
+export function useRecruiterDashboardQuery() {
+  return useQuery({
+    queryKey: ['recruiter-dashboard'],
+    queryFn: () => apiRequest<any>('/analytics/recruiter/dashboard'),
+    retry: false,
+  });
+}
+
+export function useCompanyDashboardQuery() {
+  return useQuery({
+    queryKey: ['company-dashboard'],
+    queryFn: () => apiRequest<any>('/analytics/company/dashboard'),
+    retry: false,
+  });
+}

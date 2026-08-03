@@ -1,3 +1,28 @@
 import { listPendingCompanies, setCompanyVerification } from '../services/adminCompany.service.js';
-export const pendingCompanies = async (request, response, next) => { try { const data = await listPendingCompanies(request.validatedQuery); return response.json({ success: true, message: 'Pending companies retrieved successfully', data }); } catch (error) { return next(error); } };
-export const companyVerificationAction = (status) => async (request, response, next) => { try { const company = await setCompanyVerification(request.params.companyId, status, request.user.id, request.body.notes); return response.json({ success: true, message: `Company ${status} successfully`, data: { company } }); } catch (error) { return next(error); } };
+
+export const pendingCompanies = async (request, response, next) => {
+  try {
+    const data = await listPendingCompanies(request.validatedQuery);
+    return response.json({ success: true, message: 'Pending companies retrieved successfully', data });
+  } catch (error) {
+    return next(error);
+  }
+};
+
+export const companyVerificationAction = (status) => async (request, response, next) => {
+  try {
+    const ip = request.ip || 'Unknown';
+    const ua = request.headers['user-agent'] || 'Unknown';
+    const company = await setCompanyVerification(
+      request.params.companyId,
+      status,
+      request.user.id,
+      request.body.notes,
+      ip,
+      ua
+    );
+    return response.json({ success: true, message: `Company ${status} successfully`, data: { company } });
+  } catch (error) {
+    return next(error);
+  }
+};

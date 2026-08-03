@@ -99,7 +99,11 @@ import {
   TeamDetailPage,
   TeamPage,
   UnsupportedOrganizationPage,
+  AcceptInvitePage,
 } from '../features/organization-admin';
+import { RecruiterAnalyticsPage } from '../features/recruiter-analytics';
+import { RecruiterNotificationsPage } from '../features/recruiter-notifications';
+import { RecruiterActivityTimelinePage } from '../features/recruiter-activity';
 import {
   CandidateApplicationDetailPage,
   CandidateApplicationsPage,
@@ -121,6 +125,7 @@ import {
   AdminOperationsPage,
   AdminOverviewPage,
   AdminRecordDetailPage,
+  AdminClaimsPage,
 } from '../features/system-admin';
 
 import { LandingPage } from '../features/landing-page/LandingPage';
@@ -204,6 +209,7 @@ export function AppRoutes() {
         <Route path="unauthorized" element={<UnauthorizedPage />} />
         <Route path="forbidden" element={<ForbiddenPage />} />
         <Route path="not-found" element={<NotFoundPage />} />
+        <Route path="accept-invite" element={<AcceptInvitePage />} />
       </Route>
       <Route element={<AuthLayout />}>
         <Route path="login" element={<SignInPage />} />
@@ -362,7 +368,11 @@ export function AppRoutes() {
         />
         <Route
           path="analytics"
-          element={<UnsupportedOrganizationPage kind="analytics" />}
+          element={<RecruiterAnalyticsPage />}
+        />
+        <Route
+          path="activity-timeline"
+          element={<RecruiterActivityTimelinePage />}
         />
         <Route
           path="exports"
@@ -648,6 +658,7 @@ export function AppRoutes() {
       >
         <Route index element={<AdminOverviewPage />} />
         <Route path="approvals" element={<AdminApprovalsPage />} />
+        <Route path="claims" element={<AdminClaimsPage />} />
         <Route path="operations" element={<AdminOperationsPage />} />
         <Route path="operations/:type/:id" element={<AdminRecordDetailPage />} />
         <Route path="communications" element={<AdminCommunicationsPage />} />
@@ -666,7 +677,7 @@ export function AppRoutes() {
       >
         <Route
           path="notifications"
-          element={<WorkspacePlaceholder title="Notifications" />}
+          element={<RecruiterNotificationsPage />}
         />
       </Route>
       <Route

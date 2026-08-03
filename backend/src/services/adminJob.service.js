@@ -1,5 +1,6 @@
 import { Job } from '../models/Job.js';
 import { RecruiterProfile } from '../models/RecruiterProfile.js';
+import { AuditLog } from '../models/AuditLog.js';
 import { AppError } from '../shared/errors/AppError.js';
 import { transitionJob } from '../utils/jobStatus.js';
 import { buildPagination } from '../utils/pagination.js';
@@ -15,7 +16,41 @@ export const listPendingJobs = async ({ page, limit }) => {
 export const approveJob = async (id, adminId) => {
   const job = await findJob(id); ensureCompanyOperational(job.company); ensurePublishable(job);
   const profile = await RecruiterProfile.findOne({ user: job.createdBy }); if (!profile?.isApproved) throw new AppError('Creating recruiter is not approved', 403);
-  transitionJob(job, 'published'); job.rejectionReason = ''; job.reviewedBy = adminId; job.reviewedAt = new Date(); await job.save(); await publishOptionalDomainEvent({ type: DOMAIN_EVENTS.JOB_APPROVED, actor: String(adminId), company: String(job.company.id), recipientIds: [String(job.createdBy)], payload: { companyId: String(job.company.id), companyName: job.company.name, jobId: String(job.id), jobTitle: job.title }, deduplicationKey: `job.approved:${job.id}:${job.reviewedAt.toISOString()}` }); return job;
+  const oldValue = { status: job.status };
+  transitionJob(job, 'published'); job.rejectionReason = ''; job.reviewedBy = adminId; job.reviewedAt = new Date(); await job.save();
+  await AuditLog.create({
+    action: 'job.approve',
+    actor: adminId,
+    company: job.company.id,
+    oldValue,
+    newValue: { status: job.status }
+  });
+  await publishOptionalDomainEvent({ type: DOMAIN_EVENTS.JOB_APPROVED, actor: String(adminId), company: String(job.company.id), recipientIds: [String(job.createdBy)], payload: { companyId: String(job.company.id), companyName: job.company.name, jobId: String(job.id), jobTitle: job.title }, deduplicationKey: `job.approved:${job.id}:${job.reviewedAt.toISOString()}` }); return job;
 };
-export const rejectJob = async (id, reason, adminId) => { const job = await findJob(id); transitionJob(job, 'rejected'); job.rejectionReason = reason; job.reviewedBy = adminId; job.reviewedAt = new Date(); await job.save(); await publishOptionalDomainEvent({ type: DOMAIN_EVENTS.JOB_REJECTED, actor: String(adminId), company: String(job.company.id), recipientIds: [String(job.createdBy)], payload: { companyId: String(job.company.id), companyName: job.company.name, jobId: String(job.id), jobTitle: job.title, reason: String(reason).slice(0,300) }, deduplicationKey: `job.rejected:${job.id}:${job.reviewedAt.toISOString()}` }); return job; };
-export const setJobFeatured = async (id, featured) => { const job = await Job.findById(id); if (!job) throw new AppError('Job not found', 404); if (featured && job.status !== 'published') throw new AppError('Only published jobs can be featured', 409); job.isFeatured = featured; await job.save(); return job; };
+export const rejectJob = async (id, reason, adminId) => {
+  const job = await findJob(id);
+  const oldValue = { status: job.status };
+  transitionJob(job, 'rejected'); job.rejectionReason = reason; job.reviewedBy = adminId; job.reviewedAt = new Date(); await job.save();
+  await AuditLog.create({
+    action: 'job.reject',
+    actor: adminId,
+    company: job.company.id,
+    oldValue,
+    newValue: { status: job.status, rejectionReason: reason }
+  });
+  await publishOptionalDomainEvent({ type: DOMAIN_EVENTS.JOB_REJECTED, actor: String(adminId), company: String(job.company.id), recipientIds: [String(job.createdBy)], payload: { companyId: String(job.company.id), companyName: job.company.name, jobId: String(job.id), jobTitle: job.title, reason: String(reason).slice(0,300) }, deduplicationKey: `job.rejected:${job.id}:${job.reviewedAt.toISOString()}` }); return job;
+};
+export const setJobFeatured = async (id, featured, adminId) => {
+  const job = await Job.findById(id); if (!job) throw new AppError('Job not found', 404);
+  if (featured && job.status !== 'published') throw new AppError('Only published jobs can be featured', 409);
+  const oldValue = { isFeatured: job.isFeatured };
+  job.isFeatured = featured; await job.save();
+  await AuditLog.create({
+    action: 'job.feature',
+    actor: adminId,
+    company: job.company,
+    oldValue,
+    newValue: { isFeatured: job.isFeatured }
+  });
+  return job;
+};

@@ -26,6 +26,7 @@ export interface JobDraft {
   country: string;
   openings: string;
   deadline: string;
+  scheduledPublishAt: string;
   minimumExperience: string;
   maximumExperience: string;
   responsibilities: string;
@@ -64,6 +65,7 @@ export const emptyDraft: JobDraft = {
   country: '',
   openings: '1',
   deadline: '',
+  scheduledPublishAt: '',
   minimumExperience: '0',
   maximumExperience: '',
   responsibilities: '',
@@ -94,6 +96,7 @@ export interface JobView {
   applicationsCount: number;
   viewsCount: number;
   deadline?: string | undefined;
+  scheduledPublishAt?: string | undefined;
   rejectionReason?: string | undefined;
   reviewedAt?: string | undefined;
   responsibilities: string[];
@@ -136,6 +139,7 @@ export function toJob(v: unknown): JobView {
     applicationsCount: num(x.applicationsCount),
     viewsCount: num(x.viewsCount),
     deadline: text(x.applicationDeadline) || undefined,
+    scheduledPublishAt: text(x.scheduledPublishAt) || undefined,
     rejectionReason: text(x.rejectionReason) || undefined,
     reviewedAt: text(x.reviewedAt) || undefined,
     responsibilities: Array.isArray(x.responsibilities)
@@ -167,6 +171,7 @@ export function toJob(v: unknown): JobView {
       country: text(l.country),
       openings: String(num(x.openings) || 1),
       deadline: text(x.applicationDeadline).slice(0, 10),
+      scheduledPublishAt: text(x.scheduledPublishAt).slice(0, 10),
       minimumExperience: String(num(x.minimumExperience)),
       maximumExperience:
         x.maximumExperience === undefined
@@ -257,6 +262,9 @@ export function serializeDraft(d: JobDraft) {
     openings: Number(d.openings),
     ...(d.deadline
       ? { applicationDeadline: new Date(d.deadline).toISOString() }
+      : {}),
+    ...(d.scheduledPublishAt
+      ? { scheduledPublishAt: new Date(d.scheduledPublishAt).toISOString() }
       : {}),
     minimumExperience: Number(d.minimumExperience),
     ...(d.maximumExperience

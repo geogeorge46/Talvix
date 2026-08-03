@@ -62,3 +62,15 @@ export function useJobAction(id: string) {
     },
   });
 }
+export function useCloneJob() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) =>
+      apiRequest<{ job?: unknown }>(`/jobs/manage/${id}/clone`, {
+        method: 'POST',
+      }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['managed-jobs'] });
+    },
+  });
+}

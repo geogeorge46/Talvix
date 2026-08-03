@@ -2,6 +2,7 @@ import { app } from './app.js';
 import { connectDatabase, disconnectDatabase } from './config/database.js';
 import { env } from './config/env.js';
 import { logger } from './shared/utils/logger.js';
+import { startBackgroundWorker, stopBackgroundWorker } from './services/backgroundJobs.service.js';
 
 let httpServer;
 let isShuttingDown = false;
@@ -31,6 +32,7 @@ const shutdown = async (signal) => {
   forceShutdownTimer.unref();
 
   try {
+    stopBackgroundWorker();
     await closeHttpServer();
     await disconnectDatabase();
     clearTimeout(forceShutdownTimer);
@@ -44,6 +46,7 @@ const shutdown = async (signal) => {
 const startServer = async () => {
   try {
     await connectDatabase();
+    startBackgroundWorker();
     httpServer = app.listen(env.PORT, () => {
       logger.info(`Talvix API listening on port ${env.PORT} in ${env.NODE_ENV} mode`);
     });

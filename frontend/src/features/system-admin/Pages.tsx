@@ -5,6 +5,7 @@ import { Activity, ArrowRight, Download, RefreshCw, Search, ShieldAlert } from '
 import { ApiError } from '../../api/client';
 import { adminApi, adminPaths, approvalAction, downloadAnalyticsCsv } from './api';
 import { APPLICATION_ADMIN_STATUSES, displayValue, recordId, type AdminRecord, type PageMeta } from './model';
+import { useGetAdminClaims, useResolveClaim } from '../organization-admin/api';
 import './system-admin.css';
 
 const objectId = /^[a-f\d]{24}$/i;
@@ -220,4 +221,127 @@ export function AdminAnalyticsPage() {
     {exportError && <p className="sys-error" role="alert">{exportError}</p>}
     {query.isLoading ? <State kind="loading">Calculating aggregates…</State> : query.isError ? <State kind="error">{errorText(query.error)}</State> : <section className="sys-metrics">{Object.entries(summary).filter(([, v]) => typeof v === 'number').map(([key, value]) => <article key={key}><span>{label(key)}</span><strong>{Number(value).toLocaleString()}</strong><small>Aggregate count</small></article>)}</section>}
   </main>;
+}
+
+export function AdminClaimsPage() {
+  const query = useGetAdminClaims();
+  const resolveMutation = useResolveClaim();
+  const [notes, setNotes] = useState('');
+
+  const handleResolve = (claimId: string, action: 'approve' | 'reject') => {
+    resolveMutation.mutate(
+      { claimId, action, notes },
+      {
+        onSuccess: () => {
+          setNotes('');
+        },
+      }
+    );
+  };
+
+  return (
+    <main className="sys-page">
+      <Header
+        eyebrow="System administration / Claims"
+        title="Ownership disputes & claims"
+        intro="Review official documentation, emails, and LinkedIn links to verify company ownership."
+      />
+      
+      {query.isLoading ? (
+        <State kind="loading">Loading claims...</State>
+      ) : query.isError ? (
+        <State kind="error">{errorText(query.error)}</State>
+      ) : query.data && query.data.length > 0 ? (
+        <div className="sys-table-wrap">
+          <table className="sys-table">
+            <thead>
+              <tr>
+                <th>Company</th>
+                <th>Claimant</th>
+                <th>Dispute details</th>
+                <th>Status</th>
+                <th>Notes / Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {query.data.map((claim: any) => (
+                <tr key={claim._id}>
+                  <td>
+                    <strong>{claim.company?.name}</strong>
+                    <small className="sys-mono">{claim.company?.slug}</small>
+                  </td>
+                  <td>
+                    <strong>{claim.claimant?.fullName}</strong>
+                    <small className="sys-mono">{claim.claimant?.email}</small>
+                  </td>
+                  <td>
+                    <div>Email: {claim.officialEmail}</div>
+                    <div>
+                      <a href={claim.linkedinUrl} target="_blank" rel="noreferrer" style={{ textDecoration: 'underline', color: 'var(--color-primary)' }}>
+                        LinkedIn profile
+                      </a>
+                    </div>
+                    {claim.proofUrl && (
+                      <div>
+                        <a href={claim.proofUrl} target="_blank" rel="noreferrer" style={{ textDecoration: 'underline', color: 'var(--color-primary)' }}>
+                          Verification document
+                        </a>
+                      </div>
+                    )}
+                  </td>
+                  <td>
+                    <Status value={claim.status} />
+                  </td>
+                  <td>
+                    {claim.status === 'pending' ? (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                        <textarea
+                          placeholder="Resolution notes..."
+                          value={notes}
+                          onChange={(e) => setNotes(e.target.value)}
+                          style={{
+                            width: '100%',
+                            minHeight: '60px',
+                            padding: '0.4rem',
+                            border: '1px solid var(--color-border-subtle)',
+                            borderRadius: '4px',
+                            background: 'transparent',
+                            color: 'inherit',
+                          }}
+                        />
+                        <div style={{ display: 'flex', gap: '0.5rem' }}>
+                          <button
+                            className="sys-button"
+                            style={{ background: '#10b981', color: 'white', border: 'none', padding: '0.4rem 0.8rem', borderRadius: '4px', cursor: 'pointer' }}
+                            onClick={() => handleResolve(claim._id, 'approve')}
+                            disabled={resolveMutation.isPending}
+                          >
+                            Approve & Transfer
+                          </button>
+                          <button
+                            className="sys-button"
+                            style={{ background: '#ef4444', color: 'white', border: 'none', padding: '0.4rem 0.8rem', borderRadius: '4px', cursor: 'pointer' }}
+                            onClick={() => handleResolve(claim._id, 'reject')}
+                            disabled={resolveMutation.isPending}
+                          >
+                            Reject
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div style={{ fontSize: '0.85rem', color: 'var(--color-text-subtle)' }}>
+                        {claim.notes || 'No notes added.'}
+                      </div>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <State kind="empty">No ownership claims found.</State>
+      )}
+    </main>
+  );
 }

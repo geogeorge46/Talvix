@@ -9,6 +9,11 @@ import {
   Plus,
   Sparkles,
   Users,
+  Building,
+  TrendingUp,
+  ShieldCheck,
+  History,
+  LayoutDashboard,
 } from 'lucide-react';
 import { useAuth } from '../../auth/AuthProvider';
 import {
@@ -17,9 +22,11 @@ import {
   Button,
   Card,
   DataTable,
+  DescriptionList,
   EmptyState,
   ErrorState,
   FilteredEmptyState,
+  LoadingState,
   MetricCard,
   PageHeader,
   PermissionState,
@@ -29,7 +36,8 @@ import {
   Toolbar,
   type DataColumn,
 } from '../../design-system';
-import { can, useDashboardQueries } from './api';
+import { can, useDashboardQueries, useRecruiterDashboardQuery, useCompanyDashboardQuery } from './api';
+import { apiRequest, tokenStore } from '../../api/client';
 import {
   APPLICATION_STAGES,
   parseDashboardFilters,
@@ -157,7 +165,93 @@ export function OrganizationDashboardPage() {
   const rows = queries.applications.data?.candidates ?? [];
   const pageData = queries.applications.data?.pagination;
   const hasFilters = Boolean(filters.q || filters.stage);
-  const columns: DataColumn<CandidateViewModel>[] = [
+  const recDash = useRecruiterDashboardQuery();
+  const compDash = useCompanyDashboardQuery();
+  const [activeTab, setActiveTab] = useState<'recruiter' | 'company'>('recruiter');
+
+  // Widget settings
+  const [widgets, setWidgets] = useState<Array<{ id: string; visible: boolean; order: number }>>([
+    { id: 'metrics', visible: true, order: 0 },
+    { id: 'pipeline', visible: true, order: 1 },
+    { id: 'workspace', visible: true, order: 2 },
+    { id: 'recentActivity', visible: true, order: 3 },
+    { id: 'quickActions', visible: true, order: 4 },
+    { id: 'insights', visible: true, order: 5 }
+  ]);
+  const [showPersonalize, setShowPersonalize] = useState(false);
+
+  useEffect(() => {
+    apiRequest<{ widgets: Array<{ id: string; visible: boolean; order: number }> }>('/dashboard/widgets')
+      .then(res => {
+        if (res?.widgets?.length) {
+          setWidgets(res.widgets.sort((a, b) => a.order - b.order));
+        }
+      })
+      .catch(err => console.error('Failed to load widgets:', err));
+  }, []);
+
+  const handleToggleWidget = (id: string) => {
+    const updated = widgets.map(w => w.id === id ? { ...w, visible: !w.visible } : w);
+    setWidgets(updated);
+    apiRequest('/dashboard/widgets', { method: 'PATCH', body: { widgets: updated } })
+      .catch(err => console.error(err));
+  };
+
+  const handleMoveWidget = (id: string, direction: 'up' | 'down') => {
+    const index = widgets.findIndex(w => w.id === id);
+    if (index === -1) return;
+    if (direction === 'up' && index === 0) return;
+    if (direction === 'down' && index === widgets.length - 1) return;
+
+    const targetIndex = direction === 'up' ? index - 1 : index + 1;
+    const nextWidgets = [...widgets];
+    const temp = nextWidgets[index];
+    const target = nextWidgets[targetIndex];
+    if (!target || !temp) return;
+    nextWidgets[index] = target;
+    nextWidgets[targetIndex] = temp;
+
+    const updated = nextWidgets.map((w, i) => ({ ...w, order: i }));
+    setWidgets(updated);
+    apiRequest('/dashboard/widgets', { method: 'PATCH', body: { widgets: updated } })
+      .catch(err => console.error(err));
+  };
+
+  const handleResetLayout = () => {
+    apiRequest<{ widgets: Array<{ id: string; visible: boolean; order: number }> }>('/dashboard/widgets', { method: 'PATCH', body: { reset: true } })
+      .then(res => {
+        if (res?.widgets?.length) {
+          setWidgets(res.widgets.sort((a, b) => a.order - b.order));
+        }
+      })
+      .catch(err => console.error(err));
+  };
+
+  // SSE Stream setup
+  useEffect(() => {
+    const token = tokenStore.get();
+    if (!token) return;
+
+    const base = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:5000/api/v1';
+    const es = new EventSource(`${base}/realtime/stream?token=${token}`);
+
+    const triggerRefetch = () => {
+      recDash.refetch();
+      compDash.refetch();
+      queries.applications.refetch();
+      queries.pipeline.refetch();
+    };
+
+    es.addEventListener('new_application', triggerRefetch);
+    es.addEventListener('interview_status_update', triggerRefetch);
+    es.addEventListener('offer_status_update', triggerRefetch);
+    es.addEventListener('notification_created', triggerRefetch);
+
+    return () => {
+      es.close();
+    };
+  }, [recDash, compDash, queries.applications, queries.pipeline]);
+  const columns: DataColumn<any>[] = [
     {
       id: 'candidate',
       header: 'Candidate',
@@ -184,7 +278,7 @@ export function OrganizationDashboardPage() {
       render: (candidate) => (
         <div className="tvx-skill-list">
           {candidate.skills.length ? (
-            candidate.skills.map((skill) => (
+            candidate.skills.map((skill: string) => (
               <Badge
                 key={skill}
                 variant={
@@ -210,10 +304,7 @@ export function OrganizationDashboardPage() {
       ),
     },
   ];
-  const clearFilters = () => {
-    setSearchDraft('');
-    update({ q: '', stage: '', page: 1 });
-  };
+
   return (
     <div className="tvx-org-dashboard">
       <PageHeader
@@ -252,183 +343,408 @@ export function OrganizationDashboardPage() {
         }
       />
 
-      <section className="tvx-dashboard-metrics" aria-label="Hiring metrics">
-        <MetricBoundary
-          allowed={can(permissions, owner, 'jobs.update')}
-          label="Active jobs"
-          value={queries.jobs.data?.active ?? 0}
-          loading={queries.jobs.isLoading}
-          error={queries.jobs.isError}
-          retry={() => void queries.jobs.refetch()}
-          metadata={
-            queries.jobs.data?.partial
-              ? `Partial: first 50 of ${queries.jobs.data.total} managed jobs`
-              : 'Published and paused jobs'
-          }
-          icon={<BriefcaseBusiness />}
-        />
-        <MetricBoundary
-          allowed={applicationsAllowed}
-          label="New applications"
-          value={queries.newApplications.data ?? 0}
-          loading={queries.newApplications.isLoading}
-          error={queries.newApplications.isError}
-          retry={() => void queries.newApplications.refetch()}
-          metadata={`Last ${filters.range} days`}
-          icon={<Users />}
-        />
-        <MetricBoundary
-          allowed={interviewsAllowed}
-          label="Interviews this week"
-          value={queries.weekInterviews.data?.length ?? 0}
-          loading={queries.weekInterviews.isLoading}
-          error={queries.weekInterviews.isError}
-          retry={() => void queries.weekInterviews.refetch()}
-          metadata="Current UTC week"
-          icon={<CalendarDays />}
-        />
-        <MetricBoundary
-          allowed={can(permissions, owner, 'offers.view')}
-          label="Offers pending"
-          value={queries.offers.data ?? 0}
-          loading={queries.offers.isLoading}
-          error={queries.offers.isError}
-          retry={() => void queries.offers.refetch()}
-          metadata="Current pending approvals"
-          icon={<FileText />}
-        />
-      </section>
-
-      <PipelinePanel allowed={applicationsAllowed} query={queries.pipeline} />
-
-      <div className="tvx-dashboard-workspace-grid">
-        <section
-          className="tvx-candidates"
-          aria-labelledby="candidate-workspace-title"
-        >
-          <div className="tvx-section-heading">
-            <div>
-              <h2 id="candidate-workspace-title">
-                Active Candidates Workspace
-              </h2>
-              <p>Applications submitted within the selected dashboard range.</p>
-            </div>
+      <div className="tvx-tabs" style={{ marginBottom: '1.5rem' }}>
+        <div role="tablist" style={{ display: 'flex', gap: '1.5rem', borderBottom: '1px solid var(--color-border-subtle)', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={{ display: 'flex', gap: '1.5rem' }}>
+            <button
+              role="tab"
+              data-state={activeTab === 'recruiter' ? 'active' : 'inactive'}
+              onClick={() => setActiveTab('recruiter')}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0.75rem 0.5rem' }}
+            >
+              My Dashboard
+            </button>
+            <button
+              role="tab"
+              data-state={activeTab === 'company' ? 'active' : 'inactive'}
+              onClick={() => setActiveTab('company')}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0.75rem 0.5rem' }}
+            >
+              Company Dashboard
+            </button>
           </div>
-          {applicationsAllowed ? (
-            <>
-              <Toolbar
-                label="Candidate filters"
-                start={
-                  <SearchField
-                    label="Search candidates"
-                    value={searchDraft}
-                    onChange={(event) => setSearchDraft(event.target.value)}
-                    onSearch={(value) => update({ q: value.trim() }, true)}
-                  />
-                }
-                end={
-                  <div className="tvx-dashboard-filter-actions">
-                    <Select
-                      label="Filter by stage"
-                      value={filters.stage}
-                      placeholder="All stages"
-                      options={stageOptions}
-                      onChange={(event) =>
-                        update(
-                          {
-                            stage: event.target
-                              .value as DashboardFilters['stage'],
-                          },
-                          true,
-                        )
-                      }
-                    />
-                    {hasFilters && (
-                      <Button variant="quiet" onClick={clearFilters}>
-                        Reset filters
-                      </Button>
-                    )}
-                  </div>
-                }
-              />
-              <p className="sr-only" aria-live="polite">
-                {queries.applications.isLoading
-                  ? 'Loading candidates'
-                  : `${pageData?.total ?? 0} candidates found`}
-              </p>
-              <DataTable
-                caption="Candidates in the selected date range"
-                rows={rows}
-                rowKey={(candidate) => candidate.id}
-                columns={columns}
-                isLoading={queries.applications.isLoading}
-                {...(queries.applications.isError
-                  ? { error: 'Candidates could not be loaded.' }
-                  : {})}
-                empty={
-                  hasFilters ? (
-                    <FilteredEmptyState
-                      title="No candidates match"
-                      description="Try a broader search or remove a stage filter."
-                      onClear={clearFilters}
-                    />
-                  ) : (
-                    <EmptyState
-                      title="No applications yet"
-                      description={`No applications were submitted in the last ${filters.range} days.`}
-                    />
-                  )
-                }
-                renderNarrow={(candidate) => (
-                  <CandidateCard candidate={candidate} />
-                )}
-                {...(pageData && pageData.pages > 1
-                  ? {
-                      pagination: {
-                        page: pageData.page,
-                        totalPages: pageData.pages,
-                        onPageChange: (page: number) => update({ page }),
-                        ariaLabel: 'Candidate pages',
-                      },
-                    }
-                  : {})}
-                rowActions={(candidate) => (
-                  <Link
-                    className="tvx-dashboard-row-link"
-                    to={`/org/applications/${candidate.id}`}
-                  >
-                    View
-                    <span className="sr-only">
-                      {' '}
-                      {candidate.name}'s application
-                    </span>
-                    <ChevronRight aria-hidden />
-                  </Link>
-                )}
-              />
-              {queries.applications.isError && (
-                <Button
-                  variant="secondary"
-                  onClick={() => void queries.applications.refetch()}
-                >
-                  Retry candidates
-                </Button>
-              )}
-            </>
-          ) : (
-            <PermissionState description="Application viewing permission is required for the candidate workspace." />
+          {activeTab === 'recruiter' && (
+            <Button size="compact" variant="quiet" onClick={() => setShowPersonalize(!showPersonalize)} style={{ marginBottom: '0.25rem' }}>
+              Layout Settings
+            </Button>
           )}
-        </section>
-        <InsightsRail
-          pipeline={queries.pipeline.data}
-          pipelineAllowed={applicationsAllowed}
-          interviews={queries.interviews.data ?? []}
-          interviewsAllowed={interviewsAllowed}
-          interviewsLoading={queries.interviews.isLoading}
-          interviewsError={queries.interviews.isError}
-          retryInterviews={() => void queries.interviews.refetch()}
-        />
+        </div>
       </div>
+
+      {activeTab === 'recruiter' ? (
+        <>
+          {showPersonalize && (
+            <div style={{ marginBottom: '1.5rem', border: '1px dashed var(--color-border-subtle)', borderRadius: '8px', padding: '1rem', background: 'var(--color-bg-surface || #ffffff)' }}>
+              <Card heading="Personalize Widgets Layout" headingLevel={2}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginTop: '1rem' }}>
+                  {widgets.map((widget, idx) => (
+                    <div key={widget.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.5rem', border: '1px solid var(--color-border-subtle)', borderRadius: '4px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <input
+                          type="checkbox"
+                          id={`check-${widget.id}`}
+                          checked={widget.visible}
+                          onChange={() => handleToggleWidget(widget.id)}
+                        />
+                        <label htmlFor={`check-${widget.id}`} style={{ textTransform: 'capitalize', fontWeight: 'bold' }}>
+                          {widget.id.replace(/([A-Z])/g, ' $1')}
+                        </label>
+                      </div>
+                      <div style={{ display: 'flex', gap: '0.25rem' }}>
+                        <Button variant="quiet" size="compact" disabled={idx === 0} onClick={() => handleMoveWidget(widget.id, 'up')}>↑ Move Up</Button>
+                        <Button variant="quiet" size="compact" disabled={idx === widgets.length - 1} onClick={() => handleMoveWidget(widget.id, 'down')}>↓ Move Down</Button>
+                      </div>
+                    </div>
+                  ))}
+                  <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem' }}>
+                    <Button variant="quiet" onClick={handleResetLayout}>Restore Default Layout</Button>
+                    <Button onClick={() => setShowPersonalize(false)}>Close Settings</Button>
+                  </div>
+                </div>
+              </Card>
+            </div>
+          )}
+
+          {widgets.filter(w => w.visible).length === 0 ? (
+            <EmptyState
+              title="All widgets hidden"
+              description="Customize your layout from the settings drawer to display information."
+            />
+          ) : (
+            <>
+              {widgets.find(w => w.id === 'metrics')?.visible && (
+                <section className="tvx-dashboard-metrics" aria-label="Hiring metrics" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1rem', marginBottom: '2rem' }}>
+                  <MetricCard
+                    label="Active jobs"
+                    value={recDash.data?.data?.metrics.activeJobs ?? 0}
+                    icon={<BriefcaseBusiness />}
+                    isLoading={recDash.isLoading}
+                  />
+                  <MetricCard
+                    label="Draft jobs"
+                    value={recDash.data?.data?.metrics.draftJobs ?? 0}
+                    icon={<BriefcaseBusiness />}
+                    isLoading={recDash.isLoading}
+                  />
+                  <MetricCard
+                    label="Closed jobs"
+                    value={recDash.data?.data?.metrics.closedJobs ?? 0}
+                    icon={<BriefcaseBusiness />}
+                    isLoading={recDash.isLoading}
+                  />
+                  <MetricCard
+                    label="Total Applications"
+                    value={recDash.data?.data?.metrics.totalApplications ?? 0}
+                    icon={<Users />}
+                    isLoading={recDash.isLoading}
+                  />
+                  <MetricCard
+                    label="Interviews Scheduled"
+                    value={recDash.data?.data?.metrics.interviewsScheduled ?? 0}
+                    icon={<CalendarDays />}
+                    isLoading={recDash.isLoading}
+                  />
+                  <MetricCard
+                    label="Offers Sent"
+                    value={recDash.data?.data?.metrics.offersSent ?? 0}
+                    icon={<FileText />}
+                    isLoading={recDash.isLoading}
+                  />
+                  <MetricCard
+                    label="Candidates Hired"
+                    value={recDash.data?.data?.metrics.candidatesHired ?? 0}
+                    icon={<Users />}
+                    isLoading={recDash.isLoading}
+                  />
+                  <MetricCard
+                    label="Team Members"
+                    value={recDash.data?.data?.metrics.teamMembers ?? 0}
+                    icon={<Users />}
+                    isLoading={recDash.isLoading}
+                  />
+                </section>
+              )}
+
+              {widgets.find(w => w.id === 'pipeline')?.visible && (
+                <PipelinePanel allowed={applicationsAllowed} query={queries.pipeline} />
+              )}
+
+              <div className="tvx-dashboard-workspace-grid">
+                <section
+                  className="tvx-candidates"
+                  aria-labelledby="candidate-workspace-title"
+                >
+                  {widgets.find(w => w.id === 'workspace')?.visible && (
+                    <>
+                      <div className="tvx-section-heading">
+                        <div>
+                          <h2 id="candidate-workspace-title">
+                            Active Candidates Workspace
+                          </h2>
+                          <p>Applications submitted within the selected dashboard range.</p>
+                        </div>
+                      </div>
+                      {applicationsAllowed ? (
+                        <>
+                          <Toolbar
+                            label="Candidate filters"
+                            start={
+                              <SearchField
+                                label="Search candidates"
+                                value={searchDraft}
+                                onChange={(event) => setSearchDraft(event.target.value)}
+                                onSearch={(value) => update({ q: value.trim() }, true)}
+                              />
+                            }
+                            end={
+                              <div className="tvx-dashboard-filter-actions">
+                                <Select
+                                  aria-label="Filter by stage"
+                                  value={filters.stage}
+                                  options={[{ value: '', label: 'All stages' }, ...stageOptions]}
+                                  onChange={(event) => update({ stage: event.target.value as any }, true)}
+                                />
+                                {hasFilters && (
+                                  <Button variant="quiet" onClick={() => {
+                                    setSearchDraft('');
+                                    update({ q: '', stage: '', page: 1 });
+                                  }}>
+                                    Reset filters
+                                  </Button>
+                                )}
+                              </div>
+                            }
+                          />
+                          {queries.applications.isError ? (
+                            <ErrorState
+                              detail={(queries.applications.error as Error).message}
+                              retry={() => void queries.applications.refetch()}
+                            />
+                          ) : (
+                            <DataTable
+                              {...({
+                                columns,
+                                rows,
+                                isLoading: queries.applications.isPending,
+                                pagination: pageData && pageData.pages > 1
+                                  ? {
+                                      page: pageData.page,
+                                      totalPages: pageData.pages,
+                                      onPageChange: (page: number) => update({ page }),
+                                    }
+                                  : undefined,
+                                emptyState: hasFilters ? (
+                                  <FilteredEmptyState
+                                    title="No candidates match"
+                                    description="Try a broader search or remove a stage filter."
+                                    onClear={() => {
+                                      setSearchDraft('');
+                                      update({ q: '', stage: '', page: 1 });
+                                    }}
+                                  />
+                                ) : (
+                                  <EmptyState
+                                    title="No applications"
+                                    description="Candidates who apply to your managed jobs appear here."
+                                  />
+                                ),
+                                rowActions: (candidate: any) => (
+                                  <Link
+                                    className="tvx-dashboard-row-link"
+                                    to={`/org/applications/${candidate.id}`}
+                                  >
+                                    View
+                                    <span className="sr-only">
+                                      {' '}
+                                      {candidate.name}'s application
+                                    </span>
+                                    <ChevronRight aria-hidden />
+                                  </Link>
+                                )
+                              } as any)}
+                            />
+                          )}
+                        </>
+                      ) : (
+                        <PermissionState title="Access denied" description="applications.view is required to view candidate workspace." />
+                      )}
+                    </>
+                  )}
+
+                  {widgets.find(w => w.id === 'recentActivity')?.visible && (
+                    <div style={{ marginTop: '2rem' }}>
+                      <Card heading="Recent Activity" headingLevel={2}>
+                        {recDash.data?.data?.recentActivity?.length ? (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                            {recDash.data.data.recentActivity.map((act: any) => (
+                              <div key={act.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '0.75rem', border: '1px solid var(--color-border-subtle)', borderRadius: '6px' }}>
+                                <div>
+                                  <div>{act.description}</div>
+                                  <small style={{ color: 'var(--color-text-subtle)' }}>By {act.user}</small>
+                                </div>
+                                <small style={{ color: 'var(--color-text-subtle)' }}>{formatDateTime(act.timestamp)}</small>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <p style={{ color: 'var(--color-text-subtle)' }}>No recent activity.</p>
+                        )}
+                      </Card>
+                    </div>
+                  )}
+                </section>
+
+                <aside className="tvx-dashboard-sidebar">
+                  {widgets.find(w => w.id === 'quickActions')?.visible && (
+                    <div style={{ marginBottom: '1.5rem' }}>
+                      <Card heading="Quick Actions" headingLevel={2}>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '0.75rem' }}>
+                          <Button onClick={() => navigate('/org/jobs/new')}>Create Job</Button>
+                          <Button onClick={() => navigate('/org/team')}>Invite Recruiter</Button>
+                          <Button onClick={() => navigate('/org/candidates')}>View Candidates</Button>
+                          <Button onClick={() => navigate('/org/interviews')}>Schedule Interview</Button>
+                          <Button onClick={() => navigate('/org/company')}>Company Settings</Button>
+                        </div>
+                      </Card>
+                    </div>
+                  )}
+
+                  {widgets.find(w => w.id === 'insights')?.visible && (
+                    <InsightsRail
+                      pipeline={queries.pipeline.data}
+                      pipelineAllowed={applicationsAllowed}
+                      interviews={queries.interviews.data ?? []}
+                      interviewsAllowed={interviewsAllowed}
+                      interviewsLoading={queries.interviews.isLoading}
+                      interviewsError={queries.interviews.isError}
+                      retryInterviews={() => void queries.interviews.refetch()}
+                    />
+                  )}
+                </aside>
+              </div>
+            </>
+          )}
+        </>
+      ) : (
+        <>
+          {compDash.isLoading ? (
+            <LoadingState label="Loading company overview" />
+          ) : compDash.isError ? (
+            <ErrorState detail="Failed to load company dashboard statistics." retry={() => void compDash.refetch()} />
+          ) : (
+            <>
+              <section className="tvx-dashboard-metrics" aria-label="Company Overview" style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '1rem', marginBottom: '2rem' }}>
+                <MetricCard
+                  label="Company Score"
+                  value={`${compDash.data?.overview.companyScore}/100`}
+                  icon={<Sparkles />}
+                />
+                <MetricCard
+                  label="Verification Status"
+                  value={compDash.data?.overview.verificationStatus}
+                  icon={<ShieldCheck />}
+                />
+                <MetricCard
+                  label="Active Jobs"
+                  value={compDash.data?.overview.activeJobs ?? 0}
+                  icon={<BriefcaseBusiness />}
+                />
+                <MetricCard
+                  label="Recruiter Count"
+                  value={compDash.data?.overview.recruiterCount ?? 0}
+                  icon={<Users />}
+                />
+                <MetricCard
+                  label="Hiring Progress"
+                  value={compDash.data?.overview.hiringProgress ?? 0}
+                  icon={<TrendingUp />}
+                />
+              </section>
+
+              <section className="tvx-dashboard-metrics" aria-label="Company Stats" style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '1rem', marginBottom: '2rem' }}>
+                <MetricCard
+                  label="Applications"
+                  value={compDash.data?.statistics.applicationsReceived ?? 0}
+                  icon={<FileText />}
+                />
+                <MetricCard
+                  label="Interviews Completed"
+                  value={compDash.data?.statistics.interviewsCompleted ?? 0}
+                  icon={<CalendarDays />}
+                />
+                <MetricCard
+                  label="Offers Accepted"
+                  value={compDash.data?.statistics.offersAccepted ?? 0}
+                  icon={<FileText />}
+                />
+                <MetricCard
+                  label="Success Rate"
+                  value={`${compDash.data?.statistics.hiringSuccessRate ?? 0}%`}
+                  icon={<Sparkles />}
+                />
+                <MetricCard
+                  label="Avg Time to Hire"
+                  value={`${compDash.data?.statistics.averageTimeToHire ?? 0} Days`}
+                  icon={<History />}
+                />
+              </section>
+
+              <div className="tvx-dashboard-workspace-grid">
+                <section className="tvx-candidates">
+                  <Card heading="Company Profile" headingLevel={2}>
+                    <DescriptionList
+                      items={[
+                        { term: 'Industry', description: compDash.data?.overview.industry },
+                        { term: 'Company Size', description: compDash.data?.overview.companySize },
+                        { term: 'Verification Status', description: compDash.data?.overview.verificationStatus }
+                      ]}
+                    />
+                  </Card>
+                </section>
+
+                <aside className="tvx-dashboard-sidebar">
+                  <Card heading="Team Summary" headingLevel={2}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                      <div>
+                        <strong style={{ display: 'block', fontSize: '0.85rem', textTransform: 'uppercase', color: 'var(--color-text-subtle)' }}>Primary Admin</strong>
+                        {compDash.data?.teamSummary.primary_admin.length ? (
+                          compDash.data.teamSummary.primary_admin.map((u: any) => <div key={u._id}>{u.fullName} ({u.email})</div>)
+                        ) : (
+                          <div>None</div>
+                        )}
+                      </div>
+                      <div>
+                        <strong style={{ display: 'block', fontSize: '0.85rem', textTransform: 'uppercase', color: 'var(--color-text-subtle)' }}>HR Admins</strong>
+                        {compDash.data?.teamSummary.hr_admin.length ? (
+                          compDash.data.teamSummary.hr_admin.map((u: any) => <div key={u._id}>{u.fullName} ({u.email})</div>)
+                        ) : (
+                          <div>None</div>
+                        )}
+                      </div>
+                      <div>
+                        <strong style={{ display: 'block', fontSize: '0.85rem', textTransform: 'uppercase', color: 'var(--color-text-subtle)' }}>Recruiters</strong>
+                        {compDash.data?.teamSummary.recruiter.length ? (
+                          compDash.data.teamSummary.recruiter.map((u: any) => <div key={u._id}>{u.fullName} ({u.email})</div>)
+                        ) : (
+                          <div>None</div>
+                        )}
+                      </div>
+                      <div>
+                        <strong style={{ display: 'block', fontSize: '0.85rem', textTransform: 'uppercase', color: 'var(--color-text-subtle)' }}>Hiring Managers</strong>
+                        {compDash.data?.teamSummary.hiring_manager.length ? (
+                          compDash.data.teamSummary.hiring_manager.map((u: any) => <div key={u._id}>{u.fullName} ({u.email})</div>)
+                        ) : (
+                          <div>None</div>
+                        )}
+                      </div>
+                    </div>
+                  </Card>
+                </aside>
+              </div>
+            </>
+          )}
+        </>
+      )}
     </div>
   );
 }

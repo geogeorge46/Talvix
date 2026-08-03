@@ -2,6 +2,7 @@ import mongoose from 'mongoose';
 import { env } from '../config/env.js';
 import { CANDIDATE_VISIBLE_OFFER_STATUSES } from '../constants/offer.js';
 import { Application } from '../models/Application.js';
+import { AuditLog } from '../models/AuditLog.js';
 import { AssessmentAttempt } from '../models/AssessmentAttempt.js';
 import { AssessmentAssignment } from '../models/AssessmentAssignment.js';
 import { CandidateProfile } from '../models/CandidateProfile.js';
@@ -101,7 +102,48 @@ export const getVerification = async (company, id) => { const document = await D
 export const decideVerification = async (user, company, id, decision, input) => { const document = await Document.findOne({ _id: id, company, entityType: 'application', status: 'active', isCurrent: true, 'verification.status': 'pending' }); if (!document) throw new AppError('Pending document not found', 404); document.verification.status = decision; document.verification.reviewedAt = new Date(); document.verification.reviewedBy = user.id; document.verification.candidateSafeReason = decision === 'rejected' ? input.reason : undefined; document.verification.privateNotes = input.notes; document.statusHistory.push({ from: 'verification-pending', to: `verification-${decision}`, changedBy: user.id, reason: decision === 'rejected' ? input.reason : 'Document verified' }); await document.save(); const application = await Application.findById(document.entityId).populate('company', 'name'); await publishOptionalDomainEvent({ type: decision === 'verified' ? DOMAIN_EVENTS.DOCUMENT_VERIFIED : DOMAIN_EVENTS.DOCUMENT_REJECTED, company: String(company), recipientIds: [String(document.owner)], payload: { documentId: String(document.id), applicationId: String(document.entityId), candidateId: String(document.owner), companyId: String(company), companyName: application?.company?.name, category: document.category, displayName: document.displayName, reason: decision === 'rejected' ? input.reason : undefined, actionUrl: `/candidate/applications/${document.entityId}` }, deduplicationKey: `document.${decision}:${document.id}` }); return serializeVerificationDocument(document, true); };
 
 const scopedDocument = async (filter) => { const document = await Document.findOne({ ...filter, status: 'active', isCurrent: true }); if (!document) throw new AppError('Document not found', 404); return document; };
-export const downloadManagedApplicationDocument = async (actor, company, applicationId, documentId) => { await companyApplication(company, applicationId); const document = await scopedDocument({ _id: documentId, company, entityType: 'application', entityId: applicationId, access: { $in: ['company-private', 'candidate-visible'] } }); authorizeDocumentAccess({ actor, document, action: 'download', context: { company, recruiter: true } }); return signed(document); };
+export const downloadManagedApplicationDocument = async (actor, company, applicationId, documentId, ipAddress = 'Unknown', userAgent = 'Unknown') => {
+  await companyApplication(company, applicationId);
+  const app = await Application.findById(applicationId);
+  if (!app) throw new AppError('Application not found', 404);
+
+  const document = await scopedDocument({ _id: documentId, company, entityType: 'application', entityId: applicationId, access: { $in: ['company-private', 'candidate-visible'] } });
+  authorizeDocumentAccess({ actor, document, action: 'download', context: { company, recruiter: true } });
+
+  if (document.category === 'resume') {
+    const compObj = await Company.findById(company);
+    const limit = compObj?.resumeDownloadLimit ?? parseInt(process.env.DEFAULT_RESUME_DOWNLOAD_LIMIT || '20', 10);
+
+    const oneHourAgo = new Date(Date.now() - 3600000);
+    const count = await AuditLog.countDocuments({
+      action: 'resume.download',
+      actor: actor.id,
+      timestamp: { $gte: oneHourAgo }
+    });
+
+    if (count >= limit) {
+      throw new AppError('Resume download limit exceeded. Please try again later.', 429);
+    }
+
+    await AuditLog.create({
+      action: 'resume.download',
+      actor: actor.id,
+      company,
+      targetUser: app.candidate,
+      oldValue: null,
+      newValue: {
+        documentId: document._id,
+        applicationId,
+        jobId: app.job,
+        accessType: 'download'
+      },
+      ipAddress,
+      userAgent
+    });
+  }
+
+  return signed(document);
+};
 export const downloadManagedAttemptDocument = async (actor, company, attemptId, documentId) => { const attempt = await AssessmentAttempt.findOne({ _id: attemptId, company }); if (!attempt) throw new AppError('Assessment attempt not found', 404); const document = await scopedDocument({ _id: documentId, company, entityType: 'assessment-attempt', entityId: attempt.id }); authorizeDocumentAccess({ actor, document, action: 'download', context: { company, recruiter: true } }); return signed(document); };
 export const downloadInterviewDocument = async (actor, processId, documentId, company) => { const interview = await processFor(processId, company); if (!company && !['active', 'completed'].includes(interview.status)) throw new AppError('Interview process not found', 404); const document = await scopedDocument({ _id: documentId, entityType: 'interview-process', entityId: interview.id, ...(company ? { company } : { access: 'candidate-visible' }) }); authorizeDocumentAccess({ actor, document, action: 'download', context: company ? { company, recruiter: true } : { candidate: true, interview } }); return signed(document); };
 export const updateInterviewAccess = async (company, processId, documentId, access) => { await processFor(processId, company); const document = await scopedDocument({ _id: documentId, company, entityType: 'interview-process', entityId: processId }); document.access = access; await document.save(); return serializeDocument(document); };

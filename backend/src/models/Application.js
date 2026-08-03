@@ -30,4 +30,16 @@ applicationSchema.index({ company: 1, status: 1 }); applicationSchema.index({ jo
 applicationSchema.index({ candidate: 1, status: 1 }); applicationSchema.index({ submittedAt: -1 });
 applicationSchema.index({ assignedRecruiters: 1 }); applicationSchema.index({ tags: 1 });
 applicationSchema.index({ recruiterRating: 1 }); applicationSchema.index({ 'skillMatch.score': -1 }); applicationSchema.index({ isArchived: 1 });
+applicationSchema.post('save', function(doc) {
+  if (doc.company) {
+    Promise.all([
+      import('../services/realtime.service.js'),
+      import('../services/recruiterAnalytics.service.js')
+    ]).then(([{ broadcastToCompany }, { invalidateAnalyticsCache }]) => {
+      broadcastToCompany(doc.company, 'new_application', doc);
+      invalidateAnalyticsCache(doc.company);
+    }).catch(err => console.error(err));
+  }
+});
+
 export const Application = mongoose.model('Application', applicationSchema);
