@@ -133,7 +133,7 @@ export function useClaimOwnership() {
 export function useGetAdminClaims() {
   return useQuery({
     queryKey: ['admin-claims'],
-    queryFn: () => apiRequest<{ data: { claims: any[] } }>('/admin/claims').then(r => r.data.claims),
+    queryFn: () => apiRequest<{ claims: any[] }>('/admin/claims').then(r => r.claims),
   });
 }
 

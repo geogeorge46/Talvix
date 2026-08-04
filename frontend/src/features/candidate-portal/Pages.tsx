@@ -46,6 +46,7 @@ import {
   useSafeCandidateOffers,
 } from './api';
 import type { CandidateProfile } from './model';
+import { UploadControl } from '../offers-documents';
 import './candidate-portal.css';
 const message = (error: unknown) =>
   error instanceof Error ? error.message : 'Something went wrong.';
@@ -386,6 +387,30 @@ export function CandidateProfilePage() {
           photo picker can safely provide its multipart flow.
         </p>
         <Link to="/candidate/documents">Open document manager</Link>
+      </Card>
+      <Card>
+        <h2>Resume</h2>
+        {p.resume ? (
+          <div style={{ marginBottom: '16px' }}>
+            <p>
+              Current Resume: <span style={{ fontWeight: 'bold', color: 'var(--color-success)' }}>{p.resume.displayName || 'resume.pdf'}</span>
+            </p>
+            <p style={{ marginTop: '4px' }}>
+              <a href={p.resume.url} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--color-primary)', textDecoration: 'underline' }}>View Current Resume</a>
+            </p>
+          </div>
+        ) : (
+          <p style={{ marginBottom: '16px', color: 'var(--color-warning)' }}>No resume uploaded. A resume is required to apply for most jobs.</p>
+        )}
+        <UploadControl
+          entityType="candidate-profile"
+          entityId={p.id}
+          category="resume"
+          path={p.resumeDocument ? '/documents/me/resume/replace' : '/documents/me/resume'}
+          onDone={() => {
+            q.refetch();
+          }}
+        />
       </Card>
       <Card>
         <form onSubmit={submit}>
@@ -1260,13 +1285,18 @@ export function CandidateJobsPage() {
                   {job.workMode || job.employmentType || 'Opportunity'}
                 </span>
                 <h2>
-                  <Link to={`/candidate/jobs/${job.id}`}>{job.title}</Link>
+                  <Link to={`/candidate/jobs/${job.id}`} style={{ color: 'var(--color-primary-strong)', textDecoration: 'underline' }}>{job.title}</Link>
                 </h2>
                 <p>
                   {job.companyName} · {job.location || 'Location flexible'}
                 </p>
               </div>
-              {job.closingDate && <span>Closes {date(job.closingDate)}</span>}
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', justifyContent: 'center', gap: '8px' }}>
+                {job.closingDate && <span style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)' }}>Closes {date(job.closingDate)}</span>}
+                <Link to={`/candidate/jobs/${job.id}`}>
+                  <Button>Apply now</Button>
+                </Link>
+              </div>
             </li>
           ))}
         </ul>
@@ -1295,6 +1325,7 @@ export function CandidateJobsPage() {
 export function CandidateJobDetailPage() {
   const { jobId = '' } = useParams();
   const q = useJob(jobId);
+  const profile = useCandidateProfile();
   const mutation = useApplicationMutation();
   const [confirm, setConfirm] = useState(false);
   const draftKey = `talvix:candidate:application:${jobId}`;
@@ -1346,6 +1377,40 @@ export function CandidateJobDetailPage() {
               Keep your profile and resume current. The server makes the final
               eligibility decision.
             </p>
+            {job.resumeRequired && (
+              <div style={{ marginTop: '12px', marginBottom: '16px', padding: '12px', border: '1px dashed var(--color-border)', borderRadius: '6px' }}>
+                <h3 style={{ fontSize: '0.95rem', fontWeight: 'bold', marginBottom: '8px' }}>Resume required</h3>
+                {profile.isPending ? (
+                  <LoadingState label="Checking profile resume..." />
+                ) : profile.isError ? (
+                  <p style={{ color: 'var(--color-danger)' }}>Could not check profile resume status.</p>
+                ) : profile.data?.resumeDocument || profile.data?.resume?.url ? (
+                  <div>
+                    <p style={{ color: 'var(--color-success)', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      ✓ Resume ready: <strong>{profile.data.resume?.displayName || 'resume.pdf'}</strong>
+                    </p>
+                    <p style={{ fontSize: '0.85rem', marginTop: '4px' }}>
+                      You can replace it in your <Link to="/candidate/profile" style={{ textDecoration: 'underline' }}>Profile</Link>.
+                    </p>
+                  </div>
+                ) : (
+                  <div>
+                    <p style={{ color: 'var(--color-warning)', marginBottom: '8px', fontSize: '0.85rem' }}>
+                      A resume is required to apply for this job. Please upload one here:
+                    </p>
+                    <UploadControl
+                      entityType="candidate-profile"
+                      entityId={profile.data?.id}
+                      category="resume"
+                      path="/documents/me/resume"
+                      onDone={() => {
+                        void profile.refetch();
+                      }}
+                    />
+                  </div>
+                )}
+              </div>
+            )}
             <form
               onSubmit={(event) => {
                 event.preventDefault();
@@ -1393,7 +1458,7 @@ export function CandidateJobDetailPage() {
                   )}
                 </FormField>
               ))}
-              <Button type="submit" disabled={mutation.isPending}>
+               <Button type="submit" disabled={mutation.isPending || (job.resumeRequired && !profile.isPending && !(profile.data?.resumeDocument || profile.data?.resume?.url))}>
                 Apply now
               </Button>
             </form>

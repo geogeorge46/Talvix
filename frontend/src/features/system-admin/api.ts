@@ -34,6 +34,12 @@ export const adminPaths = {
   templates: '/notifications/admin/templates',
   outbox: '/notifications/admin/outbox',
   emailLogs: '/notifications/admin/email-logs',
+  users: '/admin/management/users',
+  recruiters: '/admin/management/recruiters',
+  companies: '/admin/management/companies',
+  jobs: '/admin/management/jobs',
+  questions: '/admin/management/questions',
+  audits: '/admin/management/audits',
 } as const;
 
 export function approvalAction(

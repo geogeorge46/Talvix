@@ -33,6 +33,8 @@ const applicationSchema = new mongoose.Schema({
 }, { timestamps: true, versionKey: false });
 
 applicationSchema.index({ candidate: 1, job: 1 }, { unique: true });
+applicationSchema.index({ company: 1, job: 1, status: 1, submittedAt: -1 });
+applicationSchema.index({ 'statusHistory.changedBy': 1, submittedAt: -1 });
 applicationSchema.index({ company: 1, status: 1 }); applicationSchema.index({ job: 1, status: 1 });
 applicationSchema.index({ candidate: 1, status: 1 }); applicationSchema.index({ submittedAt: -1 });
 applicationSchema.index({ assignedRecruiters: 1 }); applicationSchema.index({ tags: 1 });

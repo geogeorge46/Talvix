@@ -127,6 +127,8 @@ const candidateProfileSchema = new Schema(
 );
 
 candidateProfileSchema.index({ profileVisibility: 1, profileCompletion: -1 });
+candidateProfileSchema.index({ "education.institution": 1, "education.fieldOfStudy": 1 });
+candidateProfileSchema.index({ profileCompletion: 1 });
 candidateProfileSchema.index({ 'skills.name': 1 });
 candidateProfileSchema.index({ 'location.city': 1, 'location.country': 1 });
 candidateProfileSchema.index({ preferredRoles: 1 });

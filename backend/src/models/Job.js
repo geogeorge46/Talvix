@@ -34,6 +34,8 @@ const jobSchema = new mongoose.Schema({
 }, { timestamps: true, versionKey: false });
 
 jobSchema.index({ company: 1, slug: 1 }, { unique: true });
+jobSchema.index({ company: 1, status: 1, createdAt: -1 });
+jobSchema.index({ createdBy: 1, status: 1, createdAt: -1 });
 jobSchema.index({ status: 1, publishedAt: -1 });
 jobSchema.index({ employmentType: 1, workMode: 1 });
 jobSchema.index({ 'skills.name': 1 }); jobSchema.index({ 'location.city': 1, 'location.country': 1 });

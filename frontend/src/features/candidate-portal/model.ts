@@ -65,6 +65,8 @@ export interface CandidateProfile {
     issuingOrganization: string;
     expirationDate: string | undefined;
   }[];
+  resumeDocument?: string | undefined;
+  resume?: { url: string; displayName?: string | undefined } | undefined;
 }
 export const toCandidateProfile = (value: unknown): CandidateProfile => {
   const v = record(value),
@@ -163,6 +165,8 @@ export const toCandidateProfile = (value: unknown): CandidateProfile => {
         expirationDate: optionalText(a.expirationDate),
       };
     }),
+    resumeDocument: optionalText(v.resumeDocument),
+    resume: v.resume ? { url: text(record(v.resume).url), displayName: optionalText(record(v.resume).displayName) } : undefined,
   };
 };
 
@@ -176,6 +180,7 @@ export interface PublicJob {
   description: string | undefined;
   closingDate: string | undefined;
   status: string | undefined;
+  resumeRequired?: boolean;
   questions: { id: string; question: string; required: boolean }[];
 }
 export const toPublicJob = (value: unknown): PublicJob => {
@@ -194,6 +199,7 @@ export const toPublicJob = (value: unknown): PublicJob => {
     description: optionalText(v.description),
     closingDate: optionalText(v.closingDate ?? v.applicationDeadline),
     status: optionalText(v.status),
+    resumeRequired: v.resumeRequired === true,
     questions: rows(v.applicationQuestions ?? v.questions).map((x) => {
       const q = record(x);
       return {

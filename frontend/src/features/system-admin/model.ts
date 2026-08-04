@@ -22,9 +22,10 @@ export function collectionFrom(value: unknown): AdminCollection {
   if (Array.isArray(value)) return { rows: value as AdminRecord[], meta: {} };
   if (!value || typeof value !== 'object') return { rows: [], meta: {} };
   const source = value as Record<string, unknown>;
-  const rows = (['items', 'results', 'records', 'data', 'docs', 'notifications',
+  const rows = (['rows', 'items', 'results', 'records', 'data', 'docs', 'notifications',
     'templates', 'events', 'logs', 'assignments', 'attempts', 'processes',
-    'offers', 'documents', 'applications', 'recruiters', 'companies', 'jobs']
+    'offers', 'documents', 'applications', 'recruiters', 'companies', 'jobs',
+    'users', 'questions', 'emailLogs', 'audits']
     .map((key) => source[key]).find(Array.isArray) ?? []) as AdminRecord[];
   const pagination = (source.pagination ?? source.meta ?? {}) as Record<string, unknown>;
   return {

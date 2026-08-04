@@ -127,6 +127,15 @@ import {
   AdminOverviewPage,
   AdminRecordDetailPage,
   AdminClaimsPage,
+  UsersAnalyticsPage,
+  CompaniesAnalyticsPage,
+  RecruitersAnalyticsPage,
+  CandidatesAnalyticsPage,
+  JobsAnalyticsPage,
+  AssessmentAnalyticsPage,
+  InterviewAnalyticsPage,
+  OfferAnalyticsPage,
+  PlatformHealthPage,
 } from '../features/system-admin';
 
 import { LandingPage } from '../features/landing-page/LandingPage';
@@ -672,6 +681,15 @@ export function AppRoutes() {
         <Route path="operations/:type/:id" element={<AdminRecordDetailPage />} />
         <Route path="communications" element={<AdminCommunicationsPage />} />
         <Route path="analytics" element={<AdminAnalyticsPage />} />
+        <Route path="analytics/users" element={<UsersAnalyticsPage />} />
+        <Route path="analytics/companies" element={<CompaniesAnalyticsPage />} />
+        <Route path="analytics/recruiters" element={<RecruitersAnalyticsPage />} />
+        <Route path="analytics/candidates" element={<CandidatesAnalyticsPage />} />
+        <Route path="analytics/jobs" element={<JobsAnalyticsPage />} />
+        <Route path="analytics/assessments" element={<AssessmentAnalyticsPage />} />
+        <Route path="analytics/interviews" element={<InterviewAnalyticsPage />} />
+        <Route path="analytics/offers" element={<OfferAnalyticsPage />} />
+        <Route path="analytics/health" element={<PlatformHealthPage />} />
         <Route path="users" element={<Navigate to="/admin/approvals?queue=recruiters" replace />} />
         <Route path="companies" element={<Navigate to="/admin/approvals?queue=companies" replace />} />
         <Route path="jobs/:jobId" element={<Navigate to="/admin/approvals?queue=jobs" replace />} />

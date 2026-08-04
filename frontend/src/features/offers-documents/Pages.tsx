@@ -1362,7 +1362,7 @@ function DocumentRow({
     </article>
   );
 }
-function UploadControl({
+export function UploadControl({
   entityType,
   entityId,
   replaceId,
@@ -1412,6 +1412,7 @@ function UploadControl({
           `File is too large. Maximum size is ${formatBytes(session.maximumBytes)}.`,
         );
       setState('uploading');
+      const isProfileUpload = path.includes('/me/');
       const integratedOffer = path.includes('/manage/offers/');
       await xhrUpload(
         path,
@@ -1419,7 +1420,8 @@ function UploadControl({
           uploadSessionId: session.id,
           purpose: 'Supporting document',
           displayName: file.name,
-          ...(integratedOffer ? { access: selectedAccess } : { category }),
+          ...(integratedOffer ? { access: selectedAccess } : {}),
+          ...(!integratedOffer && !isProfileUpload ? { category } : {}),
         },
         file,
         setProgress,
