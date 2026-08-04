@@ -22,7 +22,9 @@ const backgroundJobSchema = new mongoose.Schema(
         'AI_ASSESSMENT_EVALUATION',
         'PUBLISH_ASSESSMENT_RESULTS',
         'ASSESSMENT_REMINDER',
-        'CLEANUP_ASSESSMENT_DATA'
+        'CLEANUP_ASSESSMENT_DATA',
+        'PLAGIARISM_ANALYSIS',
+        'GENERATE_RESULT_REPORT'
       ],
       index: true,
     },

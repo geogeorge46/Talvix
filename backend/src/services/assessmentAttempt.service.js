@@ -6,10 +6,93 @@ import { gradeAttempt } from '../utils/assessmentGrading.js';
 import { serializeActiveAttempt, serializeCandidateResult } from '../utils/assessmentSerializer.js';
 import { getEffectiveAttemptExpiry, isAttemptExpired } from '../utils/assessmentTiming.js';
 import { changeApplicationStatus } from '../utils/applicationStatus.js';
-const shuffle = (values) => { const output = [...values]; for (let index = output.length - 1; index > 0; index -= 1) { const other = Math.floor(Math.random() * (index + 1)); [output[index], output[other]] = [output[other], output[index]]; } return output; };
+import { broadcastAssessmentActivity } from './realtime.service.js';
+const mulberry32 = (seed) => {
+  return () => {
+    let t = seed += 0x6D2B79F5;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+};
+
+const seedShuffle = (array, random) => {
+  const output = [...array];
+  for (let i = output.length - 1; i > 0; i--) {
+    const j = Math.floor(random() * (i + 1));
+    [output[i], output[j]] = [output[j], output[i]];
+  }
+  return output;
+};
 const ownAttempt = async (candidate, id) => { const attempt = await AssessmentAttempt.findOne({ _id: id, candidate }); if (!attempt) throw new AppError('Assessment attempt not found', 404); const assignment = await AssessmentAssignment.findById(attempt.assignment); return { attempt, assignment }; };
 const completeApplication = async (assignment, actor) => { const application = await Application.findById(assignment.application); if (application?.status === 'assessment-in-progress') { changeApplicationStatus(application, 'assessment-completed', actor, 'Assessment evaluation completed'); await application.save(); } };
-export const startAttempt = async (candidate, assignmentId, requestMeta) => { const assignment = await AssessmentAssignment.findOne({ _id: assignmentId, candidate }); if (!assignment) throw new AppError('Assessment assignment not found', 404); const now = new Date(); if (assignment.status === 'cancelled' || assignment.expiresAt <= now) throw new AppError('Assessment assignment is unavailable', 409); if (assignment.availableFrom > now) throw new AppError('Assessment is not available yet', 409); const active = await AssessmentAttempt.findOne({ assignment, status: 'in-progress' }); if (active) return serializeActiveAttempt(active, assignment.assessmentSnapshot); if (assignment.attemptsUsed >= assignment.assessmentSnapshot.maximumAttempts) throw new AppError('Maximum assessment attempts reached', 409); const questionIds = assignment.assessmentSnapshot.questions.map((question) => question.questionId); const order = assignment.assessmentSnapshot.shuffleQuestions ? shuffle(questionIds) : questionIds; const optionOrders = Object.fromEntries(assignment.assessmentSnapshot.questions.filter((question) => question.options?.length).map((question) => [question.questionId.toString(), assignment.assessmentSnapshot.shuffleOptions ? shuffle(question.options.map((option) => option.id)) : question.options.map((option) => option.id)])); let attempt; try { attempt = await AssessmentAttempt.create({ assignment: assignment.id, assessment: assignment.assessment, application: assignment.application, candidate, company: assignment.company, attemptNumber: assignment.attemptsUsed + 1, status: 'in-progress', startedAt: now, expiresAt: getEffectiveAttemptExpiry(now, assignment.assessmentSnapshot.durationMinutes, assignment.expiresAt), questionOrder: order, optionOrders, integrity: requestMeta }); } catch (error) { if (error.code === 11000) { const existing = await AssessmentAttempt.findOne({ assignment, status: 'in-progress' }); if (existing) return serializeActiveAttempt(existing, assignment.assessmentSnapshot); } throw error; } assignment.attemptsUsed += 1; assignment.latestAttempt = attempt.id; assignment.status = 'in-progress'; await assignment.save(); const application = await Application.findById(assignment.application); if (application?.status === 'assessment-pending') { changeApplicationStatus(application, 'assessment-in-progress', candidate, 'Candidate started assessment'); await application.save(); } return serializeActiveAttempt(attempt, assignment.assessmentSnapshot); };
+export const startAttempt = async (candidate, assignmentId, requestMeta) => {
+  const assignment = await AssessmentAssignment.findOne({ _id: assignmentId, candidate });
+  if (!assignment) throw new AppError('Assessment assignment not found', 404);
+  const now = new Date();
+  if (assignment.status === 'cancelled' || assignment.expiresAt <= now) throw new AppError('Assessment assignment is unavailable', 409);
+  if (assignment.availableFrom > now) throw new AppError('Assessment is not available yet', 409);
+  
+  const active = await AssessmentAttempt.findOne({ assignment, status: 'in-progress' });
+  if (active) return serializeActiveAttempt(active, assignment.assessmentSnapshot);
+  if (assignment.attemptsUsed >= assignment.assessmentSnapshot.maximumAttempts) throw new AppError('Maximum assessment attempts reached', 409);
+  
+  const seed = Math.floor(Math.random() * 2147483647) + 1;
+  const random = mulberry32(seed);
+
+  const questionIds = assignment.assessmentSnapshot.questions.map((question) => question.questionId);
+  const order = assignment.assessmentSnapshot.shuffleQuestions ? seedShuffle(questionIds, random) : questionIds;
+  
+  const optionOrders = Object.fromEntries(
+    assignment.assessmentSnapshot.questions
+      .filter((question) => question.options?.length)
+      .map((question) => [
+        question.questionId.toString(),
+        assignment.assessmentSnapshot.shuffleOptions 
+          ? seedShuffle(question.options.map((option) => option.id), random) 
+          : question.options.map((option) => option.id)
+      ])
+  );
+  
+  let attempt;
+  try {
+    attempt = await AssessmentAttempt.create({ 
+      assignment: assignment.id, 
+      assessment: assignment.assessment, 
+      application: assignment.application, 
+      candidate, 
+      company: assignment.company, 
+      attemptNumber: assignment.attemptsUsed + 1, 
+      status: 'in-progress', 
+      startedAt: now, 
+      expiresAt: getEffectiveAttemptExpiry(now, assignment.assessmentSnapshot.durationMinutes, assignment.expiresAt), 
+      seed,
+      questionOrder: order, 
+      optionOrders, 
+      integrity: requestMeta 
+    });
+  } catch (error) {
+    if (error.code === 11000) {
+      const existing = await AssessmentAttempt.findOne({ assignment, status: 'in-progress' });
+      if (existing) return serializeActiveAttempt(existing, assignment.assessmentSnapshot);
+    }
+    throw error;
+  }
+  
+  assignment.attemptsUsed += 1;
+  assignment.latestAttempt = attempt.id;
+  assignment.status = 'in-progress';
+  await assignment.save();
+  
+  const application = await Application.findById(assignment.application);
+  if (application?.status === 'assessment-pending') {
+    changeApplicationStatus(application, 'assessment-in-progress', candidate, 'Candidate started assessment');
+    await application.save();
+  }
+  
+  broadcastAssessmentActivity(attempt.company, attempt.id, 'started', { candidate });
+  return serializeActiveAttempt(attempt, assignment.assessmentSnapshot);
+};
 export const getAttempt = async (candidate, id) => { const { attempt, assignment } = await ownAttempt(candidate, id); if (attempt.status === 'in-progress' && isAttemptExpired(attempt)) await submitAttempt(candidate, id, 'time-expired'); return serializeActiveAttempt(await AssessmentAttempt.findById(id), assignment.assessmentSnapshot); };
 export const saveAnswer = async (candidate, id, input, requestMeta) => {
   const { attempt, assignment } = await ownAttempt(candidate, id);
@@ -49,9 +132,47 @@ export const saveAnswer = async (candidate, id, input, requestMeta) => {
   attempt.integrity.saveCount += 1;
   attempt.integrity.lastIp = requestMeta.lastIp;
   await attempt.save();
+  broadcastAssessmentActivity(attempt.company, attempt.id, 'autosave', { questionId: input.questionId, timeSpentSeconds: input.timeSpentSeconds });
   return answer.savedAt;
 };
-export const submitAttempt = async (candidate, id, reason = 'candidate-submit', adapter) => { const { attempt, assignment } = await ownAttempt(candidate, id); if (['completed', 'review-pending', 'auto-evaluated'].includes(attempt.status)) return attempt; if (attempt.status !== 'in-progress') throw new AppError('Attempt cannot be submitted', 409); if (isAttemptExpired(attempt) && !attempt.answers.length) { attempt.status = 'expired'; attempt.submissionReason = 'time-expired'; attempt.submittedAt = new Date(); assignment.status = 'expired'; await Promise.all([attempt.save(), assignment.save()]); return attempt; } const grading = await gradeAttempt(assignment.assessmentSnapshot, attempt.answers, adapter); attempt.questionResults = grading.questionResults; attempt.evaluation = grading.evaluation; attempt.submissionReason = isAttemptExpired(attempt) ? 'time-expired' : reason; attempt.submittedAt = new Date(); attempt.status = grading.manual ? 'review-pending' : 'completed'; if (!grading.manual) attempt.completedAt = new Date(); assignment.status = grading.manual ? 'evaluating' : 'completed'; assignment.latestAttempt = attempt.id; if (!grading.manual && (assignment.bestPercentage === undefined || grading.evaluation.percentage > assignment.bestPercentage)) { assignment.bestAttempt = attempt.id; assignment.bestScore = grading.evaluation.totalScore; assignment.bestPercentage = grading.evaluation.percentage; assignment.passed = grading.evaluation.passed; } if (!grading.manual) assignment.completedAt = new Date(); await Promise.all([attempt.save(), assignment.save()]); if (!grading.manual) await completeApplication(assignment, candidate); return attempt; };
+export const submitAttempt = async (candidate, id, reason = 'candidate-submit', adapter) => {
+  const { attempt, assignment } = await ownAttempt(candidate, id);
+  if (['completed', 'review-pending', 'auto-evaluated'].includes(attempt.status)) return attempt;
+  if (attempt.status !== 'in-progress') throw new AppError('Attempt cannot be submitted', 409);
+  
+  if (isAttemptExpired(attempt) && !attempt.answers.length) {
+    attempt.status = 'expired';
+    attempt.submissionReason = 'time-expired';
+    attempt.submittedAt = new Date();
+    assignment.status = 'expired';
+    await Promise.all([attempt.save(), assignment.save()]);
+    return attempt;
+  }
+  
+  const grading = await gradeAttempt(assignment.assessmentSnapshot, attempt.answers, adapter);
+  attempt.questionResults = grading.questionResults;
+  attempt.evaluation = grading.evaluation;
+  attempt.submissionReason = isAttemptExpired(attempt) ? 'time-expired' : reason;
+  attempt.submittedAt = new Date();
+  attempt.status = grading.manual ? 'review-pending' : 'completed';
+  if (!grading.manual) attempt.completedAt = new Date();
+  assignment.status = grading.manual ? 'evaluating' : 'completed';
+  assignment.latestAttempt = attempt.id;
+  
+  if (!grading.manual && (assignment.bestPercentage === undefined || grading.evaluation.percentage > assignment.bestPercentage)) {
+    assignment.bestAttempt = attempt.id;
+    assignment.bestScore = grading.evaluation.totalScore;
+    assignment.bestPercentage = grading.evaluation.percentage;
+    assignment.passed = grading.evaluation.passed;
+  }
+  
+  if (!grading.manual) assignment.completedAt = new Date();
+  await Promise.all([attempt.save(), assignment.save()]);
+  if (!grading.manual) await completeApplication(assignment, candidate);
+  
+  broadcastAssessmentActivity(attempt.company, attempt.id, 'submitted', { score: attempt.evaluation?.percentage });
+  return attempt;
+};
 export const getMyResult = async (candidate, id) => { const { attempt, assignment } = await ownAttempt(candidate, id); if (attempt.status !== 'completed') throw new AppError('Assessment result is not complete', 409); if (!assignment.assessmentSnapshot.showResultImmediately && !assignment.resultReleasedAt) throw new AppError('Assessment result has not been released', 403); return serializeCandidateResult(attempt, assignment); };
 
 export const logSuspiciousEvent = async (candidate, id, eventInput, requestMeta) => {
@@ -77,6 +198,8 @@ export const logSuspiciousEvent = async (candidate, id, eventInput, requestMeta)
   attempt.integrity.cheatingRiskScore = Math.min(100, score);
   attempt.integrity.lastIp = requestMeta.lastIp || attempt.integrity.lastIp;
   await attempt.save();
+
+  broadcastAssessmentActivity(attempt.company, attempt.id, 'cheating_alert', { type: eventInput.type, cheatingRiskScore: attempt.integrity.cheatingRiskScore });
 
   return { cheatingRiskScore: attempt.integrity.cheatingRiskScore, suspiciousEventsCount: events.length };
 };

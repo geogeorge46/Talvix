@@ -102,3 +102,12 @@ setInterval(() => {
     }
   }
 }, 15000);
+
+export const broadcastAssessmentActivity = (companyId, attemptId, eventType, details) => {
+  broadcastToCompany(companyId, 'assessment_activity', {
+    attemptId,
+    eventType,
+    timestamp: new Date(),
+    ...details
+  });
+};

@@ -6,6 +6,7 @@ import * as assignmentController from '../controllers/assessmentAssignment.contr
 import * as attemptController from '../controllers/assessmentAttempt.controller.js';
 import * as questionController from '../controllers/question.controller.js';
 import * as reviewController from '../controllers/assessmentReview.controller.js';
+import * as enterpriseController from '../controllers/assessmentEnterprise.controller.js';
 import { authenticate } from '../middleware/auth.js';
 import { authorizePermissions } from '../middleware/authorizePermissions.js';
 import { authorizeRoles } from '../middleware/authorizeRoles.js';
@@ -24,6 +25,11 @@ assessmentRouter.patch('/admin/attempts/:attemptId/reopen-review', admin, valida
 
 assessmentRouter.post('/questions', ...recruiter('assessments.manage'), validateBody(schemas.questionBodySchema), questionController.createManagedQuestion);
 assessmentRouter.get('/questions', ...recruiter('assessments.view'), validateQuery(schemas.questionQuerySchema), questionController.managedQuestions);
+
+// Bulk MCQ Import/Export (Static paths before dynamic identifiers)
+assessmentRouter.post('/questions/bulk-import', ...recruiter('assessments.manage'), enterpriseController.bulkImportQuestions);
+assessmentRouter.get('/questions/bulk-export', ...recruiter('assessments.view'), enterpriseController.bulkExportQuestions);
+
 assessmentRouter.get('/questions/:questionId', ...recruiter('assessments.view'), validateParams(schemas.questionIdSchema), questionController.managedQuestion);
 assessmentRouter.patch('/questions/:questionId', ...recruiter('assessments.manage'), validateParams(schemas.questionIdSchema), validateBody(schemas.questionUpdateSchema), questionController.updateManagedQuestion);
 assessmentRouter.delete('/questions/:questionId', ...recruiter('assessments.manage'), validateParams(schemas.questionIdSchema), questionController.deleteManagedQuestion);
@@ -64,3 +70,35 @@ assessmentRouter.patch('/manage/:assessmentId/publish', ...recruiter('assessment
 assessmentRouter.patch('/manage/:assessmentId/archive', ...recruiter('assessments.manage'), validateParams(schemas.assessmentIdSchema), assessmentController.archiveManagedAssessment);
 assessmentRouter.post('/manage/:assessmentId/clone', ...recruiter('assessments.manage'), validateParams(schemas.assessmentIdSchema), assessmentController.cloneManagedAssessment);
 assessmentRouter.post('/', ...recruiter('assessments.manage'), validateBody(schemas.assessmentBodySchema), assessmentController.createManagedAssessment);
+
+// Blueprints Recruiter CRUD & Actions
+assessmentRouter.post('/blueprints', ...recruiter('assessments.manage'), enterpriseController.createBlueprint);
+assessmentRouter.get('/blueprints', ...recruiter('assessments.view'), enterpriseController.listBlueprints);
+assessmentRouter.get('/blueprints/:blueprintId', ...recruiter('assessments.view'), enterpriseController.getBlueprint);
+assessmentRouter.patch('/blueprints/:blueprintId', ...recruiter('assessments.manage'), enterpriseController.updateBlueprint);
+assessmentRouter.delete('/blueprints/:blueprintId', ...recruiter('assessments.manage'), enterpriseController.deleteBlueprint);
+assessmentRouter.post('/blueprints/:blueprintId/clone', ...recruiter('assessments.manage'), enterpriseController.cloneBlueprint);
+assessmentRouter.post('/blueprints/:blueprintId/generate', ...recruiter('assessments.manage'), enterpriseController.generateAssessment);
+
+// Plagiarism Scanning & Reports
+assessmentRouter.get('/manage/:assessmentId/plagiarism', ...recruiter('assessments.view'), enterpriseController.getPlagiarismReport);
+assessmentRouter.get('/manage/:assessmentId/plagiarism/candidates/:candidateId', ...recruiter('assessments.view'), enterpriseController.getCandidatePlagiarism);
+assessmentRouter.post('/manage/:assessmentId/plagiarism/scan', ...recruiter('assessments.manage'), enterpriseController.triggerPlagiarismScan);
+
+// Live Monitoring & PDF/HTML Reports (Recruiter View)
+assessmentRouter.get('/manage/:assessmentId/active-attempts', ...recruiter('assessments.view'), enterpriseController.getActiveAttempts);
+assessmentRouter.get('/attempts/:attemptId/report/html', ...recruiter('assessments.view'), enterpriseController.downloadReportHTML);
+assessmentRouter.get('/attempts/:attemptId/report/pdf', ...recruiter('assessments.view'), enterpriseController.downloadReportPDF);
+
+// Candidate View Reports
+assessmentRouter.get('/attempts/me/:attemptId/report/html', candidate, validateParams(schemas.attemptIdSchema), enterpriseController.downloadCandidateReportHTML);
+assessmentRouter.get('/attempts/me/:attemptId/report/pdf', candidate, validateParams(schemas.attemptIdSchema), enterpriseController.downloadCandidateReportPDF);
+
+// Question Versioning & Bank Enhancements
+assessmentRouter.post('/questions/:questionId/rollback', ...recruiter('assessments.manage'), enterpriseController.rollbackQuestion);
+assessmentRouter.get('/questions/:questionId/compare', ...recruiter('assessments.view'), enterpriseController.compareQuestion);
+assessmentRouter.post('/questions/:questionId/favorite', ...recruiter('assessments.view'), enterpriseController.toggleQuestionFavorite);
+
+// Analytics: Leaderboards & Benchmarking
+assessmentRouter.get('/manage/:assessmentId/leaderboard', ...recruiter('assessments.view'), enterpriseController.getAssessmentLeaderboard);
+assessmentRouter.get('/benchmarking', ...recruiter('assessments.view'), enterpriseController.getAssessmentBenchmarking);

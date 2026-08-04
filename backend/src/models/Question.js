@@ -11,6 +11,11 @@ const questionSchema = new mongoose.Schema({
   skills: { type: [String], default: [] }, difficulty: { type: String, enum: QUESTION_DIFFICULTIES, required: true }, defaultMarks: { type: Number, required: true, min: 0.01 },
   options: { type: [optionSchema], default: [] }, correctAnswer: { type: mongoose.Schema.Types.Mixed, default: null, select: false }, coding: { type: codingSchema, default: undefined },
   explanation: { type: String, maxlength: 5000, default: '', select: false }, isReusable: { type: Boolean, default: true }, isActive: { type: Boolean, default: true }, usageCount: { type: Number, min: 0, default: 0 },
+  version: { type: Number, default: 1 },
+  parentQuestion: { type: mongoose.Schema.Types.ObjectId, ref: 'Question', default: null, index: true },
+  category: { type: String, index: true, default: '' },
+  topic: { type: String, index: true, default: '' },
+  favorites: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }]
 }, { timestamps: true, versionKey: false });
 questionSchema.index({ company: 1, type: 1 }); questionSchema.index({ company: 1, difficulty: 1 }); questionSchema.index({ company: 1, isActive: 1, isReusable: 1 }); questionSchema.index({ skills: 1 }); questionSchema.index({ title: 'text', prompt: 'text' });
 export const Question = mongoose.model('Question', questionSchema);
