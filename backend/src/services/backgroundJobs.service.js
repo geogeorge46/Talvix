@@ -19,6 +19,10 @@ import { logger } from '../shared/utils/logger.js';
 import { Offer } from '../models/Offer.js';
 import { changeOfferStatus } from '../utils/offerStatus.js';
 import { cancelReminders } from './reminderEvent.service.js';
+import { AssessmentAttempt } from '../models/AssessmentAttempt.js';
+import { AssessmentAssignment } from '../models/AssessmentAssignment.js';
+import * as assessmentWorkflow from './assessmentWorkflow.service.js';
+import { evaluateAssessmentAttemptWithAI } from './ai.service.js';
 
 const handleGenerateAuditReport = async (payload) => {
   const { companyId, userId, reportType, format } = payload;
@@ -363,6 +367,65 @@ const handleExpireOffers = async () => {
   }
 };
 
+const handleEvaluateSubmission = async (payload) => {
+  const { candidateId, attemptId } = payload;
+  await assessmentWorkflow.submitAttempt(candidateId, attemptId, 'system-submit');
+};
+
+const handleAIAssessmentEvaluation = async (payload) => {
+  const { attemptId } = payload;
+  const attempt = await AssessmentAttempt.findById(attemptId);
+  if (!attempt) return;
+  const candidate = await User.findById(attempt.candidate);
+  const assignment = await AssessmentAssignment.findById(attempt.assignment);
+  if (!attempt || !candidate || !assignment) return;
+
+  const attemptDetails = {
+    answers: attempt.answers,
+    evaluation: attempt.evaluation
+  };
+  const candidateDetails = {
+    id: candidate.id,
+    fullName: candidate.fullName
+  };
+  const questionsDetails = assignment.assessmentSnapshot.questions.map(q => ({
+    id: q.questionId,
+    title: q.title,
+    prompt: q.prompt,
+    type: q.type
+  }));
+
+  const analysis = await evaluateAssessmentAttemptWithAI(attemptDetails, candidateDetails, questionsDetails);
+  attempt.aiAnalysis = analysis;
+  await attempt.save();
+};
+
+const handlePublishAssessmentResults = async (payload) => {
+  const { companyId, assignmentId, userId } = payload;
+  await assessmentWorkflow.releaseResult(companyId, assignmentId, userId);
+};
+
+const handleAssessmentReminder = async (payload) => {
+  const { candidateId, assignmentId } = payload;
+  const assignment = await AssessmentAssignment.findById(assignmentId);
+  if (!assignment) return;
+  await publishOptionalDomainEvent({
+    type: DOMAIN_EVENTS.ASSESSMENT_REMINDER || 'assessment.reminder',
+    company: String(assignment.company),
+    recipientIds: [String(candidateId)],
+    payload: {
+      assignmentId,
+      assessmentTitle: assignment.assessmentSnapshot.title,
+      expiresAt: assignment.expiresAt
+    },
+    deduplicationKey: `assessment.reminder-job:${assignmentId}:${Date.now()}`
+  });
+};
+
+const handleCleanupAssessmentData = async (_payload) => {
+  // Empty stub or cleanup implementation
+};
+
 /**
  * Execute a background job.
  */
@@ -404,6 +467,21 @@ export const executeJob = async (job) => {
         break;
       case 'CLEANUP_EXPIRED_MEETINGS':
         await handleCleanupExpiredMeetings();
+        break;
+      case 'EVALUATE_SUBMISSION':
+        await handleEvaluateSubmission(job.payload);
+        break;
+      case 'AI_ASSESSMENT_EVALUATION':
+        await handleAIAssessmentEvaluation(job.payload);
+        break;
+      case 'PUBLISH_ASSESSMENT_RESULTS':
+        await handlePublishAssessmentResults(job.payload);
+        break;
+      case 'ASSESSMENT_REMINDER':
+        await handleAssessmentReminder(job.payload);
+        break;
+      case 'CLEANUP_ASSESSMENT_DATA':
+        await handleCleanupAssessmentData(job.payload);
         break;
       default:
         throw new Error(`Unsupported job type: ${job.type}`);

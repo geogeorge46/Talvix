@@ -44,6 +44,8 @@ assessmentRouter.get('/attempts/me/:attemptId/result', candidate, validateParams
 assessmentRouter.get('/attempts/me/:attemptId', candidate, validateParams(schemas.attemptIdSchema), attemptController.myAttempt);
 assessmentRouter.patch('/attempts/me/:attemptId/answers', candidate, validateParams(schemas.attemptIdSchema), validateBody(schemas.saveAnswerSchema), attemptController.saveMyAnswer);
 assessmentRouter.post('/attempts/me/:attemptId/submit', candidate, validateParams(schemas.attemptIdSchema), attemptController.submitMyAttempt);
+assessmentRouter.post('/attempts/me/:attemptId/suspicious-events', candidate, validateParams(schemas.attemptIdSchema), validateBody(schemas.suspiciousEventSchema), attemptController.logSuspiciousEvent);
+assessmentRouter.post('/attempts/me/:attemptId/execute', candidate, validateParams(schemas.attemptIdSchema), validateBody(schemas.executeCodeSchema), attemptController.executeCodeInAttempt);
 
 assessmentRouter.get('/reviews', ...recruiter('assessments.review'), reviewController.pendingReviews);
 assessmentRouter.get('/reviews/:attemptId', ...recruiter('assessments.review'), validateParams(schemas.attemptIdSchema), reviewController.reviewAttempt);

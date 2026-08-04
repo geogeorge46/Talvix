@@ -17,7 +17,12 @@ const backgroundJobSchema = new mongoose.Schema(
         'REMIND_FEEDBACK_PENDING',
         'SYNC_CALENDAR',
         'CLEANUP_EXPIRED_MEETINGS',
-        'EXPIRE_OFFERS'
+        'EXPIRE_OFFERS',
+        'EVALUATE_SUBMISSION',
+        'AI_ASSESSMENT_EVALUATION',
+        'PUBLISH_ASSESSMENT_RESULTS',
+        'ASSESSMENT_REMINDER',
+        'CLEANUP_ASSESSMENT_DATA'
       ],
       index: true,
     },

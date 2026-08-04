@@ -3,7 +3,7 @@ import { QUESTION_DIFFICULTIES, QUESTION_TYPES, SUPPORTED_CODE_LANGUAGES } from 
 
 const optionSchema = new mongoose.Schema({ id: { type: String, required: true }, text: { type: String, required: true, maxlength: 2000 } }, { _id: false });
 const testCaseSchema = new mongoose.Schema({ input: mongoose.Schema.Types.Mixed, expectedOutput: mongoose.Schema.Types.Mixed, isHidden: { type: Boolean, default: false }, weight: { type: Number, required: true, min: 0.01 } }, { _id: false });
-const codingSchema = new mongoose.Schema({ languageSupport: [{ type: String, enum: SUPPORTED_CODE_LANGUAGES }], starterCode: { type: Map, of: String, default: {} }, functionName: { type: String, maxlength: 100 }, testCases: { type: [testCaseSchema], default: [] } }, { _id: false });
+const codingSchema = new mongoose.Schema({ languageSupport: [{ type: String, enum: SUPPORTED_CODE_LANGUAGES }], starterCode: { type: Map, of: String, default: {} }, functionName: { type: String, maxlength: 100 }, testCases: { type: [testCaseSchema], default: [] }, timeLimit: { type: Number, default: 2.0 }, memoryLimit: { type: Number, default: 512000 }, cpuLimit: { type: Number, default: 1.0 }, maxOutputSize: { type: Number, default: 102400 }, maxSourceSize: { type: Number, default: 50000 } }, { _id: false });
 
 const questionSchema = new mongoose.Schema({
   company: { type: mongoose.Schema.Types.ObjectId, ref: 'Company', required: true, index: true }, createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
