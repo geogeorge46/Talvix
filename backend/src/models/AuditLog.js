@@ -19,6 +19,12 @@ const auditLogSchema = new mongoose.Schema(
       default: null,
       index: true,
     },
+    application: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Application',
+      default: null,
+      index: true,
+    },
     targetUser: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',

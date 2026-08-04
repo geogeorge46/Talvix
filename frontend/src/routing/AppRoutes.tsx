@@ -71,6 +71,7 @@ import {
   TemplateDetailPage,
   TemplateFormPage,
   TemplatesPage,
+  CalendarPage,
 } from '../features/interviews';
 import {
   ApprovalDetailPage,
@@ -487,6 +488,14 @@ export function AppRoutes() {
           element={
             <CapabilityRoute anyPermission={['interviews.view']}>
               <TemplatesPage />
+            </CapabilityRoute>
+          }
+        />
+        <Route
+          path="interviews/calendar"
+          element={
+            <CapabilityRoute anyPermission={['interviews.view']}>
+              <CalendarPage />
             </CapabilityRoute>
           }
         />

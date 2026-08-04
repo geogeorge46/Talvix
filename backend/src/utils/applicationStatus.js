@@ -1,8 +1,8 @@
 import { APPLICATION_STATUSES } from '../constants/application.js';
 import { AppError } from '../shared/errors/AppError.js';
 
-export const TERMINAL_APPLICATION_STATUSES = Object.freeze(['hired', 'rejected', 'withdrawn', 'offer-declined']);
-export const RECRUITER_APPLICATION_TRANSITIONS = Object.freeze({ submitted: ['under-review', 'rejected'], 'under-review': ['shortlisted', 'rejected'], shortlisted: ['assessment-pending', 'interview-scheduled', 'rejected'], 'assessment-pending': ['assessment-in-progress', 'rejected'], 'assessment-in-progress': ['assessment-completed'], 'assessment-completed': ['shortlisted', 'interview-scheduled', 'rejected'], 'interview-scheduled': ['interview-completed', 'rejected'], 'interview-completed': ['offer-pending', 'rejected'], 'offer-pending': ['offer-sent', 'rejected'], 'offer-sent': ['offer-accepted', 'offer-declined'], 'offer-accepted': ['hired'] });
+export const TERMINAL_APPLICATION_STATUSES = Object.freeze(['hired', 'rejected', 'withdrawn']);
+export const RECRUITER_APPLICATION_TRANSITIONS = Object.freeze({ submitted: ['under-review', 'rejected'], 'under-review': ['shortlisted', 'rejected'], shortlisted: ['assessment-pending', 'interview-scheduled', 'rejected'], 'assessment-pending': ['assessment-in-progress', 'rejected'], 'assessment-in-progress': ['assessment-completed'], 'assessment-completed': ['shortlisted', 'interview-scheduled', 'rejected'], 'interview-scheduled': ['interview-completed', 'rejected'], 'interview-completed': ['offer-pending', 'rejected'], 'offer-pending': ['offer-sent', 'rejected'], 'offer-sent': ['offer-accepted', 'offer-declined'], 'offer-accepted': ['hired'], 'offer-declined': ['shortlisted', 'rejected'] });
 export const CANDIDATE_WITHDRAWABLE_STATUSES = Object.freeze(['submitted', 'under-review', 'shortlisted', 'assessment-pending', 'interview-scheduled']);
 
 /** Applies an actor-authorized transition and appends immutable history. */

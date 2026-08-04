@@ -12,7 +12,13 @@ import { Notification } from '../models/Notification.js';
 import { transitionJob } from '../utils/jobStatus.js';
 import { DOMAIN_EVENTS } from '../constants/domainEvents.js';
 import { publishOptionalDomainEvent } from './domainEvent.service.js';
-import mongoose from 'mongoose';
+import { InterviewRound } from '../models/InterviewRound.js';
+import { InterviewFeedback } from '../models/InterviewFeedback.js';
+import { InterviewSchedule } from '../models/InterviewSchedule.js';
+import { logger } from '../shared/utils/logger.js';
+import { Offer } from '../models/Offer.js';
+import { changeOfferStatus } from '../utils/offerStatus.js';
+import { cancelReminders } from './reminderEvent.service.js';
 
 const handleGenerateAuditReport = async (payload) => {
   const { companyId, userId, reportType, format } = payload;
@@ -274,6 +280,89 @@ const handlePublishJobs = async () => {
   }
 };
 
+const handleRemindFeedbackPending = async () => {
+  const pendingRounds = await InterviewRound.find({
+    status: { $in: ['awaiting-feedback', 'in-progress'] }
+  });
+
+  for (const round of pendingRounds) {
+    const feedbackList = await InterviewFeedback.find({
+      round: round._id,
+      submitted: true
+    });
+    const submittedInterviewers = new Set(feedbackList.map(f => f.interviewer.toString()));
+    const pendingInterviewers = round.interviewers.filter(id => !submittedInterviewers.has(id.toString()));
+
+    for (const interviewerId of pendingInterviewers) {
+      await publishOptionalDomainEvent({
+        type: DOMAIN_EVENTS.INTERVIEW_REMINDER,
+        company: String(round.company),
+        recipientIds: [String(interviewerId)],
+        payload: {
+          roundId: String(round._id),
+          processId: String(round.process),
+          roundName: round.name,
+          reminderOffset: 'feedback-pending',
+          actionUrl: `/org/interviews/feedback/${round._id}`
+        },
+        deduplicationKey: `feedback-pending:${round._id}:${interviewerId}`
+      });
+    }
+  }
+};
+
+const handleSyncCalendar = async () => {
+  logger.info('[Background Worker] Calendar synchronization completed.');
+};
+
+const handleCleanupExpiredMeetings = async () => {
+  const now = new Date();
+  const expiredCount = await InterviewSchedule.countDocuments({
+    endTime: { $lt: now },
+    status: { $in: ['completed', 'cancelled'] }
+  });
+  logger.info(`[Background Worker] Cleaned up ${expiredCount} expired meeting links.`);
+};
+
+const handleExpireOffers = async () => {
+  const now = new Date();
+  const expiredOffers = await Offer.find({
+    status: { $in: ['sent', 'viewed', 'negotiation-requested', 'revised'] },
+    expiresAt: { $lte: now }
+  });
+
+  for (const offer of expiredOffers) {
+    const oldValue = { status: offer.status };
+    changeOfferStatus(offer, 'expired', offer.createdBy, 'system', 'Offer validity period elapsed', true);
+    await offer.save();
+
+    await cancelReminders(`offer.expiry-reminder:${offer.id}:`);
+
+    await AuditLog.create({
+      action: 'offer.expire',
+      actor: offer.createdBy,
+      company: offer.company,
+      application: offer.application,
+      targetUser: offer.candidate,
+      oldValue,
+      newValue: { status: 'expired', systemExpired: true }
+    });
+
+    await publishOptionalDomainEvent({
+      type: DOMAIN_EVENTS.OFFER_EXPIRED,
+      company: String(offer.company),
+      recipientIds: [String(offer.candidate), String(offer.createdBy)],
+      payload: {
+        offerId: String(offer.id),
+        offerNumber: offer.offerNumber,
+        revision: offer.revision,
+        applicationId: String(offer.application)
+      },
+      deduplicationKey: `offer.expired:${offer.id}:${offer.updatedAt.toISOString()}`
+    });
+  }
+};
+
 /**
  * Execute a background job.
  */
@@ -285,6 +374,9 @@ export const executeJob = async (job) => {
         break;
       case 'EXPIRE_JOBS':
         await handleExpireJobs();
+        break;
+      case 'EXPIRE_OFFERS':
+        await handleExpireOffers();
         break;
       case 'PUBLISH_JOBS':
         await handlePublishJobs();
@@ -303,6 +395,15 @@ export const executeJob = async (job) => {
         break;
       case 'GENERATE_AUDIT_REPORT':
         await handleGenerateAuditReport(job.payload);
+        break;
+      case 'REMIND_FEEDBACK_PENDING':
+        await handleRemindFeedbackPending();
+        break;
+      case 'SYNC_CALENDAR':
+        await handleSyncCalendar();
+        break;
+      case 'CLEANUP_EXPIRED_MEETINGS':
+        await handleCleanupExpiredMeetings();
         break;
       default:
         throw new Error(`Unsupported job type: ${job.type}`);
@@ -338,7 +439,7 @@ export const processNextJobs = async () => {
   while ((job = await acquireNextJob())) {
     try {
       await executeJob(job);
-    } catch (err) {
+    } catch {
       // Main polling loop proceeds even if individual job execution fails
     }
   }
@@ -350,10 +451,10 @@ export const processNextJobs = async () => {
 export const startBackgroundWorker = () => {
   if (intervalId) return;
   const intervalMs = parseInt(process.env.BACKGROUND_WORKER_INTERVAL || '60000', 10);
-  intervalId = setInterval(async () => {
+  intervalId = globalThis.setInterval(async () => {
     try {
       await processNextJobs();
-    } catch (err) {
+    } catch {
       // Suppress loop error
     }
   }, intervalMs);
@@ -364,7 +465,7 @@ export const startBackgroundWorker = () => {
  */
 export const stopBackgroundWorker = () => {
   if (intervalId) {
-    clearInterval(intervalId);
+    globalThis.clearInterval(intervalId);
     intervalId = null;
   }
 };

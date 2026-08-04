@@ -75,6 +75,7 @@ export interface Scorecard {
     submitted: boolean;
     submittedAt: string;
     lastEditedAt: string;
+    attachments?: string[];
   } | undefined;
 }
 export interface SafeSchedule {
@@ -91,6 +92,10 @@ export interface SafeSchedule {
   candidateInstructions: string;
   status: string;
   candidateResponse: string;
+  candidateId?: string;
+  candidate?: string;
+  processId?: string;
+  process?: string;
 }
 export interface CandidateRound {
   id: string;

@@ -1,3 +1,4 @@
+import mongoose from 'mongoose';
 import { DOMAIN_EVENTS } from "../constants/domainEvents.js";
 import { NotificationOutbox } from "../models/NotificationOutbox.js";
 import {
@@ -5,6 +6,7 @@ import {
   versionedEventKey,
 } from "../utils/domainEventDeduplication.js";
 import { publishOptionalDomainEvent } from "./domainEvent.service.js";
+
 const schedule = (x) =>
   x.at > new Date()
     ? publishOptionalDomainEvent(
@@ -19,6 +21,7 @@ const schedule = (x) =>
         { session: x.session },
       )
     : null;
+
 export const createAssessmentReminders = (a, r, session) =>
   Promise.all(
     [
@@ -41,12 +44,23 @@ export const createAssessmentReminders = (a, r, session) =>
       }),
     ),
   );
-export const createInterviewReminders = (s, r, session) =>
-  Promise.all(
-    [
-      [24, "24h"],
-      [1, "1h"],
-    ].map(([h, l]) =>
+
+export const createInterviewReminders = async (s, r, session) => {
+  const CompanyModel = mongoose.model('Company');
+  const comp = await CompanyModel.findById(s.company);
+  const policy = comp?.interviewReminderPolicy || ['24h', '1h'];
+
+  const offsets = policy.map(label => {
+    const match = label.match(/^(\d+)(h|m)$/i);
+    if (!match) return null;
+    const value = parseInt(match[1], 10);
+    const unit = match[2].toLowerCase();
+    const hours = unit === 'h' ? value : value / 60;
+    return { hours, label };
+  }).filter(Boolean);
+
+  return Promise.all(
+    offsets.map(({ hours, label }) =>
       schedule({
         type: DOMAIN_EVENTS.INTERVIEW_REMINDER,
         recipientIds: r.map(String),
@@ -57,15 +71,17 @@ export const createInterviewReminders = (s, r, session) =>
           scheduleVersion: s.version,
           startTime: s.startTime,
           timezone: s.timezone,
-          reminderOffset: l,
-        actionUrl: `/candidate/interviews/schedules/${s.id}`,
+          reminderOffset: label,
+          actionUrl: `/candidate/interviews/schedules/${s.id}`,
         },
-        at: new Date(s.startTime - h * 3600000),
-        key: `${versionedEventKey(DOMAIN_EVENTS.INTERVIEW_REMINDER, s.id, s.version)}:${l}`,
+        at: new Date(s.startTime - hours * 3600000),
+        key: `${versionedEventKey(DOMAIN_EVENTS.INTERVIEW_REMINDER, s.id, s.version)}:${label}`,
         session,
       }),
     ),
   );
+};
+
 export const createOfferReminders = (o, session) =>
   Promise.all(
     [
@@ -84,11 +100,12 @@ export const createOfferReminders = (o, session) =>
           actionUrl: `/candidate/offers/${o.id}`,
         },
         at: new Date(o.expiresAt - h * 3600000),
-        key: `${versionedEventKey(DOMAIN_EVENTS.OFFER_EXPIRY_REMINDER, o.id, o.revision, "r")}:${l}`,
+        key: `${versionedEventKey(DOMAIN_EVENTS.OFFER_EXPIRY_REMINDER, o.id, o.revision, 'r')}:${l}`,
         session,
       }),
     ),
   );
+
 export const cancelReminders = (prefix) =>
   NotificationOutbox.updateMany(
     {

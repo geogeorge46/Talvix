@@ -25,6 +25,8 @@ const companySchema = new mongoose.Schema({
   autoApproveDomainMembers: { type: Boolean, default: false },
   resumeDownloadLimit: { type: Number, default: null },
   autoApproveJobs: { type: Boolean, default: false },
+  interviewReminderPolicy: { type: [String], default: ['24h', '1h'] },
+  offerApprovalWorkflowEnabled: { type: Boolean, default: false },
   isActive: { type: Boolean, default: true },
   teamMembers: { type: Array },
 }, { timestamps: true, versionKey: false });

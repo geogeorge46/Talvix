@@ -167,6 +167,7 @@ const scheduleBase = {
     .optional(),
   candidateInstructions: text(3000).optional(),
   interviewerInstructions: text(3000).optional(),
+  overrideConflicts: z.boolean().optional(),
 };
 const validateSchedule = (v, c) => {
   if (v.endTime <= v.startTime)
@@ -175,7 +176,7 @@ const validateSchedule = (v, c) => {
       path: ["endTime"],
       message: "End must follow start",
     });
-  if (v.mode === "video" && !v.meetingUrl)
+  if (v.mode === "video" && !v.meetingUrl && v.meetingProvider === "custom")
     c.addIssue({
       code: "custom",
       path: ["meetingUrl"],
@@ -242,6 +243,7 @@ export const feedbackBody = z
     concerns: z.array(text(500)).max(20).default([]),
     privateNotes: text(5000).optional(),
     candidateVisibleFeedback: text(3000).optional(),
+    attachments: z.array(oid).max(10).optional(),
   })
   .strict();
 export const finalizeBody = z

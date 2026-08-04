@@ -13,7 +13,11 @@ const backgroundJobSchema = new mongoose.Schema(
         'REVOKE_SESSION',
         'GENERATE_AUDIT_REPORT',
         'EXPIRE_JOBS',
-        'PUBLISH_JOBS'
+        'PUBLISH_JOBS',
+        'REMIND_FEEDBACK_PENDING',
+        'SYNC_CALENDAR',
+        'CLEANUP_EXPIRED_MEETINGS',
+        'EXPIRE_OFFERS'
       ],
       index: true,
     },

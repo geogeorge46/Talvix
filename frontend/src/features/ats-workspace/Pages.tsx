@@ -38,6 +38,15 @@ import {
   useCandidates,
   useMoveApplication,
   usePipeline,
+  useBulkApplications,
+  useApplicationTimeline,
+  useApplicationComments,
+  useAddApplicationComment,
+  useDeleteApplicationComment,
+  useAddApplicationNote,
+  useUpdateApplicationNote,
+  useDeleteApplicationNote,
+  CommentItem,
 } from './api';
 import {
   applicationStatuses,
@@ -577,15 +586,38 @@ function Match({ row }: { row: ApplicationRow }) {
 function ApplicationCard({
   row,
   actions,
+  isSelected = false,
+  onSelectToggle,
+  onDragStart,
 }: {
   row: ApplicationRow;
   actions: ReactNode;
+  isSelected?: boolean;
+  onSelectToggle?: () => void;
+  onDragStart?: (e: React.DragEvent) => void;
 }) {
   return (
-    <article className="ats-record">
-      <div>
-        <strong>{row.candidateName}</strong>
-        <span>{row.jobTitle}</span>
+    <article
+      className={`ats-record ${isSelected ? 'selected' : ''}`}
+      draggable
+      onDragStart={onDragStart}
+      style={{ cursor: 'grab' }}
+    >
+      <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-start' }}>
+        {onSelectToggle && (
+          <input
+            type="checkbox"
+            checked={isSelected}
+            onChange={onSelectToggle}
+            className="ats-card-checkbox"
+            style={{ marginTop: '4px' }}
+            aria-label={`Select ${row.candidateName}`}
+          />
+        )}
+        <div style={{ flex: 1 }}>
+          <strong>{row.candidateName}</strong>
+          <span>{row.jobTitle}</span>
+        </div>
       </div>
       <Match row={row} />
       <div className="ats-skills">
@@ -806,13 +838,111 @@ function PipelineBoard({
   page?: { page: number; pages: number };
   setPage?: (page: number) => void;
 }) {
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [draggedOverStage, setDraggedOverStage] = useState<string | null>(null);
+
+  const [bulkAction, setBulkAction] = useState<'move' | 'reject' | 'assign' | 'tag' | 'archive' | null>(null);
+  const [bulkStage, setBulkStage] = useState<string>('');
+  const [bulkReason, setBulkReason] = useState<string>('');
+  const [bulkCategory, setBulkCategory] = useState<string>('other');
+  const [bulkTags, setBulkTags] = useState<string>('');
+  const [notice, setNotice] = useState<string>('');
+
+  const bulkMutation = useBulkApplications();
+
   if (loading) return <LoadingState label="Loading pipeline" />;
   if (!rows.length) return <>{empty}</>;
+
   const stages = applicationStatuses.filter(
     (s) => rows.some((r) => r.status === s) || (counts[s] ?? 0) > 0,
   );
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+    );
+  };
+
+  const handleDragStart = (e: React.DragEvent, appId: string, status: string) => {
+    e.dataTransfer.setData('text/plain', JSON.stringify({ appId, status }));
+  };
+
+  const handleDrop = async (e: React.DragEvent, targetStatus: string) => {
+    e.preventDefault();
+    setDraggedOverStage(null);
+    try {
+      const dataStr = e.dataTransfer.getData('text/plain');
+      if (!dataStr) return;
+      const { appId, status } = JSON.parse(dataStr);
+      if (status === targetStatus) return;
+
+      const idsToMove = selectedIds.includes(appId) ? selectedIds : [appId];
+
+      if (targetStatus === 'rejected') {
+        setSelectedIds(idsToMove);
+        setBulkAction('reject');
+        return;
+      }
+
+      await bulkMutation.mutateAsync({
+        applicationIds: idsToMove,
+        action: 'move-stage',
+        payload: { status: targetStatus }
+      });
+
+      setSelectedIds([]);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const executeBulkAction = async () => {
+    setNotice('');
+    try {
+      if (bulkAction === 'move') {
+        if (!bulkStage) return;
+        await bulkMutation.mutateAsync({
+          applicationIds: selectedIds,
+          action: 'move-stage',
+          payload: { status: bulkStage }
+        });
+      } else if (bulkAction === 'reject') {
+        if (!bulkReason.trim()) {
+          setNotice('A rejection reason is required.');
+          return;
+        }
+        await bulkMutation.mutateAsync({
+          applicationIds: selectedIds,
+          action: 'reject',
+          payload: { reason: bulkReason, rejectionCategory: bulkCategory }
+        });
+      } else if (bulkAction === 'archive') {
+        await bulkMutation.mutateAsync({
+          applicationIds: selectedIds,
+          action: 'archive'
+        });
+      } else if (bulkAction === 'tag') {
+        const tagsList = bulkTags.split(',').map(t => t.trim()).filter(Boolean);
+        await bulkMutation.mutateAsync({
+          applicationIds: selectedIds,
+          action: 'add-tags',
+          payload: { tags: tagsList }
+        });
+      }
+
+      setSelectedIds([]);
+      setBulkAction(null);
+      setBulkStage('');
+      setBulkReason('');
+      setBulkCategory('other');
+      setBulkTags('');
+    } catch (err) {
+      setNotice(err instanceof Error ? err.message : 'An error occurred');
+    }
+  };
+
   return (
-    <section aria-label="Pipeline board" className="ats-board-mode">
+    <section aria-label="Pipeline board" className="ats-board-mode" style={{ position: 'relative' }}>
       <div className="ats-board-note">
         <p>
           Cards show the current result page. Column totals are company-wide, or
@@ -822,9 +952,15 @@ function PipelineBoard({
         <div className="ats-board">
           {stages.map((s) => (
             <section
-              className="ats-column"
+              className={`ats-column ${draggedOverStage === s ? 'drag-over' : ''}`}
               key={s}
               aria-labelledby={`stage-${s}`}
+              onDragOver={(e) => {
+                e.preventDefault();
+                if (draggedOverStage !== s) setDraggedOverStage(s);
+              }}
+              onDragLeave={() => setDraggedOverStage(null)}
+              onDrop={(e) => handleDrop(e, s)}
             >
               <header>
                 <h2 id={`stage-${s}`}>{labelStatus(s)}</h2>
@@ -832,10 +968,22 @@ function PipelineBoard({
                   {counts[s] ?? rows.filter((r) => r.status === s).length} total
                 </Badge>
               </header>
+
+              {draggedOverStage === s && (
+                <div className="ats-drop-indicator" aria-hidden="true" />
+              )}
+
               {rows
                 .filter((r) => r.status === s)
                 .map((r) => (
-                  <ApplicationCard key={r.id} row={r} actions={actions(r)} />
+                  <ApplicationCard
+                    key={r.id}
+                    row={r}
+                    actions={actions(r)}
+                    isSelected={selectedIds.includes(r.id)}
+                    onSelectToggle={() => toggleSelect(r.id)}
+                    onDragStart={(e) => handleDragStart(e, r.id, r.status)}
+                  />
                 ))}
             </section>
           ))}
@@ -849,6 +997,97 @@ function PipelineBoard({
           />
         )}
       </div>
+
+      {selectedIds.length > 0 && (
+        <div className="ats-bulk-bar" style={{
+          position: 'fixed',
+          bottom: '24px',
+          left: '50%',
+          transform: 'translateX(-50%)',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '16px',
+          padding: '12px 24px',
+          background: 'var(--color-surface, #fff)',
+          backdropFilter: 'blur(12px)',
+          border: '1px solid var(--color-border-subtle, rgba(0, 0, 0, 0.1))',
+          borderRadius: '30px',
+          boxShadow: '0 10px 30px rgba(0,0,0,0.1)',
+          zIndex: 1000,
+          transition: 'all 0.3s ease-in-out'
+        }}>
+          <span style={{ fontWeight: 600 }}>{selectedIds.length} selected</span>
+          <Button size="compact" onClick={() => setBulkAction('move')}>Move Stage</Button>
+          <Button size="compact" onClick={() => setBulkAction('reject')}>Reject</Button>
+          <Button size="compact" onClick={() => setBulkAction('tag')}>Tag</Button>
+          <Button size="compact" onClick={() => setBulkAction('archive')}>Archive</Button>
+          <Button size="compact" variant="secondary" onClick={() => setSelectedIds([])}>Clear</Button>
+        </div>
+      )}
+
+      {bulkAction && (
+        <Dialog
+          open={!!bulkAction}
+          onOpenChange={(v) => { if (!v) setBulkAction(null); }}
+          title={`Bulk Action: ${bulkAction}`}
+          description={`Apply ${bulkAction} operation to ${selectedIds.length} candidate(s).`}
+          busy={bulkMutation.isPending}
+          footer={
+            <>
+              <Button variant="secondary" onClick={() => setBulkAction(null)}>Cancel</Button>
+              <Button onClick={executeBulkAction}>Confirm</Button>
+            </>
+          }
+        >
+          {notice && <Alert tone="danger">{notice}</Alert>}
+
+          {bulkAction === 'move' && (
+            <Select
+              label="Select Target Stage"
+              value={bulkStage}
+              onChange={(e) => setBulkStage(e.target.value)}
+              options={applicationStatuses.map(st => ({ value: st, label: labelStatus(st) }))}
+              placeholder="-- Choose Stage --"
+            />
+          )}
+
+          {bulkAction === 'reject' && (
+            <div className="ats-dialog-fields">
+              <Select
+                label="Rejection Category"
+                value={bulkCategory}
+                onChange={(e) => setBulkCategory(e.target.value)}
+                options={[
+                  { value: 'other', label: 'Other' },
+                  { value: 'skills-mismatch', label: 'Skills Mismatch' },
+                  { value: 'salary-expectation', label: 'Salary Expectation' },
+                  { value: 'culture-fit', label: 'Culture Fit' }
+                ]}
+              />
+              <TextArea
+                label="Rejection Reason"
+                value={bulkReason}
+                onChange={(e) => setBulkReason(e.target.value)}
+                placeholder="Provide details about the rejection..."
+              />
+            </div>
+          )}
+
+          {bulkAction === 'tag' && (
+            <TextField
+              label="Tags (comma-separated)"
+              value={bulkTags}
+              onChange={(e) => setBulkTags(e.target.value)}
+              placeholder="e.g. backend, remote, fast-track"
+            />
+          )}
+
+          {bulkAction === 'archive' && (
+            <p>Are you sure you want to archive the selected candidates?</p>
+          )}
+        </Dialog>
+      )}
+
       <div className="ats-board-fallback">
         <PipelineList
           rows={rows}
@@ -1044,10 +1283,256 @@ export function ApplicationDetailPage() {
           <EvidenceSection title="Education" items={a.education} />
           <EvidenceSection title="Projects" items={a.projects} />
           <EvidenceSection title="Certifications" items={a.certifications} />
+          <ApplicationCommentsSection applicationId={applicationId} />
         </div>
-        <EvidenceRail detail={a} />
+        <ApplicationTimelineSection applicationId={applicationId} />
       </div>
     </div>
+  );
+}
+
+function ApplicationCommentsSection({ applicationId }: { applicationId: string }) {
+  const commentsQuery = useApplicationComments(applicationId);
+  const addCommentMutation = useAddApplicationComment(applicationId);
+  const deleteCommentMutation = useDeleteApplicationComment(applicationId);
+
+  const [content, setContent] = useState('');
+  const [replyToId, setReplyToId] = useState<string | null>(null);
+  const [replyContent, setReplyContent] = useState('');
+
+  if (commentsQuery.isLoading) return <LoadingState label="Loading comments" />;
+  const comments = commentsQuery.data ?? [];
+
+  const parentComments = comments.filter((c) => !c.parentId);
+  const repliesGrouped: Record<string, CommentItem[]> = {};
+  comments.forEach((curr) => {
+    if (curr.parentId) {
+      const pid = curr.parentId;
+      if (!repliesGrouped[pid]) repliesGrouped[pid] = [];
+      repliesGrouped[pid].push(curr);
+    }
+  });
+
+  const handleAddComment = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!content.trim()) return;
+    try {
+      await addCommentMutation.mutateAsync({ content: content.trim() });
+      setContent('');
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleAddReply = async (parentId: string) => {
+    if (!replyContent.trim()) return;
+    try {
+      await addCommentMutation.mutateAsync({ content: replyContent.trim(), parentId });
+      setReplyContent('');
+      setReplyToId(null);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleDelete = async (commentId: string) => {
+    if (!window.confirm('Are you sure you want to delete this comment?')) return;
+    try {
+      await deleteCommentMutation.mutateAsync(commentId);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  return (
+    <Card heading="Internal Recruiter Comments" headingLevel={2}>
+      <form onSubmit={handleAddComment} style={{ display: 'grid', gap: '8px', marginBottom: '24px' }}>
+        <TextArea
+          label="Leave a comment"
+          placeholder="Use @username to mention team members..."
+          value={content}
+          onChange={(e) => setContent(e.target.value)}
+        />
+        <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+          <Button type="submit" size="compact" disabled={addCommentMutation.isPending}>
+            Post Comment
+          </Button>
+        </div>
+      </form>
+
+      <div style={{ display: 'grid', gap: '16px' }}>
+        {parentComments.map((pc) => (
+          <div key={pc._id} style={{ borderBottom: '1px solid var(--color-border-subtle, rgba(0,0,0,0.05))', paddingBottom: '12px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+              <div>
+                <strong>{pc.author?.fullName}</strong>{' '}
+                <small style={{ color: 'var(--color-text-secondary)' }}>{pc.author?.email}</small>
+                <p style={{ margin: '8px 0 4px 0' }}>{pc.content}</p>
+                <small style={{ color: 'var(--color-text-secondary)' }}>{formatDate(pc.createdAt)}</small>
+              </div>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <Button size="compact" variant="quiet" onClick={() => setReplyToId(pc._id)}>Reply</Button>
+                <Button size="compact" variant="quiet" onClick={() => handleDelete(pc._id)}>Delete</Button>
+              </div>
+            </div>
+
+            {repliesGrouped[pc._id]?.map((reply) => (
+              <div key={reply._id} style={{ marginLeft: '24px', marginTop: '12px', paddingLeft: '12px', borderLeft: '2px solid var(--color-border-subtle, rgba(0,0,0,0.08))' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                  <div>
+                    <strong>{reply.author?.fullName}</strong>{' '}
+                    <small style={{ color: 'var(--color-text-secondary)' }}>{reply.author?.email}</small>
+                    <p style={{ margin: '4px 0' }}>{reply.content}</p>
+                    <small style={{ color: 'var(--color-text-secondary)' }}>{formatDate(reply.createdAt)}</small>
+                  </div>
+                  <Button size="compact" variant="quiet" onClick={() => handleDelete(reply._id)}>Delete</Button>
+                </div>
+              </div>
+            ))}
+
+            {replyToId === pc._id && (
+              <div style={{ marginLeft: '24px', marginTop: '12px', display: 'grid', gap: '8px' }}>
+                <TextArea
+                  label="Reply to comment"
+                  placeholder="Write a reply..."
+                  value={replyContent}
+                  onChange={(e) => setReplyContent(e.target.value)}
+                />
+                <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+                  <Button size="compact" variant="secondary" onClick={() => setReplyToId(null)}>Cancel</Button>
+                  <Button size="compact" onClick={() => handleAddReply(pc._id)}>Post Reply</Button>
+                </div>
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    </Card>
+  );
+}
+
+function ApplicationTimelineSection({ applicationId }: { applicationId: string }) {
+  const timelineQuery = useApplicationTimeline(applicationId);
+  const addNoteMutation = useAddApplicationNote(applicationId);
+  const deleteNoteMutation = useDeleteApplicationNote(applicationId);
+  const updateNoteMutation = useUpdateApplicationNote(applicationId);
+
+  const [noteContent, setNoteContent] = useState('');
+  const [notePrivate, setNotePrivate] = useState(true);
+  const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
+  const [editingContent, setEditingContent] = useState('');
+
+  if (timelineQuery.isLoading) return <LoadingState label="Loading timeline" />;
+  const timeline = timelineQuery.data ?? [];
+
+  const handleAddNote = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!noteContent.trim()) return;
+    try {
+      await addNoteMutation.mutateAsync({ note: noteContent.trim(), isPrivate: notePrivate });
+      setNoteContent('');
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  return (
+    <aside className="ats-evidence-rail" aria-labelledby="ats-timeline-title" style={{ width: '100%', position: 'static' }}>
+      <h2 id="ats-timeline-title" style={{ marginBottom: '16px' }}>Evidence trail</h2>
+
+      <form onSubmit={handleAddNote} style={{ display: 'grid', gap: '8px', marginBottom: '24px', padding: '16px', background: 'var(--color-surface, #fff)', borderRadius: '8px', border: '1px solid var(--color-border-subtle, #eee)' }}>
+        <TextArea
+          label="Leave a recruiter note"
+          value={noteContent}
+          onChange={(e) => setNoteContent(e.target.value)}
+          placeholder="Keep tracking notes about this candidate..."
+        />
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+            <input
+              type="checkbox"
+              checked={notePrivate}
+              onChange={(e) => setNotePrivate(e.target.checked)}
+            />
+            <span>Private note</span>
+          </label>
+          <Button type="submit" size="compact" disabled={addNoteMutation.isPending}>Add Note</Button>
+        </div>
+      </form>
+
+      <ol style={{ listStyle: 'none', padding: 0, display: 'grid', gap: '16px' }}>
+        {timeline.map((item, index) => (
+          <li key={index} style={{ padding: '12px', background: 'var(--color-surface, #fff)', border: '1px solid var(--color-border-subtle, #eee)', borderRadius: '8px', position: 'relative' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: '12px', fontWeight: 'bold', textTransform: 'uppercase', color: 'var(--color-text-secondary)' }}>
+                {item.type.replace('_', ' ')}
+              </span>
+              <time style={{ fontSize: '11px', color: 'var(--color-text-secondary)' }}>{formatDate(item.timestamp)}</time>
+            </div>
+
+            {item.type === 'status_change' && (
+              <p style={{ margin: '8px 0 0 0' }}>
+                Changed stage from <strong>{labelStatus(item.from || '')}</strong> to <strong>{labelStatus(item.to || '')}</strong>
+                {item.reason && <span style={{ display: 'block', fontStyle: 'italic', fontSize: '13px', marginTop: '4px' }}>Reason: "{item.reason}"</span>}
+              </p>
+            )}
+
+            {item.type === 'note' && (
+              <div style={{ marginTop: '8px' }}>
+                {editingNoteId === item.id ? (
+                  <div style={{ display: 'grid', gap: '8px' }}>
+                    <TextArea
+                      label="Edit note"
+                      value={editingContent}
+                      onChange={(e) => setEditingContent(e.target.value)}
+                    />
+                    <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+                      <Button size="compact" variant="secondary" onClick={() => setEditingNoteId(null)}>Cancel</Button>
+                      <Button size="compact" onClick={async () => {
+                        const nid = item.id;
+                        if (nid && editingContent.trim()) {
+                          await updateNoteMutation.mutateAsync({ noteId: nid, body: { note: editingContent.trim() } });
+                          setEditingNoteId(null);
+                        }
+                      }}>Save</Button>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <p style={{ margin: 0 }}>{item.content}</p>
+                    {item.isPrivate && <span style={{ display: 'inline-block', marginTop: '4px' }}><Badge>Private</Badge></span>}
+                    <div style={{ display: 'flex', gap: '8px', marginTop: '8px', justifyContent: 'flex-end' }}>
+                      <Button size="compact" variant="quiet" onClick={() => { if (item.id) { setEditingNoteId(item.id); setEditingContent(item.content || ''); } }}>Edit</Button>
+                      <Button size="compact" variant="quiet" onClick={async () => {
+                        if (item.id && window.confirm('Are you sure you want to delete this note?')) {
+                          await deleteNoteMutation.mutateAsync(item.id);
+                        }
+                      }}>Delete</Button>
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
+
+            {item.type === 'comment' && (
+              <p style={{ margin: '8px 0 0 0' }}>
+                Comment: "{item.content}"
+              </p>
+            )}
+
+            {item.type === 'audit_event' && (
+              <p style={{ margin: '8px 0 0 0' }}>
+                Action: <strong>{item.action}</strong>
+              </p>
+            )}
+
+            <div style={{ fontSize: '11px', color: 'var(--color-text-secondary)', marginTop: '8px' }}>
+              By {item.actor?.fullName || 'System'}
+            </div>
+          </li>
+        ))}
+      </ol>
+    </aside>
   );
 }
 

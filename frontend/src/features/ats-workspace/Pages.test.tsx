@@ -23,6 +23,14 @@ vi.mock('./api', () => ({
   useCandidates: (...a: unknown[]) => mocks.candidates(...a),
   useCandidate: (...a: unknown[]) => mocks.candidate(...a),
   useMoveApplication: () => ({ isPending: false, mutateAsync: mocks.move }),
+  useBulkApplications: () => ({ isPending: false, mutateAsync: vi.fn() }),
+  useApplicationTimeline: () => ({ isLoading: false, data: [] }),
+  useApplicationComments: () => ({ isLoading: false, data: [] }),
+  useAddApplicationComment: () => ({ isPending: false, mutateAsync: vi.fn() }),
+  useDeleteApplicationComment: () => ({ isPending: false, mutateAsync: vi.fn() }),
+  useAddApplicationNote: () => ({ isPending: false, mutateAsync: vi.fn() }),
+  useUpdateApplicationNote: () => ({ isPending: false, mutateAsync: vi.fn() }),
+  useDeleteApplicationNote: () => ({ isPending: false, mutateAsync: vi.fn() }),
 }));
 import {
   ApplicationDetailPage,

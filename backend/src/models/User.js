@@ -98,6 +98,10 @@ const userSchema = new mongoose.Schema(
       default: null,
       select: false,
     },
+    timezone: {
+      type: String,
+      default: 'UTC',
+    },
   },
   {
     timestamps: true,

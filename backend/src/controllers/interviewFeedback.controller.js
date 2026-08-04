@@ -3,6 +3,7 @@ import {
   getScorecard,
   listScorecards,
 } from "../services/interviewScorecard.service.js";
+
 const h = (f) => async (r, s, n) => {
   try {
     return await f(r, s);
@@ -10,6 +11,7 @@ const h = (f) => async (r, s, n) => {
     return n(e);
   }
 };
+
 export const list = h(async (r, s) =>
   s.json({
     success: true,
@@ -17,6 +19,7 @@ export const list = h(async (r, s) =>
     data: { feedback: await x.listFeedback(r.company.id, r.user.id) },
   }),
 );
+
 export const pending = h(async (r, s) =>
   s.json({
     success: true,
@@ -26,6 +29,7 @@ export const pending = h(async (r, s) =>
     },
   }),
 );
+
 export const overdue = h(async (r, s) =>
   s.json({
     success: true,
@@ -33,6 +37,7 @@ export const overdue = h(async (r, s) =>
     data: { scorecards: await listScorecards(r.company.id, r.user.id, true) },
   }),
 );
+
 export const detail = h(async (r, s) =>
   s.json({
     success: true,
@@ -42,13 +47,16 @@ export const detail = h(async (r, s) =>
     },
   }),
 );
-export const round = h(async (r, s) =>
-  s.json({
+
+export const round = h(async (r, s) => {
+  const result = await x.roundFeedback(r.company.id, r.params.roundId, r.user.id);
+  return s.json({
     success: true,
     message: "Round feedback retrieved successfully",
-    data: { feedback: await x.roundFeedback(r.company.id, r.params.roundId) },
-  }),
-);
+    data: result,
+  });
+});
+
 export const save = h(async (r, s) =>
   s.json({
     success: true,
@@ -63,8 +71,10 @@ export const save = h(async (r, s) =>
     },
   }),
 );
-export const submit = h(async (r, s) =>
-  s.json({
+
+export const submit = h(async (r, s) => {
+  const reqMeta = { ipAddress: r.ip, userAgent: r.headers['user-agent'] };
+  return s.json({
     success: true,
     message: "Interview feedback submitted successfully",
     data: {
@@ -72,10 +82,12 @@ export const submit = h(async (r, s) =>
         r.company.id,
         r.params.roundId,
         r.user.id,
+        reqMeta
       ),
     },
-  }),
-);
+  });
+});
+
 export const start = h(async (r, s) =>
   s.json({
     success: true,
@@ -90,8 +102,10 @@ export const start = h(async (r, s) =>
     },
   }),
 );
-export const complete = h(async (r, s) =>
-  s.json({
+
+export const complete = h(async (r, s) => {
+  const reqMeta = { ipAddress: r.ip, userAgent: r.headers['user-agent'] };
+  return s.json({
     success: true,
     message: "Interview round completed successfully",
     data: {
@@ -101,7 +115,8 @@ export const complete = h(async (r, s) =>
         r.params.roundId,
         r.user.id,
         r.body.reason,
+        reqMeta
       ),
     },
-  }),
-);
+  });
+});

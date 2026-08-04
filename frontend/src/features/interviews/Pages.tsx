@@ -35,6 +35,7 @@ import {
   useTemplateAction,
   useTemplates,
   useTemplateSave,
+  useCalendar,
 } from './api';
 import {
   formatZoned,
@@ -43,6 +44,7 @@ import {
   type Process,
   type RoundPlan,
   type Template,
+  type SafeSchedule,
   zonedLocalToIso,
 } from './model';
 import './interviews.css';
@@ -62,6 +64,7 @@ function InterviewTabs() {
   return (
     <nav className="iv-tabs" aria-label="Interview sections">
       <Link to="/org/interviews">Processes</Link>
+      <Link to="/org/interviews/calendar">Calendar</Link>
       <Link to="/org/interviews/templates">Templates</Link>
       <Link to="/org/interviews/feedback">Scorecards</Link>
     </nav>
@@ -719,14 +722,16 @@ function LiveRound({ processId, round, index, canSchedule, canEvaluate }: { proc
   const [start, setStart] = useState(''), [mode, setMode] = useState(round.schedule?.mode || 'video');
   const [provider, setProvider] = useState(round.schedule?.meetingProvider || 'custom'), [details, setDetails] = useState(round.schedule?.meetingUrl || '');
   const scheduled = Boolean(round.schedule), isActive = ['scheduled', 'in-progress', 'awaiting-feedback'].includes(round.status ?? '');
+  const detailsRequired = mode !== 'video' || provider === 'custom';
   const submitSchedule = () => {
     setFormError('');
     let startIso = '';
     try { startIso = zonedLocalToIso(start, timezone); } catch (cause) { setFormError(err(cause)); return Promise.reject(cause); }
-    if (mode === 'video' && !/^https:\/\//i.test(details)) { const cause = new Error('Enter a valid HTTPS meeting URL.'); setFormError(cause.message); return Promise.reject(cause); }
+    if (mode === 'video' && provider === 'custom' && !/^https:\/\//i.test(details)) { const cause = new Error('Enter a valid HTTPS meeting URL.'); setFormError(cause.message); return Promise.reject(cause); }
+    if (mode === 'video' && provider !== 'custom' && details && !/^https:\/\//i.test(details)) { const cause = new Error('Enter a valid HTTPS meeting URL.'); setFormError(cause.message); return Promise.reject(cause); }
     const startTime = new Date(startIso), endTime = new Date(startTime.getTime() + round.durationMinutes * 60000);
     const body: Record<string, unknown> = { interviewerIds: interviewers.split(',').map((x) => x.trim()).filter(Boolean), timezone, startTime: startTime.toISOString(), endTime: endTime.toISOString(), mode, meetingProvider: provider, ...(scheduled ? { reason } : {}) };
-    if (mode === 'video') body.meetingUrl = details;
+    if (mode === 'video' && details) body.meetingUrl = details;
     if (mode === 'phone') body.phoneDetails = { phoneNumber: details };
     if (mode === 'onsite') body.location = { name: 'Interview location', address: details };
     return action.mutateAsync({ action: scheduled ? 'reschedule' : 'schedule', body }).then(() => setOpen(false)).catch((cause) => { setFormError(err(cause)); throw cause; });
@@ -747,9 +752,121 @@ function LiveRound({ processId, round, index, canSchedule, canEvaluate }: { proc
         {canSchedule && scheduled && !['completed','cancelled'].includes(round.status ?? '') && <ConfirmDialog title="Cancel this round?" description={<TextArea required label="Reason" value={reason} onChange={(e) => setReason(e.target.value)} />} confirmLabel="Cancel round" variant="destructive" onConfirm={() => action.mutateAsync({ action: 'cancel', body: { reason } })} trigger={<Button variant="danger">Cancel</Button>} />}
       </div>
     </article>
-    <Dialog open={open} onOpenChange={setOpen} title={scheduled ? 'Reschedule round' : 'Schedule round'} description={`The end time is fixed to ${round.durationMinutes} minutes after the start.`} footer={<div className="tvx-dialog__actions"><Button variant="secondary" onClick={() => setOpen(false)}>Close</Button><Button loading={action.isPending} disabled={!interviewers || !start || !details || (scheduled && !reason)} onClick={() => void submitSchedule()}>{scheduled ? 'Reschedule' : 'Schedule'}</Button></div>}>
+    <Dialog open={open} onOpenChange={setOpen} title={scheduled ? 'Reschedule round' : 'Schedule round'} description={`The end time is fixed to ${round.durationMinutes} minutes after the start.`} footer={<div className="tvx-dialog__actions"><Button variant="secondary" onClick={() => setOpen(false)}>Close</Button><Button loading={action.isPending} disabled={!interviewers || !start || (detailsRequired && !details) || (scheduled && !reason)} onClick={() => void submitSchedule()}>{scheduled ? 'Reschedule' : 'Schedule'}</Button></div>}>
       {formError && <Alert tone="danger" title="Check the scheduling fields">{formError}</Alert>}
-      <div className="iv-form-grid"><TextField required label="Interviewer IDs (comma separated)" value={interviewers} onChange={(e) => setInterviewers(e.target.value)} /><TextField required label="IANA timezone" error={formError.toLowerCase().includes('timezone') ? formError : undefined} value={timezone} onChange={(e) => setTimezone(e.target.value)} /><TextField required type="datetime-local" label="Start time" error={formError.toLowerCase().includes('local time') ? formError : undefined} value={start} onChange={(e) => setStart(e.target.value)} /><Select label="Mode" value={mode} onChange={(e) => setMode(e.target.value)} options={['video','phone','onsite'].map((value) => ({ value, label: label(value) }))} /><Select label="Meeting provider" value={provider} onChange={(e) => setProvider(e.target.value)} options={['zoom','google-meet','microsoft-teams','custom','none'].map((value) => ({ value, label: label(value) }))} /><TextField required error={formError.toLowerCase().includes('https') ? formError : undefined} label={mode === 'video' ? 'HTTPS meeting URL' : mode === 'phone' ? 'Phone number' : 'Location address'} value={details} onChange={(e) => setDetails(e.target.value)} />{scheduled && <TextArea required label="Reschedule reason" value={reason} onChange={(e) => setReason(e.target.value)} />}</div>
+      <div className="iv-form-grid"><TextField required label="Interviewer IDs (comma separated)" value={interviewers} onChange={(e) => setInterviewers(e.target.value)} /><TextField required label="IANA timezone" error={formError.toLowerCase().includes('timezone') ? formError : undefined} value={timezone} onChange={(e) => setTimezone(e.target.value)} /><TextField required type="datetime-local" label="Start time" error={formError.toLowerCase().includes('local time') ? formError : undefined} value={start} onChange={(e) => setStart(e.target.value)} /><Select label="Mode" value={mode} onChange={(e) => setMode(e.target.value)} options={['video','phone','onsite'].map((value) => ({ value, label: label(value) }))} /><Select label="Meeting provider" value={provider} onChange={(e) => setProvider(e.target.value)} options={['zoom','google-meet','microsoft-teams','custom','none'].map((value) => ({ value, label: label(value) }))} /><TextField required={detailsRequired} error={formError.toLowerCase().includes('https') ? formError : undefined} label={mode === 'video' ? (provider === 'custom' ? 'HTTPS meeting URL' : 'HTTPS meeting URL (optional - will auto-generate if blank)') : mode === 'phone' ? 'Phone number' : 'Location address'} value={details} onChange={(e) => setDetails(e.target.value)} />{scheduled && <TextArea required label="Reschedule reason" value={reason} onChange={(e) => setReason(e.target.value)} />}</div>
     </Dialog>
   </li>;
+}
+
+export function CalendarPage() {
+  const { recruiter } = useAuth(),
+    view = has(recruiter?.permissions ?? [], 'interviews.view'),
+    [currentDate, setCurrentDate] = useState(new Date());
+
+  // Get start and end dates of the week containing currentDate
+  const startOfWeek = new Date(currentDate);
+  const day = startOfWeek.getDay();
+  const diff = startOfWeek.getDate() - day + (day === 0 ? -6 : 1);
+  startOfWeek.setDate(diff);
+  startOfWeek.setHours(0, 0, 0, 0);
+
+  const endOfWeek = new Date(startOfWeek);
+  endOfWeek.setDate(startOfWeek.getDate() + 6);
+  endOfWeek.setHours(23, 59, 59, 999);
+
+  const q = useCalendar(`start=${startOfWeek.toISOString()}&end=${endOfWeek.toISOString()}`, view);
+
+  if (!view)
+    return (
+      <PermissionState description="The interviews.view permission is required." />
+    );
+
+  const days = Array.from({ length: 7 }).map((_, idx) => {
+    const d = new Date(startOfWeek);
+    d.setDate(startOfWeek.getDate() + idx);
+    return d;
+  });
+
+  const nextWeek = () => {
+    const next = new Date(currentDate);
+    next.setDate(currentDate.getDate() + 7);
+    setCurrentDate(next);
+  };
+
+  const prevWeek = () => {
+    const prev = new Date(currentDate);
+    prev.setDate(currentDate.getDate() - 7);
+    setCurrentDate(prev);
+  };
+
+  const today = () => {
+    setCurrentDate(new Date());
+  };
+
+  return (
+    <div className="iv-page">
+      <PageHeader
+        title="Recruiter interview calendar"
+        description="View scheduled sessions, mock video links, and download calendar invites."
+        secondaryActions={<InterviewTabs />}
+      />
+      <div className="iv-calendar-header">
+        <div className="iv-calendar-nav">
+          <Button variant="secondary" onClick={prevWeek}>Previous Week</Button>
+          <Button variant="secondary" onClick={today}>Today</Button>
+          <Button variant="secondary" onClick={nextWeek}>Next Week</Button>
+        </div>
+        <h3 className="iv-calendar-month">
+          {startOfWeek.toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}
+        </h3>
+      </div>
+      
+      {q.isLoading ? (
+        <LoadingState label="Loading calendar schedules" />
+      ) : q.isError ? (
+        <ErrorState detail={err(q.error)} retry={() => void q.refetch()} />
+      ) : (
+        <div className="iv-calendar-grid">
+          {days.map((dayDate) => {
+            const daySchedules = (q.data ?? []).filter((s: SafeSchedule) => {
+              const sDate = new Date(s.startTime);
+              return sDate.toDateString() === dayDate.toDateString();
+            });
+
+            return (
+              <div key={dayDate.toISOString()} className="iv-calendar-day">
+                <header className="iv-calendar-day-header">
+                  <span className="iv-day-name">{dayDate.toLocaleDateString(undefined, { weekday: 'short' })}</span>
+                  <span className="iv-day-number">{dayDate.getDate()}</span>
+                </header>
+                <div className="iv-calendar-day-events">
+                  {daySchedules.length === 0 ? (
+                    <span className="iv-no-events">No interviews</span>
+                  ) : (
+                    daySchedules.map((s: SafeSchedule) => (
+                      <article key={s.id} className="iv-calendar-event">
+                        <header>
+                          <strong>{new Date(s.startTime).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}</strong>
+                          <span className={`iv-event-mode iv-event-mode--${s.mode}`}>{s.mode}</span>
+                        </header>
+                        <p>Candidate ID: {s.candidateId || s.candidate}</p>
+                        {s.meetingUrl && (
+                          <a href={s.meetingUrl} target="_blank" rel="noopener noreferrer" className="iv-meet-link">Join Video</a>
+                        )}
+                        <div className="iv-event-footer">
+                          <Link to={`/org/interviews/${s.processId || s.process}`}>Open Process</Link>
+                          <a href={`/api/v1/interviews/schedules/${s.id}/ics`} download className="iv-ics-download">Invite (.ics)</a>
+                        </div>
+                      </article>
+                    ))
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
 }

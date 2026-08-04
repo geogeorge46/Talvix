@@ -18,6 +18,10 @@ import {
   validateQuery,
 } from "../validators/validate.js";
 export const interviewRouter = Router();
+interviewRouter.get(
+  "/calendar/oauth/callback",
+  s.handleCallback
+);
 interviewRouter.use(authenticate);
 const rec = (permission) => [
   authorizeRoles(USER_ROLES.RECRUITER),
@@ -189,6 +193,12 @@ interviewRouter.get(
   validateParams(v.scheduleParams),
   s.mySchedule,
 );
+interviewRouter.get(
+  "/schedules/:scheduleId/ics",
+  authenticate,
+  validateParams(v.scheduleParams),
+  s.downloadIcs,
+);
 interviewRouter.patch(
   "/me/schedules/:scheduleId/respond",
   cand,
@@ -287,4 +297,19 @@ interviewRouter.post(
   ...rec("interviews.manage"),
   validateBody(v.processBody),
   p.create,
+);
+interviewRouter.get(
+  "/calendar/oauth/connect/:provider",
+  ...rec("interviews.manage"),
+  s.connectCalendar
+);
+interviewRouter.post(
+  "/schedules/:scheduleId/join",
+  validateParams(v.scheduleParams),
+  s.joinMeeting
+);
+interviewRouter.post(
+  "/schedules/:scheduleId/leave",
+  validateParams(v.scheduleParams),
+  s.leaveMeeting
 );

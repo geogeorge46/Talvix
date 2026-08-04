@@ -1,1 +1,253 @@
-import mongoose from'mongoose';import{PROCESS_APPLICATION_STATUSES}from'../constants/interview.js';import{Application}from'../models/Application.js';import{InterviewFeedback}from'../models/InterviewFeedback.js';import{InterviewProcess}from'../models/InterviewProcess.js';import{InterviewRound}from'../models/InterviewRound.js';import{InterviewSchedule}from'../models/InterviewSchedule.js';import{InterviewTemplate}from'../models/InterviewTemplate.js';import{AppError}from'../shared/errors/AppError.js';import{changeApplicationStatus}from'../utils/applicationStatus.js';import{serializeCandidateProcess}from'../utils/interviewSerializer.js';import{aggregateRecommendation,averageScore}from'../utils/interviewScoring.js';import{buildPagination}from'../utils/pagination.js';const own=async(c,id)=>{const x=await InterviewProcess.findOne({_id:id,company:c,isArchived:false});if(!x)throw new AppError('Interview process not found',404);return x;};const createRecords=async(c,u,b,session)=>{const app=await Application.findOne({_id:b.applicationId,company:c,isArchived:false}).session(session);if(!app)throw new AppError('Application not found',404);if(!PROCESS_APPLICATION_STATUSES.includes(app.status))throw new AppError('Application is not eligible for interviews',409);let source;if(b.templateId){const template=await InterviewTemplate.findOne({_id:b.templateId,company:c,isActive:true}).session(session);if(!template)throw new AppError('Interview template not found',404);source=template.rounds.map(r=>r.toObject());await InterviewTemplate.updateOne({_id:template.id},{$inc:{usageCount:1}},{session});}else source=b.rounds;const snapshot={rounds:source};const[p]=await InterviewProcess.create([{application:app.id,candidate:app.candidate,job:app.job,company:c,createdBy:u,template:b.templateId,templateSnapshot:snapshot}],{session});const rounds=await InterviewRound.create(source.sort((a,b)=>a.order-b.order).map(r=>({process:p.id,application:app.id,candidate:app.candidate,job:app.job,company:c,name:r.name,description:r.description,type:r.type,order:r.order,required:r.required,durationMinutes:r.durationMinutes,minimumInterviewers:r.minimumInterviewers,maximumInterviewers:r.maximumInterviewers,scorecardTemplate:r.scorecardTemplate})),{session});p.rounds=rounds.map(r=>r.id);p.currentRound=rounds[0]?.id;p.currentRoundOrder=rounds[0]?.order??0;await p.save({session});return p;};export const createProcess=async(c,u,b)=>{const s=await mongoose.startSession();try{let p;await s.withTransaction(async()=>{p=await createRecords(c,u,b,s);});return p;}catch(e){if(e.code===11000)throw new AppError('An active interview process already exists',409);throw e;}finally{await s.endSession();}};export const listProcesses=async(c,q)=>{const f={company:c,isArchived:false};if(q.status)f.status=q.status;if(q.jobId)f.job=q.jobId;if(q.candidate)f.candidate=q.candidate;if(q.applicationId)f.application=q.applicationId;const sorts={newest:{createdAt:-1},oldest:{createdAt:1},'score-high':{overallScore:-1},'score-low':{overallScore:1},'candidate-name':{createdAt:-1},'next-interview':{createdAt:-1}};const[processes,total]=await Promise.all([InterviewProcess.find(f).sort(sorts[q.sort]).skip((q.page-1)*q.limit).limit(q.limit),InterviewProcess.countDocuments(f)]);return{processes,pagination:buildPagination(q.page,q.limit,total)};};export const getProcess=own;export const cancelProcess=async(c,id,u,reason)=>{const p=await own(c,id);if(!['draft','active'].includes(p.status))throw new AppError('Interview process cannot be cancelled',409);const from=p.status;p.status='cancelled';p.cancelledAt=new Date();p.cancellationReason=reason;p.statusHistory.push({from,to:'cancelled',changedBy:u,reason});await InterviewRound.updateMany({process:p.id,status:{$nin:['completed','cancelled','skipped']}},{$set:{status:'cancelled',cancelledAt:new Date(),cancellationReason:reason}});await InterviewSchedule.updateMany({process:p.id,status:{$nin:['completed','cancelled']}},{$set:{status:'cancelled',cancellation:{cancelledBy:u,reason,cancelledAt:new Date()}}});await p.save();return p;};export const archiveProcess=async(c,id,u)=>{const p=await own(c,id);if(!['completed','cancelled'].includes(p.status))throw new AppError('Only finished processes can be archived',409);p.status='archived';p.isArchived=true;p.statusHistory.push({from:p.status,to:'archived',changedBy:u});await p.save();return p;};export const finalizeProcess=async(c,id,u,b)=>{const p=await own(c,id);if(p.status==='completed')return p;const rounds=await InterviewRound.find({process:p.id,required:true});if(rounds.some(r=>!['completed','skipped'].includes(r.status)))throw new AppError('All required rounds must be completed or skipped',409);const completed=rounds.filter(r=>r.status==='completed'&&r.roundScore!==undefined);p.overallScore=averageScore(completed.map(r=>r.roundScore));p.calculatedRecommendation=aggregateRecommendation(completed.map(r=>r.roundRecommendation).filter(Boolean));if(b.recommendation!==p.calculatedRecommendation&&!b.reason)throw new AppError('Override reason is required',400);p.overallRecommendation=b.recommendation;p.finalizedBy=u;p.finalizationReason=b.reason;p.status='completed';p.completedAt=new Date();p.statusHistory.push({from:'active',to:'completed',changedBy:u,reason:b.reason});await p.save();const app=await Application.findById(p.application);if(app?.status==='interview-scheduled'){changeApplicationStatus(app,'interview-completed',u,'Interview process finalized');await app.save();}return p;};export const releaseFeedback=async(c,id,u)=>{const p=await own(c,id);if(p.status!=='completed')throw new AppError('Only completed interview feedback can be released',409);p.feedbackReleased=true;p.feedbackReleasedAt=new Date();p.feedbackReleasedBy=u;await p.save();return p;};export const listMine=async(candidate)=>{const processes=await InterviewProcess.find({candidate,isArchived:false});return Promise.all(processes.map(async p=>{const[rounds,schedules,feedback]=await Promise.all([InterviewRound.find({process:p.id}),InterviewSchedule.find({process:p.id}),p.feedbackReleased?InterviewFeedback.find({process:p.id,submitted:true}):[]]);return serializeCandidateProcess(p,rounds,schedules,feedback);}));};export const getMine=async(candidate,id)=>{const p=await InterviewProcess.findOne({_id:id,candidate,isArchived:false});if(!p)throw new AppError('Interview process not found',404);const[rounds,schedules,feedback]=await Promise.all([InterviewRound.find({process:p.id}),InterviewSchedule.find({process:p.id}),p.feedbackReleased?InterviewFeedback.find({process:p.id,submitted:true}):[]]);return serializeCandidateProcess(p,rounds,schedules,feedback);};
+import mongoose from 'mongoose';
+import { PROCESS_APPLICATION_STATUSES } from '../constants/interview.js';
+import { Application } from '../models/Application.js';
+import { InterviewFeedback } from '../models/InterviewFeedback.js';
+import { InterviewProcess } from '../models/InterviewProcess.js';
+import { InterviewRound } from '../models/InterviewRound.js';
+import { InterviewSchedule } from '../models/InterviewSchedule.js';
+import { InterviewTemplate } from '../models/InterviewTemplate.js';
+import { AuditLog } from '../models/AuditLog.js';
+import { AppError } from '../shared/errors/AppError.js';
+import { changeApplicationStatus } from '../utils/applicationStatus.js';
+import { serializeCandidateProcess } from '../utils/interviewSerializer.js';
+import { aggregateRecommendation, averageScore } from '../utils/interviewScoring.js';
+import { buildPagination } from '../utils/pagination.js';
+
+const own = async (c, id) => {
+  const x = await InterviewProcess.findOne({ _id: id, company: c, isArchived: false });
+  if (!x) throw new AppError('Interview process not found', 404);
+  return x;
+};
+
+const createRecords = async (c, u, b, session) => {
+  const app = await Application.findOne({ _id: b.applicationId, company: c, isArchived: false }).session(session);
+  if (!app) throw new AppError('Application not found', 404);
+  if (!PROCESS_APPLICATION_STATUSES.includes(app.status)) {
+    throw new AppError('Application is not eligible for interviews', 409);
+  }
+  let source;
+  if (b.templateId) {
+    const template = await InterviewTemplate.findOne({ _id: b.templateId, company: c, isActive: true }).session(session);
+    if (!template) throw new AppError('Interview template not found', 404);
+    source = template.rounds.map((r) => r.toObject());
+    await InterviewTemplate.updateOne({ _id: template.id }, { $inc: { usageCount: 1 } }, { session });
+  } else {
+    source = b.rounds;
+  }
+  const snapshot = { rounds: source };
+  const [p] = await InterviewProcess.create(
+    [
+      {
+        application: app.id,
+        candidate: app.candidate,
+        job: app.job,
+        company: c,
+        createdBy: u,
+        template: b.templateId,
+        templateSnapshot: snapshot,
+      },
+    ],
+    { session }
+  );
+  const rounds = await InterviewRound.create(
+    source.sort((a, b) => a.order - b.order).map((r) => ({
+      process: p.id,
+      application: app.id,
+      candidate: app.candidate,
+      job: app.job,
+      company: c,
+      name: r.name,
+      description: r.description,
+      type: r.type,
+      order: r.order,
+      required: r.required,
+      durationMinutes: r.durationMinutes,
+      minimumInterviewers: r.minimumInterviewers,
+      maximumInterviewers: r.maximumInterviewers,
+      scorecardTemplate: r.scorecardTemplate,
+    })),
+    { session }
+  );
+  p.rounds = rounds.map((r) => r.id);
+  p.currentRound = rounds[0]?.id;
+  p.currentRoundOrder = rounds[0]?.order ?? 0;
+  await p.save({ session });
+  return p;
+};
+
+export const createProcess = async (c, u, b) => {
+  const s = await mongoose.startSession();
+  try {
+    let p;
+    await s.withTransaction(async () => {
+      p = await createRecords(c, u, b, s);
+    });
+    return p;
+  } catch (e) {
+    if (e.code === 11000) throw new AppError('An active interview process already exists', 409);
+    throw e;
+  } finally {
+    await s.endSession();
+  }
+};
+
+export const listProcesses = async (c, q) => {
+  const f = { company: c, isArchived: false };
+  if (q.status) f.status = q.status;
+  if (q.jobId) f.job = q.jobId;
+  if (q.candidate) f.candidate = q.candidate;
+  if (q.applicationId) f.application = q.applicationId;
+  const sorts = {
+    newest: { createdAt: -1 },
+    oldest: { createdAt: 1 },
+    'score-high': { overallScore: -1 },
+    'score-low': { overallScore: 1 },
+    'candidate-name': { createdAt: -1 },
+    'next-interview': { createdAt: -1 },
+  };
+  const [processes, total] = await Promise.all([
+    InterviewProcess.find(f)
+      .sort(sorts[q.sort])
+      .skip((q.page - 1) * q.limit)
+      .limit(q.limit),
+    InterviewProcess.countDocuments(f),
+  ]);
+  return { processes, pagination: buildPagination(q.page, q.limit, total) };
+};
+
+export const getProcess = own;
+
+export const cancelProcess = async (c, id, u, reason, reqMeta = {}) => {
+  const p = await own(c, id);
+  if (!['draft', 'active'].includes(p.status)) throw new AppError('Interview process cannot be cancelled', 409);
+  const from = p.status;
+  p.status = 'cancelled';
+  p.cancelledAt = new Date();
+  p.cancellationReason = reason;
+  p.statusHistory.push({ from, to: 'cancelled', changedBy: u, reason });
+
+  await InterviewRound.updateMany(
+    { process: p.id, status: { $nin: ['completed', 'cancelled', 'skipped'] } },
+    { $set: { status: 'cancelled', cancelledAt: new Date(), cancellationReason: reason } }
+  );
+  await InterviewSchedule.updateMany(
+    { process: p.id, status: { $nin: ['completed', 'cancelled'] } },
+    { $set: { status: 'cancelled', cancellation: { cancelledBy: u, reason, cancelledAt: new Date() } } }
+  );
+  await p.save();
+
+  const app = await Application.findById(p.application);
+  if (app && app.status === 'interview-scheduled') {
+    changeApplicationStatus(app, 'shortlisted', u, 'Interview process cancelled', { adminOverride: true });
+    await app.save();
+  }
+
+  await AuditLog.create({
+    action: 'interview.cancelled',
+    actor: u,
+    company: c,
+    application: p.application,
+    newValue: { processId: p.id, reason },
+    ipAddress: reqMeta.ipAddress || 'Unknown',
+    userAgent: reqMeta.userAgent || 'Unknown',
+  });
+
+  return p;
+};
+
+export const archiveProcess = async (c, id, u) => {
+  const p = await own(c, id);
+  if (!['completed', 'cancelled'].includes(p.status)) {
+    throw new AppError('Only finished processes can be archived', 409);
+  }
+  p.status = 'archived';
+  p.isArchived = true;
+  p.statusHistory.push({ from: p.status, to: 'archived', changedBy: u });
+  await p.save();
+  return p;
+};
+
+export const finalizeProcess = async (c, id, u, b, reqMeta = {}) => {
+  const p = await own(c, id);
+  if (p.status === 'completed') return p;
+  const rounds = await InterviewRound.find({ process: p.id, required: true });
+  if (rounds.some((r) => !['completed', 'skipped'].includes(r.status))) {
+    throw new AppError('All required rounds must be completed or skipped', 409);
+  }
+  const completed = rounds.filter((r) => r.status === 'completed' && r.roundScore !== undefined);
+  p.overallScore = averageScore(completed.map((r) => r.roundScore));
+  p.calculatedRecommendation = aggregateRecommendation(completed.map((r) => r.roundRecommendation).filter(Boolean));
+  if (b.recommendation !== p.calculatedRecommendation && !b.reason) {
+    throw new AppError('Override reason is required', 400);
+  }
+  p.overallRecommendation = b.recommendation;
+  p.finalizedBy = u;
+  p.finalizationReason = b.reason;
+  p.status = 'completed';
+  p.completedAt = new Date();
+  p.statusHistory.push({ from: 'active', to: 'completed', changedBy: u, reason: b.reason });
+  await p.save();
+
+  const app = await Application.findById(p.application);
+  if (app && app.status === 'interview-scheduled') {
+    changeApplicationStatus(app, 'interview-completed', u, 'Interview process finalized');
+    await app.save();
+  }
+
+  if (app && app.status === 'interview-completed') {
+    if (['hire', 'strong-hire'].includes(p.overallRecommendation)) {
+      changeApplicationStatus(app, 'offer-pending', u, 'Interview passed: progressed to offer stage');
+      await app.save();
+    } else if (['no-hire', 'strong-no-hire'].includes(p.overallRecommendation)) {
+      changeApplicationStatus(app, 'rejected', u, 'Interview failed', { rejectionCategory: 'interview' });
+      await app.save();
+    }
+  }
+
+  await AuditLog.create({
+    action: 'interview.completed',
+    actor: u,
+    company: c,
+    application: p.application,
+    newValue: { processId: p.id, overallScore: p.overallScore, overallRecommendation: p.overallRecommendation },
+    ipAddress: reqMeta.ipAddress || 'Unknown',
+    userAgent: reqMeta.userAgent || 'Unknown',
+  });
+
+  return p;
+};
+
+export const releaseFeedback = async (c, id, u) => {
+  const p = await own(c, id);
+  if (p.status !== 'completed') throw new AppError('Only completed interview feedback can be released', 409);
+  p.feedbackReleased = true;
+  p.feedbackReleasedAt = new Date();
+  p.feedbackReleasedBy = u;
+  await p.save();
+  return p;
+};
+
+export const listMine = async (candidate) => {
+  const processes = await InterviewProcess.find({ candidate, isArchived: false });
+  return Promise.all(
+    processes.map(async (p) => {
+      const [rounds, schedules, feedback] = await Promise.all([
+        InterviewRound.find({ process: p.id }),
+        InterviewSchedule.find({ process: p.id }),
+        p.feedbackReleased ? InterviewFeedback.find({ process: p.id, submitted: true }) : [],
+      ]);
+      return serializeCandidateProcess(p, rounds, schedules, feedback);
+    })
+  );
+};
+
+export const getMine = async (candidate, id) => {
+  const p = await InterviewProcess.findOne({ _id: id, candidate, isArchived: false });
+  if (!p) throw new AppError('Interview process not found', 404);
+  const [rounds, schedules, feedback] = await Promise.all([
+    InterviewRound.find({ process: p.id }),
+    InterviewSchedule.find({ process: p.id }),
+    p.feedbackReleased ? InterviewFeedback.find({ process: p.id, submitted: true }) : [],
+  ]);
+  return serializeCandidateProcess(p, rounds, schedules, feedback);
+};

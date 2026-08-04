@@ -6,7 +6,7 @@ const catalogue = {
   APPLICATION: ['application.submitted', 'application.under-review', 'application.shortlisted', 'application.rejected', 'application.withdrawn', 'application.hired'],
   ASSESSMENT: ['assessment.assigned', 'assessment.started', 'assessment.submitted', 'assessment.review-required', 'assessment.completed', 'assessment.result-released', 'assessment.expired', 'assessment.reminder'],
   INTERVIEW: ['interview.scheduled', 'interview.candidate-accepted', 'interview.reschedule-requested', 'interview.rescheduled', 'interview.cancelled', 'interview.no-show', 'interview.feedback-released', 'interview.completed', 'interview.reminder'],
-  OFFER: ['offer.approval-requested', 'offer.approved', 'offer.rejected', 'offer.sent', 'offer.viewed', 'offer.negotiation-requested', 'offer.revised', 'offer.accepted', 'offer.declined', 'offer.withdrawn', 'offer.expired', 'offer.hire-confirmed', 'offer.expiry-reminder'],
+  OFFER: ['offer.approval-requested', 'offer.approved', 'offer.rejected', 'offer.sent', 'offer.viewed', 'offer.negotiation-requested', 'offer.revised', 'offer.accepted', 'offer.declined', 'offer.withdrawn', 'offer.expired', 'offer.hire-confirmed', 'offer.expiry-reminder', 'offer.onboarding-started', 'offer.completed'],
   DOCUMENT: ['document.verification-requested', 'document.verified', 'document.rejected', 'document.quarantined'],
 };
 

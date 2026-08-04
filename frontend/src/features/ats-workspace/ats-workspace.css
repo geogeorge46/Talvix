@@ -196,3 +196,66 @@
     flex-direction: column;
   }
 }
+
+/* Drag and Drop & Multiple Selection styles */
+.ats-column.drag-over {
+  border-color: var(--color-border-accent, #6366F1) !important;
+  box-shadow: 0 0 12px rgba(99, 102, 241, 0.2);
+  background: var(--color-surface-hover, rgba(99, 102, 241, 0.05));
+  transition: all 0.2s ease-in-out;
+}
+
+.ats-drop-indicator {
+  height: 3px;
+  background: var(--color-border-accent, #6366F1);
+  margin-block: var(--space-2);
+  border-radius: var(--radius-sm);
+  box-shadow: 0 0 8px var(--color-border-accent, #6366F1);
+}
+
+.ats-card-checkbox {
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  border: 1.5px solid var(--color-border-subtle, #ccc);
+  border-radius: 4px;
+  outline: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+  background: var(--color-surface, #fff);
+}
+
+.ats-card-checkbox:checked {
+  background-color: var(--color-border-accent, #6366F1);
+  border-color: var(--color-border-accent, #6366F1);
+}
+
+.ats-card-checkbox:checked::after {
+  content: '✓';
+  color: white;
+  font-size: 10px;
+  font-weight: bold;
+}
+
+.ats-record.selected {
+  border-color: var(--color-border-accent, #6366F1) !important;
+  background-color: rgba(99, 102, 241, 0.04) !important;
+}
+
+.ats-bulk-bar {
+  animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes slideUp {
+  from {
+    transform: translate(-50%, 100px);
+    opacity: 0;
+  }
+  to {
+    transform: translate(-50%, 0);
+    opacity: 1;
+  }
+}

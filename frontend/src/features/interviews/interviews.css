@@ -212,3 +212,118 @@
     margin-left: 0;
   }
 }
+
+/* Recruiter visual calendar */
+.iv-calendar-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+  margin-bottom: var(--space-4);
+}
+.iv-calendar-nav {
+  display: flex;
+  gap: var(--space-2);
+}
+.iv-calendar-month {
+  margin: 0;
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
+}
+.iv-calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: var(--space-3);
+  align-items: start;
+}
+.iv-calendar-day {
+  display: flex;
+  flex-direction: column;
+  border: var(--border-width-1) solid var(--color-border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-primary);
+  min-height: 25rem;
+}
+.iv-calendar-day-header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: var(--space-3);
+  border-bottom: var(--border-width-1) solid var(--color-border-subtle);
+  background: var(--color-surface-secondary);
+}
+.iv-day-name {
+  font-size: var(--font-size-xs);
+  text-transform: uppercase;
+  color: var(--color-text-secondary);
+  font-weight: var(--font-weight-medium);
+}
+.iv-day-number {
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-text-primary);
+}
+.iv-calendar-day-events {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  flex: 1;
+}
+.iv-no-events {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+  text-align: center;
+  margin-top: var(--space-4);
+  font-style: italic;
+}
+.iv-calendar-event {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: var(--border-width-1) solid var(--color-border-subtle);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-secondary);
+  box-shadow: var(--shadow-sm);
+}
+.iv-calendar-event header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.iv-event-mode {
+  font-size: var(--font-size-xs);
+  text-transform: uppercase;
+  font-weight: var(--font-weight-bold);
+  padding: var(--space-0-5) var(--space-1);
+  border-radius: var(--radius-sm);
+}
+.iv-event-mode--video { background: var(--color-info-subtle); color: var(--color-info); }
+.iv-event-mode--phone { background: var(--color-warning-subtle); color: var(--color-warning); }
+.iv-event-mode--onsite { background: var(--color-success-subtle); color: var(--color-success); }
+
+.iv-meet-link {
+  font-size: var(--font-size-sm);
+  color: var(--color-action-primary);
+  text-decoration: underline;
+}
+.iv-event-footer {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin-top: var(--space-2);
+  border-top: var(--border-width-1) dashed var(--color-border-subtle);
+  padding-top: var(--space-2);
+  font-size: var(--font-size-xs);
+}
+
+@media (max-width: 1024px) {
+  .iv-calendar-grid {
+    grid-template-columns: 1fr;
+  }
+  .iv-calendar-day {
+    min-height: auto;
+  }
+}

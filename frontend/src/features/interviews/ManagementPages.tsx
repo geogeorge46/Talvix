@@ -206,7 +206,9 @@ export function FeedbackDetailPage() {
     [strengths, setStrengths] = useState(''),
     [concerns, setConcerns] = useState(''),
     [privateNotes, setPrivateNotes] = useState(''),
-    [visibleFeedback, setVisibleFeedback] = useState('');
+    [visibleFeedback, setVisibleFeedback] = useState(''),
+    [attachments, setAttachments] = useState<string[]>([]),
+    [newAttachmentId, setNewAttachmentId] = useState('');
   useEffect(() => {
     const feedback = q.data?.feedback;
     if (!q.data || !feedback) return;
@@ -218,6 +220,7 @@ export function FeedbackDetailPage() {
     setConcerns(feedback.concerns.join('\n'));
     setPrivateNotes(feedback.privateNotes);
     setVisibleFeedback(feedback.candidateVisibleFeedback);
+    setAttachments(feedback.attachments ?? []);
   }, [q.data]);
   if (!can)
     return (
@@ -243,10 +246,20 @@ export function FeedbackDetailPage() {
     concerns: concerns.split('\n').map((x) => x.trim()).filter(Boolean),
     ...(privateNotes.trim() ? { privateNotes: privateNotes.trim() } : {}),
     ...(visibleFeedback.trim() ? { candidateVisibleFeedback: visibleFeedback.trim() } : {}),
+    attachments,
   };
   const missing = scorecard.criteria.filter((x) => x.required && !scores[x.id]?.score).map((x) => x.name);
   const save = () => action.mutateAsync({ body: payload });
   const submit = async () => { await save(); await action.mutateAsync({ submit: true }); };
+  const addAttachment = () => {
+    if (newAttachmentId.trim() && !attachments.includes(newAttachmentId.trim())) {
+      setAttachments([...attachments, newAttachmentId.trim()]);
+      setNewAttachmentId('');
+    }
+  };
+  const removeAttachment = (id: string) => {
+    setAttachments(attachments.filter((x) => x !== id));
+  };
   return (
     <div className="iv-page">
       <PageHeader title={scorecard.name} description={`${label(scorecard.type)} scorecard · ${label(scorecard.status)}`} secondaryActions={<StatusTag tone={immutable ? 'success' : scorecard.overdue ? 'danger' : 'warning'}>{immutable ? 'Submitted' : scorecard.overdue ? 'Overdue' : 'Draft'}</StatusTag>} />
@@ -270,7 +283,28 @@ export function FeedbackDetailPage() {
         <TextArea disabled={immutable} label="Concerns (one per line)" value={concerns} onChange={(e) => setConcerns(e.target.value)} />
         <TextArea disabled={immutable} label="Private notes" hint="Visible only to you and authorized internal users." value={privateNotes} onChange={(e) => setPrivateNotes(e.target.value)} />
         <TextArea disabled={immutable} label="Candidate-visible feedback" value={visibleFeedback} onChange={(e) => setVisibleFeedback(e.target.value)} />
-        {!immutable && <div className="iv-actions"><Button variant="secondary" loading={action.isPending} disabled={!recommendation} onClick={() => void save()}>Save draft</Button><ConfirmDialog title="Submit this scorecard?" description="Submission makes your feedback immutable." confirmLabel="Submit feedback" onConfirm={submit} trigger={<Button disabled={!recommendation || missing.length > 0}>Submit scorecard</Button>} /></div>}
+        <div style={{ marginTop: 'var(--space-4)', borderTop: '1px solid var(--color-border-subtle)', paddingTop: 'var(--space-4)' }}>
+          <h3 style={{ marginBlock: 'var(--space-2)' }}>Attachments</h3>
+          {attachments.length > 0 && (
+            <ul style={{ marginBlock: 'var(--space-2)', paddingLeft: 'var(--space-4)' }}>
+              {attachments.map((id) => (
+                <li key={id} style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', marginBlock: 'var(--space-1)' }}>
+                  <code>{id}</code>
+                  {!immutable && (
+                    <Button type="button" variant="danger" size="compact" onClick={() => removeAttachment(id)}>Remove</Button>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+          {!immutable && (
+            <div style={{ display: 'flex', gap: 'var(--space-2)', alignItems: 'end', marginTop: 'var(--space-2)' }}>
+              <TextField label="Document ID to attach" value={newAttachmentId} onChange={(e) => setNewAttachmentId(e.target.value)} />
+              <Button type="button" onClick={addAttachment}>Attach Document</Button>
+            </div>
+          )}
+        </div>
+        {!immutable && <div className="iv-actions" style={{ marginTop: 'var(--space-4)' }}><Button variant="secondary" loading={action.isPending} disabled={!recommendation} onClick={() => void save()}>Save draft</Button><ConfirmDialog title="Submit this scorecard?" description="Submission makes your feedback immutable." confirmLabel="Submit feedback" onConfirm={submit} trigger={<Button disabled={!recommendation || missing.length > 0}>Submit scorecard</Button>} /></div>}
       </Card>
     </div>
   );

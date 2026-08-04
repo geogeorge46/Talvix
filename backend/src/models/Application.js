@@ -2,7 +2,14 @@ import mongoose from 'mongoose';
 import { APPLICATION_SOURCES, APPLICATION_STATUSES, REJECTION_CATEGORIES } from '../constants/application.js';
 
 const historySchema = new mongoose.Schema({ from: String, to: { type: String, enum: APPLICATION_STATUSES, required: true }, changedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true }, reason: { type: String, maxlength: 2000, default: '' }, changedAt: { type: Date, default: Date.now }, adminOverride: { type: Boolean, default: false } }, { _id: true });
-const noteSchema = new mongoose.Schema({ author: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true }, note: { type: String, required: true, maxlength: 3000 }, isPrivate: { type: Boolean, default: true } }, { timestamps: true });
+const noteSchema = new mongoose.Schema({
+  author: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+  note: { type: String, required: true, maxlength: 3000 },
+  isPrivate: { type: Boolean, default: true },
+  mentions: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
+  editHistory: [{ note: String, editedAt: { type: Date, default: Date.now } }],
+  isDeleted: { type: Boolean, default: false }
+}, { timestamps: true });
 const matchBreakdownSchema = new mongoose.Schema({ skill: String, required: Boolean, candidateProficiency: String, minimumProficiency: String, candidateExperience: Number, minimumExperience: Number, weight: Number, score: Number }, { _id: false });
 
 const applicationSchema = new mongoose.Schema({

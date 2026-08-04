@@ -10,5 +10,5 @@ export const publishDomainEvent = async (input, options = {}) => {
 };
 
 export const publishOptionalDomainEvent = async (input, options = {}) => {
-  try { return await publishDomainEvent(input, options); } catch { return null; }
+  try { return await publishDomainEvent(input, options); } catch (e) { console.error('EVENT ERROR:', e); return null; }
 };

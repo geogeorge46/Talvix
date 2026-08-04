@@ -30,3 +30,47 @@ export const recruiterApplicationsQuerySchema = z.object({
 }).strict().superRefine((value, context) => { if (value.minimumMatchScore !== undefined && value.maximumMatchScore !== undefined && value.maximumMatchScore < value.minimumMatchScore) context.addIssue({ code: 'custom', path: ['maximumMatchScore'], message: 'Maximum match score cannot be lower than minimum' }); if (value.submittedFrom && value.submittedTo && value.submittedTo < value.submittedFrom) context.addIssue({ code: 'custom', path: ['submittedTo'], message: 'End date cannot precede start date' }); });
 export const pipelineQuerySchema = z.object({ jobId: objectId.optional() }).strict();
 export const adminApplicationsQuerySchema = z.object({ ...pagination, company: objectId.optional(), job: objectId.optional(), candidate: objectId.optional(), status: z.enum(APPLICATION_STATUSES).optional(), submittedFrom: z.coerce.date().optional(), submittedTo: z.coerce.date().optional(), archived: z.enum(['true', 'false']).transform((value) => value === 'true').default(false) }).strict();
+
+export const bulkOperationSchema = z.object({
+  applicationIds: z.array(objectId).min(1).max(100),
+  action: z.enum(['move-stage', 'reject', 'assign-recruiter', 'add-tags', 'archive']),
+  payload: z.object({
+    status: z.enum(APPLICATION_STATUSES).optional(),
+    reason: text(2000).optional(),
+    rejectionCategory: z.enum(REJECTION_CATEGORIES).optional(),
+    recruiterIds: z.array(objectId).optional(),
+    tags: z.array(z.string().trim()).optional(),
+  }).strict().optional().default(() => ({})),
+}).strict().superRefine((val, ctx) => {
+  if (val.action === 'move-stage' && !val.payload?.status) {
+    ctx.addIssue({ code: 'custom', path: ['payload', 'status'], message: 'Status is required for move-stage action' });
+  }
+  if (val.action === 'reject' && !val.payload?.reason) {
+    ctx.addIssue({ code: 'custom', path: ['payload', 'reason'], message: 'Reason is required for rejection action' });
+  }
+  if (val.action === 'assign-recruiter' && !val.payload?.recruiterIds) {
+    ctx.addIssue({ code: 'custom', path: ['payload', 'recruiterIds'], message: 'Recruiter IDs are required for assignment action' });
+  }
+  if (val.action === 'add-tags' && !val.payload?.tags) {
+    ctx.addIssue({ code: 'custom', path: ['payload', 'tags'], message: 'Tags are required for tagging action' });
+  }
+});
+
+export const commentCreateSchema = z.object({
+  content: text(5000).min(1),
+  parentId: objectId.optional().nullable()
+}).strict();
+
+export const commentParamsSchema = z.object({
+  applicationId: objectId,
+  commentId: objectId
+}).strict();
+
+export const companyTagCreateSchema = z.object({
+  name: text(50).min(1),
+  color: z.string().regex(/^#[a-fA-F0-9]{6}$/).optional()
+}).strict();
+
+export const companyTagParamsSchema = z.object({
+  tagId: objectId
+}).strict();

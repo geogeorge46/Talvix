@@ -127,6 +127,7 @@ export const serializeScorecard = (round, schedule, feedback) => {
       submittedAt: f.submittedAt,
       lastEditedAt: f.lastEditedAt,
       version: f.version,
+      attachments: (f.attachments ?? []).map(id),
     },
   };
 };

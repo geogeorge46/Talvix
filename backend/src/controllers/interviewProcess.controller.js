@@ -4,6 +4,7 @@ import { InterviewRound } from "../models/InterviewRound.js";
 import { InterviewSchedule } from "../models/InterviewSchedule.js";
 import { AppError } from "../shared/errors/AppError.js";
 import { serializeRecruiterProcess } from "../utils/interviewSerializer.js";
+
 const h = (f) => async (r, s, n) => {
   try {
     return await f(r, s);
@@ -11,6 +12,7 @@ const h = (f) => async (r, s, n) => {
     return n(e);
   }
 };
+
 export const create = h(async (r, s) =>
   s
     .status(201)
@@ -20,6 +22,7 @@ export const create = h(async (r, s) =>
       data: { process: await x.createProcess(r.company.id, r.user.id, r.body) },
     }),
 );
+
 export const list = h(async (r, s) =>
   s.json({
     success: true,
@@ -27,6 +30,7 @@ export const list = h(async (r, s) =>
     data: await x.listProcesses(r.company.id, r.validatedQuery),
   }),
 );
+
 export const get = h(async (r, s) => {
   const process = await InterviewProcess.findOne({
     _id: r.params.processId,
@@ -47,8 +51,10 @@ export const get = h(async (r, s) => {
     data: { process: serializeRecruiterProcess(process, rounds, schedules) },
   });
 });
-export const cancel = h(async (r, s) =>
-  s.json({
+
+export const cancel = h(async (r, s) => {
+  const reqMeta = { ipAddress: r.ip, userAgent: r.headers['user-agent'] };
+  return s.json({
     success: true,
     message: "Interview process cancelled successfully",
     data: {
@@ -57,10 +63,12 @@ export const cancel = h(async (r, s) =>
         r.params.processId,
         r.user.id,
         r.body.reason,
+        reqMeta
       ),
     },
-  }),
-);
+  });
+});
+
 export const archive = h(async (r, s) =>
   s.json({
     success: true,
@@ -74,8 +82,10 @@ export const archive = h(async (r, s) =>
     },
   }),
 );
-export const finalize = h(async (r, s) =>
-  s.json({
+
+export const finalize = h(async (r, s) => {
+  const reqMeta = { ipAddress: r.ip, userAgent: r.headers['user-agent'] };
+  return s.json({
     success: true,
     message: "Interview process finalized successfully",
     data: {
@@ -84,10 +94,12 @@ export const finalize = h(async (r, s) =>
         r.params.processId,
         r.user.id,
         r.body,
+        reqMeta
       ),
     },
-  }),
-);
+  });
+});
+
 export const release = h(async (r, s) =>
   s.json({
     success: true,
@@ -101,6 +113,7 @@ export const release = h(async (r, s) =>
     },
   }),
 );
+
 export const mine = h(async (r, s) =>
   s.json({
     success: true,
@@ -108,6 +121,7 @@ export const mine = h(async (r, s) =>
     data: { processes: await x.listMine(r.user.id) },
   }),
 );
+
 export const my = h(async (r, s) =>
   s.json({
     success: true,
