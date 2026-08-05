@@ -136,7 +136,27 @@ import {
   InterviewAnalyticsPage,
   OfferAnalyticsPage,
   PlatformHealthPage,
+  AIConsolePage,
 } from '../features/system-admin';
+import { ResumeIntelligenceDashboard } from '../features/resume-intelligence/ResumeIntelligenceDashboard';
+import { JobIntelligenceDashboard } from '../features/job-intelligence/JobIntelligenceDashboard';
+import { CandidateMatchDashboard } from '../features/candidate-matching/CandidateMatchDashboard';
+import { CopilotWorkspace } from '../features/copilot/CopilotWorkspace';
+import { AssessmentWorkspace } from '../features/assessment-intelligence/AssessmentWorkspace';
+import { CandidateAssessmentView } from '../features/assessment-intelligence/CandidateAssessmentView';
+import { ResumeReviewDashboard } from '../features/candidate-intelligence/ResumeReviewDashboard';
+import { CandidateIntelligenceDashboard } from '../features/candidate-intelligence/CandidateIntelligenceDashboard';
+import { CommunicationCenter } from '../features/communication-center/CommunicationCenter';
+import { InterviewRoomPage } from '../features/communication-center/InterviewRoomPage';
+import { ExecutiveDashboard } from '../features/executive-intelligence/ExecutiveDashboard';
+import { WorkforceDashboard } from '../features/executive-intelligence/WorkforceDashboard';
+import { WorkflowBuilder } from '../features/automation-center/WorkflowBuilder';
+import { WorkflowMonitor } from '../features/automation-center/WorkflowMonitor';
+import { AgentCenter } from '../features/automation-center/AgentCenter';
+import { MarketplaceDashboard } from '../features/integrations/MarketplaceDashboard';
+import { IntegrationSettings } from '../features/integrations/IntegrationSettings';
+import { AdminConsole } from '../features/admin/AdminConsole';
+import { SecurityComplianceCenter } from '../features/admin/SecurityComplianceCenter';
 
 import { LandingPage } from '../features/landing-page/LandingPage';
 
@@ -246,6 +266,7 @@ export function AppRoutes() {
           element={<CandidateApplicationDetailPage />}
         />
         <Route path="assessments" element={<AssignmentsPage candidate />} />
+        <Route path="assessments-workspace" element={<CandidateAssessmentView />} />
         <Route
           path="assessments/:assignmentId"
           element={<CandidateAssignmentPage />}
@@ -260,6 +281,7 @@ export function AppRoutes() {
         />
         <Route path="offers/:offerId" element={<CandidateOfferDetailPage />} />
         <Route path="offers" element={<CandidateOffersPage />} />
+        <Route path="resume" element={<ResumeIntelligenceDashboard />} />
         <Route path="profile" element={<CandidateProfilePage />} />
         <Route path="interviews" element={<CandidateInterviewsPage />} />
         <Route path="interviews/availability" element={<AvailabilityPage />} />
@@ -309,6 +331,23 @@ export function AppRoutes() {
         }
       >
         <Route index element={<OrganizationDashboardPage />} />
+        <Route path="job-intelligence" element={<JobIntelligenceDashboard />} />
+        <Route path="matching" element={<CandidateMatchDashboard />} />
+        <Route path="copilot" element={<CopilotWorkspace />} />
+        <Route path="assessments-builder" element={<AssessmentWorkspace />} />
+        <Route path="resume-review" element={<ResumeReviewDashboard />} />
+        <Route path="candidate-intelligence" element={<CandidateIntelligenceDashboard />} />
+        <Route path="inbox" element={<CommunicationCenter />} />
+        <Route path="interview-lobby" element={<InterviewRoomPage />} />
+        <Route path="executive-dashboard" element={<ExecutiveDashboard />} />
+        <Route path="workforce-intelligence" element={<WorkforceDashboard />} />
+        <Route path="workflows-builder" element={<WorkflowBuilder />} />
+        <Route path="workflows-monitor" element={<WorkflowMonitor />} />
+        <Route path="agent-center" element={<AgentCenter />} />
+        <Route path="marketplace" element={<MarketplaceDashboard />} />
+        <Route path="integration-settings" element={<IntegrationSettings />} />
+        <Route path="admin-console" element={<AdminConsole />} />
+        <Route path="security-compliance" element={<SecurityComplianceCenter />} />
         <Route
           path="applications"
           element={
@@ -681,6 +720,7 @@ export function AppRoutes() {
         <Route path="operations/:type/:id" element={<AdminRecordDetailPage />} />
         <Route path="communications" element={<AdminCommunicationsPage />} />
         <Route path="analytics" element={<AdminAnalyticsPage />} />
+        <Route path="ai-console" element={<AIConsolePage />} />
         <Route path="analytics/users" element={<UsersAnalyticsPage />} />
         <Route path="analytics/companies" element={<CompaniesAnalyticsPage />} />
         <Route path="analytics/recruiters" element={<RecruitersAnalyticsPage />} />

@@ -32,6 +32,7 @@ import {
   MessageSquareText,
   ListChecks,
   History as HistoryIcon,
+  Cpu,
 } from 'lucide-react';
 import { Button, Drawer, IconButton, Menu } from '../design-system';
 import { useAuth } from '../auth/AuthProvider';
@@ -234,6 +235,12 @@ export const adminNavigation: NavigationItem[] = [
     label: 'Analytics',
     to: '/admin/analytics',
     icon: <BarChart3 />,
+  },
+  {
+    id: 'ai-gateway',
+    label: 'AI Console',
+    to: '/admin/ai-console',
+    icon: <Cpu />,
   },
 ];
 

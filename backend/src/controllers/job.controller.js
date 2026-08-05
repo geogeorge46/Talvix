@@ -18,7 +18,12 @@ export const publicJob = async (request, response, next) => { try { const job = 
 export const aiGenerateJobDescription = async (request, response, next) => {
   try {
     const { title, keyRequirements } = request.body;
-    const description = await generateJobDescription(title, keyRequirements);
+    const description = await generateJobDescription(title, keyRequirements, {
+      companyId: request.company?.id || request.tenantCompanyId,
+      userId: request.user?.id,
+      ipAddress: request.ip,
+      userAgent: request.get('User-Agent')
+    });
     return response.json({
       success: true,
       message: 'Job description generated successfully',
@@ -32,7 +37,12 @@ export const aiGenerateJobDescription = async (request, response, next) => {
 export const aiSuggestJobSkills = async (request, response, next) => {
   try {
     const { title, description } = request.body;
-    const skills = await suggestSkills(title, description);
+    const skills = await suggestSkills(title, description, {
+      companyId: request.company?.id || request.tenantCompanyId,
+      userId: request.user?.id,
+      ipAddress: request.ip,
+      userAgent: request.get('User-Agent')
+    });
     return response.json({
       success: true,
       message: 'Skills suggested successfully',
@@ -46,7 +56,12 @@ export const aiSuggestJobSkills = async (request, response, next) => {
 export const aiJobSafetyCheck = async (request, response, next) => {
   try {
     const { title, description } = request.body;
-    const check = await performScamCheck(title, description);
+    const check = await performScamCheck(title, description, {
+      companyId: request.company?.id || request.tenantCompanyId,
+      userId: request.user?.id,
+      ipAddress: request.ip,
+      userAgent: request.get('User-Agent')
+    });
     return response.json({
       success: true,
       message: 'Safety check completed successfully',

@@ -131,7 +131,12 @@ export const previewLetter = h(async (r, s) => {
 
 export const aiAnalysis = h(async (r, s) => {
   const offerObj = await x.get(r.company.id, r.params.offerId);
-  const analysis = await analyzeOfferWithAI(offerObj.jobSnapshot, offerObj.candidateSnapshot, offerObj.toObject());
+  const analysis = await analyzeOfferWithAI(offerObj.jobSnapshot, offerObj.candidateSnapshot, offerObj.toObject(), {
+    companyId: r.company?.id || r.tenantCompanyId,
+    userId: r.user?.id,
+    ipAddress: r.ip,
+    userAgent: r.get('User-Agent')
+  });
   return s.json({
     success: true,
     message: 'AI Offer analysis completed successfully',

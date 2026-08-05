@@ -28,7 +28,12 @@ export const managedApplicationAiAnalysis = async (request, response, next) => {
       experience: application.candidateSnapshot.experience,
       education: application.candidateSnapshot.education
     };
-    const analysis = await generateCandidateAnalysis(jobDetails, candidateDetails);
+    const analysis = await generateCandidateAnalysis(jobDetails, candidateDetails, {
+      companyId: request.company?.id || request.tenantCompanyId,
+      userId: request.user?.id,
+      ipAddress: request.ip,
+      userAgent: request.get('User-Agent')
+    });
     return response.json({ success: true, message: 'AI candidate analysis completed successfully', data: { analysis } });
   } catch (error) {
     return next(error);

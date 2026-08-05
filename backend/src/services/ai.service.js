@@ -1,292 +1,87 @@
-import { AppError } from '../shared/errors/AppError.js';
+import { invokeAIGateway } from './aiProvider.service.js';
+import { parseJSON } from './jsonParser.service.js';
+import { z } from 'zod';
 
-export const generateJobDescription = async (title, keyRequirements) => {
-  const apiKey = process.env.GEMINI_API_KEY || 'mock-key';
-
-  if (process.env.NODE_ENV === 'test' || apiKey === 'mock-key') {
-    return `### Job Description: ${title}\n\nWe are looking for a skilled ${title} to join our team.\n\n**Requirements:**\n${keyRequirements || 'Standard experience required.'}`;
-  }
-
-  try {
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{
-            parts: [{
-              text: `Write a professional job description for the title: "${title}". Requirements to include: "${keyRequirements}". Format output in clean Markdown.`
-            }]
-          }]
-        })
-      }
-    );
-
-    if (!response.ok) {
-      throw new AppError('Failed to generate description from AI provider', 502);
-    }
-
-    const data = await response.json();
-    return data.candidates?.[0]?.content?.parts?.[0]?.text || '';
-  } catch (error) {
-    if (error instanceof AppError) throw error;
-    throw new AppError('AI provider communication error', 502);
-  }
+export const generateJobDescription = async (title, keyRequirements, context = {}) => {
+  return await invokeAIGateway('generate_job_description', { title, keyRequirements }, context);
 };
 
-export const suggestSkills = async (title, description) => {
-  const apiKey = process.env.GEMINI_API_KEY || 'mock-key';
-
-  if (process.env.NODE_ENV === 'test' || apiKey === 'mock-key') {
-    return ['React', 'Node.js', 'TypeScript', 'TailwindCSS'];
-  }
-
-  try {
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{
-            parts: [{
-              text: `Based on the job title "${title}" and description "${description}", suggest a list of 5-8 highly relevant technical skill tags. Return ONLY a comma-separated list of skills (e.g. React, Node.js, TypeScript).`
-            }]
-          }]
-        })
-      }
-    );
-
-    if (!response.ok) {
-      throw new AppError('Failed to suggest skills from AI provider', 502);
-    }
-
-    const data = await response.json();
-    const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
-    return text.split(',').map(s => s.trim()).filter(Boolean);
-  } catch (error) {
-    if (error instanceof AppError) throw error;
-    throw new AppError('AI provider communication error', 502);
-  }
+export const suggestSkills = async (title, description, context = {}) => {
+  const resultText = await invokeAIGateway('suggest_skills', { title, description }, context);
+  return resultText.split(',').map(s => s.trim()).filter(Boolean);
 };
 
-export const performScamCheck = async (title, description) => {
-  const apiKey = process.env.GEMINI_API_KEY || 'mock-key';
-
-  if (process.env.NODE_ENV === 'test' || apiKey === 'mock-key') {
-    return {
-      isSafe: true,
-      riskScore: 5,
-      issues: []
-    };
-  }
-
-  try {
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{
-            parts: [{
-              text: `Analyze the following job details for scam indicators, misleading claims, bias, or safety issues. Job Title: "${title}". Description: "${description}". Return JSON object matching format: {"isSafe": boolean, "riskScore": number (0-100), "issues": string[]}`
-            }]
-          }]
-        })
-      }
-    );
-
-    if (!response.ok) {
-      throw new AppError('Failed to verify safety check from AI provider', 502);
-    }
-
-    const data = await response.json();
-    const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
-    const cleanJson = text.replace(/```json/g, '').replace(/```/g, '').trim();
-    return JSON.parse(cleanJson);
-  } catch {
-    return { isSafe: true, riskScore: 10, issues: [] };
-  }
+export const performScamCheck = async (title, description, context = {}) => {
+  const resultText = await invokeAIGateway('perform_scam_check', { title, description }, context);
+  const schema = z.object({
+    isSafe: z.boolean(),
+    riskScore: z.number().min(0).max(100),
+    issues: z.array(z.string())
+  });
+  return parseJSON(resultText, schema);
 };
 
-export const generateCandidateAnalysis = async (jobDetails, candidateDetails) => {
-  const apiKey = process.env.GEMINI_API_KEY || 'mock-key';
-
-  if (process.env.NODE_ENV === 'test' || apiKey === 'mock-key') {
-    return {
-      matchScore: 85,
-      summary: 'Strong match candidate. Possesses expert React skills and Node.js backend experience.',
-      skillGap: ['GraphQL', 'Docker'],
-      suggestedStage: 'interview-scheduled'
-    };
-  }
-
-  try {
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{
-            parts: [{
-              text: `Analyze the candidate profile details against the job post description and requirements.
-              Job details: ${JSON.stringify(jobDetails)}
-              Candidate profile: ${JSON.stringify(candidateDetails)}
-              
-              Calculate an overall matching score (0-100), analyze skill gaps, generate a 2-3 sentence overview summary, and suggest the best next pipeline stage (e.g. screening, interview-scheduled, rejected).
-              Return a clean JSON object in this format: {"matchScore": number, "summary": string, "skillGap": string[], "suggestedStage": string}`
-            }]
-          }]
-        })
-      }
-    );
-
-    if (!response.ok) {
-      throw new AppError('Failed to generate analysis from AI provider', 502);
-    }
-
-    const data = await response.json();
-    const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
-    const cleanJson = text.replace(/```json/g, '').replace(/```/g, '').trim();
-    return JSON.parse(cleanJson);
-  } catch {
-    return {
-      matchScore: 70,
-      summary: 'Candidate analysis completed with baseline matching parameters.',
-      skillGap: [],
-      suggestedStage: 'under-review'
-    };
-  }
+export const generateCandidateAnalysis = async (jobDetails, candidateDetails, context = {}) => {
+  const resultText = await invokeAIGateway('generate_candidate_analysis', { jobDetails, candidateDetails }, context);
+  const schema = z.object({
+    matchScore: z.number().min(0).max(100),
+    summary: z.string(),
+    skillGap: z.array(z.string()),
+    suggestedStage: z.string()
+  });
+  return parseJSON(resultText, schema);
 };
 
-export const analyzeOfferWithAI = async (jobDetails, candidateDetails, offerDetails) => {
-  const apiKey = process.env.GEMINI_API_KEY || 'mock-key';
-
-  if (process.env.NODE_ENV === 'test' || apiKey === 'mock-key') {
-    return {
-      salaryBenchmarking: { status: 'competitive', percentile: 75, marketAverage: 1200000 },
-      compensationRecommendations: ['Consider adding performance bonus to align with senior roles.'],
-      offerQualityAnalysis: { score: 88, details: 'Clear compensation structure and well-defined benefits.' },
-      missingClauses: ['Intellectual Property assignment clause is recommended.'],
-      complianceChecks: { status: 'compliant', issues: [] },
-      offerRiskAnalysis: { riskLevel: 'low', indicators: ['Candidate requested remote/hybrid, which matches the offer.'] }
-    };
-  }
-
-  try {
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{
-            parts: [{
-              text: `Analyze this employment offer against the job and candidate profiles for benchmarking, compliance, quality and risk:
-              Job details: ${JSON.stringify(jobDetails)}
-              Candidate profile: ${JSON.stringify(candidateDetails)}
-              Offer details: ${JSON.stringify(offerDetails)}
-              
-              Calculate salary benchmarking (percentile, market average), suggest compensation changes, perform offer quality analysis (score out of 100), identify missing legal/HR clauses (NDA, non-compete, IP), check compliance, and assess risk.
-              Return a clean JSON object matching format: {
-                "salaryBenchmarking": {"status": string, "percentile": number, "marketAverage": number},
-                "compensationRecommendations": string[],
-                "offerQualityAnalysis": {"score": number, "details": string},
-                "missingClauses": string[],
-                "complianceChecks": {"status": string, "issues": string[]},
-                "offerRiskAnalysis": {"riskLevel": string, "indicators": string[]}
-              }`
-            }]
-          }]
-        })
-      }
-    );
-
-    if (!response.ok) {
-      throw new AppError('Failed to generate offer analysis from AI provider', 502);
-    }
-
-    const data = await response.json();
-    const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
-    const cleanJson = text.replace(/```json/g, '').replace(/```/g, '').trim();
-    return JSON.parse(cleanJson);
-  } catch {
-    return {
-      salaryBenchmarking: { status: 'competitive', percentile: 70, marketAverage: 1000000 },
-      compensationRecommendations: [],
-      offerQualityAnalysis: { score: 80, details: 'Offer draft has baseline compliance and correct structure.' },
-      missingClauses: [],
-      complianceChecks: { status: 'compliant', issues: [] },
-      offerRiskAnalysis: { riskLevel: 'low', indicators: [] }
-    };
-  }
+export const analyzeOfferWithAI = async (jobDetails, candidateDetails, offerDetails, context = {}) => {
+  const resultText = await invokeAIGateway('analyze_offer', { jobDetails, candidateDetails, offerDetails }, context);
+  const schema = z.object({
+    salaryBenchmarking: z.object({
+      status: z.string(),
+      percentile: z.number(),
+      marketAverage: z.number()
+    }),
+    compensationRecommendations: z.array(z.string()),
+    offerQualityAnalysis: z.object({
+      score: z.number(),
+      details: z.string()
+    }),
+    missingClauses: z.array(z.string()),
+    complianceChecks: z.object({
+      status: z.string(),
+      issues: z.array(z.string())
+    }),
+    offerRiskAnalysis: z.object({
+      riskLevel: z.string(),
+      indicators: z.array(z.string())
+    })
+  });
+  return parseJSON(resultText, schema);
 };
 
-export const evaluateAssessmentAttemptWithAI = async (attemptDetails, candidateDetails, questionsDetails) => {
-  const apiKey = process.env.GEMINI_API_KEY || 'mock-key';
-
-  if (process.env.NODE_ENV === 'test' || apiKey === 'mock-key') {
-    return {
-      codeQualityAnalysis: { score: 85, comments: 'Well-structured code. Appropriate variable naming.' },
-      complexityEstimation: { timeComplexity: 'O(N)', spaceComplexity: 'O(1)' },
-      styleAnalysis: { comments: 'Consistent formatting and good commenting.' },
-      bugDetection: { count: 0, issues: [] },
-      duplicateCodeDetection: { hasDuplicates: false, matches: [] },
-      skillInference: ['Problem Solving', 'JavaScript', 'Logic Development'],
-      candidateSummary: 'Strong coding fundamentals. Meets all requirements for coding logic.'
-    };
-  }
-
-  try {
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{
-            parts: [{
-              text: `Analyze this candidate's assessment attempt:
-              Attempt: ${JSON.stringify(attemptDetails)}
-              Candidate: ${JSON.stringify(candidateDetails)}
-              Questions: ${JSON.stringify(questionsDetails)}
-              
-              Perform a thorough evaluation including code quality analysis, time/space complexity estimation, coding style, bug detection, duplication check, skill inference, and an overall summary.
-              Return a clean JSON object in format: {
-                "codeQualityAnalysis": {"score": number, "comments": string},
-                "complexityEstimation": {"timeComplexity": string, "spaceComplexity": string},
-                "styleAnalysis": {"comments": string},
-                "bugDetection": {"count": number, "issues": string[]},
-                "duplicateCodeDetection": {"hasDuplicates": boolean, "matches": string[]},
-                "skillInference": string[],
-                "candidateSummary": string
-              }`
-            }]
-          }]
-        })
-      }
-    );
-
-    if (!response.ok) {
-      throw new AppError('Failed to generate AI evaluation for assessment', 502);
-    }
-
-    const data = await response.json();
-    const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
-    const cleanJson = text.replace(/```json/g, '').replace(/```/g, '').trim();
-    return JSON.parse(cleanJson);
-  } catch {
-    return {
-      codeQualityAnalysis: { score: 70, comments: 'Baseline analysis completed.' },
-      complexityEstimation: { timeComplexity: 'N/A', spaceComplexity: 'N/A' },
-      styleAnalysis: { comments: 'Standard code formatting detected.' },
-      bugDetection: { count: 0, issues: [] },
-      duplicateCodeDetection: { hasDuplicates: false, matches: [] },
-      skillInference: [],
-      candidateSummary: 'Basics evaluation finished successfully.'
-    };
-  }
+export const evaluateAssessmentAttemptWithAI = async (attemptDetails, candidateDetails, questionsDetails, context = {}) => {
+  const resultText = await invokeAIGateway('evaluate_assessment', { attemptDetails, candidateDetails, questionsDetails }, context);
+  const schema = z.object({
+    codeQualityAnalysis: z.object({
+      score: z.number(),
+      comments: z.string()
+    }),
+    complexityEstimation: z.object({
+      timeComplexity: z.string(),
+      spaceComplexity: z.string()
+    }),
+    styleAnalysis: z.object({
+      comments: z.string()
+    }),
+    bugDetection: z.object({
+      count: z.number(),
+      issues: z.array(z.string())
+    }),
+    duplicateCodeDetection: z.object({
+      hasDuplicates: z.boolean(),
+      matches: z.array(z.string())
+    }),
+    skillInference: z.array(z.string()),
+    candidateSummary: z.string()
+  });
+  return parseJSON(resultText, schema);
 };

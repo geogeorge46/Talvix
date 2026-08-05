@@ -29,16 +29,16 @@ export function DataTable<T>({
   pagination,
   rowActions,
 }: {
-  caption: string;
+  caption?: string;
   rows: T[];
-  rowKey: (r: T) => string;
+  rowKey?: (r: T) => string;
   columns: DataColumn<T>[];
   sort?: SortState;
   onSort?: (s: SortState) => void;
   isLoading?: boolean;
   error?: string;
   empty?: ReactNode;
-  renderNarrow: (r: T) => ReactNode;
+  renderNarrow?: (r: T) => ReactNode;
   pagination?: {
     page: number;
     totalPages: number;
@@ -63,7 +63,7 @@ export function DataTable<T>({
     <div className="tvx-data">
       <div className="tvx-data__wide">
         <table>
-          <caption>{caption}</caption>
+          {caption && <caption>{caption}</caption>}
           <thead>
             <tr>
               {columns.map((c) => (
@@ -119,29 +119,44 @@ export function DataTable<T>({
                     ))}
                   </tr>
                 ))
-              : rows.map((r) => (
-                  <tr key={rowKey(r)}>
-                    {columns.map((c) => (
-                      <td key={c.id} data-align={c.align}>
-                        {c.render?.(r) ?? c.accessor?.(r)}
-                      </td>
-                    ))}
-                    {rowActions && <td>{rowActions(r)}</td>}
-                  </tr>
-                ))}
+              : rows.map((r, idx) => {
+                  const key = typeof rowKey === 'function' ? rowKey(r) : ((r as any)?.id ?? (r as any)?._id ?? String(idx));
+                  return (
+                    <tr key={key}>
+                      {columns.map((c) => (
+                        <td key={c.id} data-align={c.align}>
+                          {c.render?.(r) ?? c.accessor?.(r)}
+                        </td>
+                      ))}
+                      {rowActions && <td>{rowActions(r)}</td>}
+                    </tr>
+                  );
+                })}
           </tbody>
         </table>
       </div>
-      <div className="tvx-data__narrow" role="list" aria-label={caption}>
+      <div className="tvx-data__narrow" role="list" aria-label={caption ?? 'Data table narrow list'}>
         {isLoading ? (
           <Skeleton />
         ) : (
-          rows.map((r) => (
-            <div role="listitem" key={rowKey(r)}>
-              {renderNarrow(r)}
-              {rowActions?.(r)}
-            </div>
-          ))
+          rows.map((r, idx) => {
+            const key = typeof rowKey === 'function' ? rowKey(r) : ((r as any)?.id ?? (r as any)?._id ?? String(idx));
+            return (
+              <div role="listitem" key={key}>
+                {renderNarrow ? renderNarrow(r) : (
+                  <div>
+                    {columns.map(c => (
+                      <div key={c.id}>
+                        <strong>{c.header}: </strong>
+                        {c.render?.(r) ?? c.accessor?.(r)}
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {rowActions?.(r)}
+              </div>
+            );
+          })
         )}
       </div>
       {pagination && <Pagination {...pagination} />}

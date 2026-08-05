@@ -1,1 +1,15 @@
-import mongoose from'mongoose';import{NOTIFICATION_CATEGORIES,NOTIFICATION_TYPES}from'../constants/notification.js';const channel=new mongoose.Schema({inApp:{type:Boolean,default:true},email:{type:Boolean,default:true}},{_id:false});const categories=Object.fromEntries(NOTIFICATION_CATEGORIES.map(k=>[k,{type:channel,default:()=>({})}]));const schema=new mongoose.Schema({user:{type:mongoose.Schema.Types.ObjectId,ref:'User',required:true,unique:true},global:{inAppEnabled:{type:Boolean,default:true},emailEnabled:{type:Boolean,default:true}},categories,types:{type:Map,of:channel,default:{}},digest:{enabled:{type:Boolean,default:false},frequency:{type:String,enum:['daily','weekly'],default:'daily'},timezone:{type:String,default:'UTC'},preferredHour:{type:Number,min:0,max:23,default:9}},quietHours:{enabled:{type:Boolean,default:false},startHour:{type:Number,min:0,max:23},endHour:{type:Number,min:0,max:23},timezone:{type:String,default:'UTC'}},mandatorySecurityEmails:{type:Boolean,immutable:true,default:true}},{timestamps:true,versionKey:false});schema.path('types').validate(v=>[...v.keys()].every(k=>NOTIFICATION_TYPES.includes(k)),'Unknown notification type');export const NotificationPreference=mongoose.model('NotificationPreference',schema);
+import mongoose from 'mongoose';
+
+const notificationPreferenceSchema = new mongoose.Schema({
+  user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, unique: true, index: true },
+  channels: {
+    email: { type: Boolean, default: true },
+    sms: { type: Boolean, default: false },
+    push: { type: Boolean, default: true },
+    slack: { type: Boolean, default: false },
+    teams: { type: Boolean, default: false }
+  },
+  frequency: { type: String, enum: ['instant', 'daily_digest', 'weekly_digest'], default: 'instant' }
+}, { timestamps: true, versionKey: false });
+
+export const NotificationPreference = mongoose.model('NotificationPreference', notificationPreferenceSchema);
