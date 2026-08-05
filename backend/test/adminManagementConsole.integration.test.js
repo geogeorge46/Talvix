@@ -246,4 +246,29 @@ describe('Talvix Enterprise Platform Management Console', () => {
     expect(checkDoc.status).toBe('quarantined');
     expect(checkDoc.malwareScan.status).toBe('suspicious');
   });
+
+  it('verifies question list and detailed inspect endpoint', async () => {
+    const admin = await account('admin');
+
+    const question = await Question.create({
+      title: 'JS Closures',
+      prompt: 'Explain JS closures in detail.',
+      type: 'long-answer',
+      difficulty: 'medium',
+      defaultMarks: 10,
+      company: new mongoose.Types.ObjectId(),
+      createdBy: admin.user.id
+    });
+
+    // List questions
+    const listRes = await api('get', '/api/v1/admin/management/questions', admin.token)
+      .expect(200);
+    expect(listRes.body.data.rows.length).toBeGreaterThanOrEqual(1);
+
+    // Get specific question
+    const getRes = await api('get', `/api/v1/admin/management/questions/${question.id}`, admin.token)
+      .expect(200);
+    expect(getRes.body.data.title).toBe('JS Closures');
+    expect(getRes.body.data.prompt).toBe('Explain JS closures in detail.');
+  });
 });

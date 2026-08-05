@@ -207,6 +207,15 @@ export const getQuestions = async (req, res, next) => {
   }
 };
 
+export const getQuestion = async (req, res, next) => {
+  try {
+    const data = await service.getQuestionById(req.params.questionId);
+    return res.json({ success: true, data });
+  } catch (error) {
+    return next(error);
+  }
+};
+
 export const importQuestions = async (req, res, next) => {
   try {
     const ip = req.ip || 'Unknown';

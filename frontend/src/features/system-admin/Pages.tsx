@@ -424,7 +424,9 @@ function DetailDrawer({ recordId, type, onClose, onActionDone }: { recordId: str
     audits: `/admin/management/audits`,
     documents: `/documents/admin/${recordId}`,
     applications: `/applications/admin/${recordId}`,
-    assessments: `/assessments/admin/assignments/${recordId}`
+    assessments: `/assessments/admin/assignments/${recordId}`,
+    offers: `/offers/admin/${recordId}`,
+    interviews: `/interviews/admin/processes/${recordId}`
   };
 
   const path = pathMap[type] || `/admin/management/${type}/${recordId}`;

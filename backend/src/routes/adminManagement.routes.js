@@ -37,6 +37,7 @@ adminManagementRouter.post('/jobs/:jobId/clone', controller.clone);
 
 // Questions
 adminManagementRouter.get('/questions', controller.getQuestions);
+adminManagementRouter.get('/questions/:questionId', controller.getQuestion);
 adminManagementRouter.post('/questions/import', controller.importQuestions);
 
 // Documents

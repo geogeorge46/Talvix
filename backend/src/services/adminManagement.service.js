@@ -636,6 +636,14 @@ export const listQuestions = async (query) => {
   return { rows, meta: buildPagination(page, limit, total) };
 };
 
+export const getQuestionById = async (questionId) => {
+  const question = await Question.findById(questionId)
+    .populate('company', 'name')
+    .lean();
+  if (!question) throw new AppError('Question not found', 404);
+  return question;
+};
+
 export const bulkImportQuestions = async (questionsData, adminId, ip, ua) => {
   const created = await Question.insertMany(questionsData);
 
