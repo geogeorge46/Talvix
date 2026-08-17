@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { apiRequest } from '../../api/client';
+import { apiRequest, ApiError } from '../../api/client';
 import {
   toCandidateProfile,
   toPublicJob,
@@ -206,10 +206,17 @@ export const useCandidateProfilePhoto = () =>
   useQuery({
     queryKey: ['candidate', 'profile-photo'],
     queryFn: async () => {
-      const value = rec(
-        await apiRequest<unknown>('/documents/me/profile-photo'),
-      );
-      return value.document ? toDocument(value.document) : null;
+      try {
+        const value = rec(
+          await apiRequest<unknown>('/documents/me/profile-photo'),
+        );
+        return value.document ? toDocument(value.document) : null;
+      } catch (error) {
+        if (error instanceof ApiError && error.status === 404) {
+          return null;
+        }
+        throw error;
+      }
     },
     retry: false,
   });

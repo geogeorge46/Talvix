@@ -120,6 +120,7 @@ describe('job workflow and public discovery', () => {
     await auth('post', '/api/v1/jobs', recruiter.token).send({ ...validJob(), salary: { minimum: 120000, maximum: 80000, currency: 'USD', period: 'yearly' } }).expect(400);
     await auth('post', '/api/v1/jobs', recruiter.token).send({ ...validJob(), minimumExperience: 8, maximumExperience: 2 }).expect(400);
     await auth('post', '/api/v1/jobs', recruiter.token).send({ ...validJob(), applicationDeadline: new Date(Date.now() - 1000).toISOString() }).expect(400);
+    await auth('post', '/api/v1/jobs', recruiter.token).send({ ...validJob(), scheduledPublishAt: new Date(Date.now() + 10 * 86400000).toISOString(), applicationDeadline: new Date(Date.now() + 5 * 86400000).toISOString() }).expect(400);
     const created = await auth('post', '/api/v1/jobs', recruiter.token).send(validJob()).expect(201); const id = created.body.data.job._id;
     await auth('patch', `/api/v1/jobs/manage/${id}/submit`, recruiter.token).expect(200); await auth('patch', `/api/v1/jobs/admin/${id}/approve`, administrator.token).expect(200);
     const results = await request(app).get('/api/v1/jobs?skills=Node.js&workMode=remote&limit=10').expect(200);

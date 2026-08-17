@@ -231,6 +231,7 @@ export function OrganizationDashboardPage() {
   useEffect(() => {
     const token = tokenStore.get();
     if (!token) return;
+    if (typeof EventSource === 'undefined') return;
 
     const base = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:5000/api/v1';
     const es = new EventSource(`${base}/realtime/stream?token=${token}`);

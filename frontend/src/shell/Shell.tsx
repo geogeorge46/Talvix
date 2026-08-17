@@ -153,6 +153,13 @@ export const organizationNavigation: NavigationItem[] = [
     anyPermission: ['applications.view'],
   },
   {
+    id: 'talent-pool',
+    label: 'Talent Pool',
+    to: '/org/talent-pool',
+    icon: <Users />,
+    anyPermission: ['jobs.update'],
+  },
+  {
     id: 'offers',
     label: 'Offers',
     to: '/org/offers',
@@ -304,17 +311,178 @@ export function SideNav({
   );
 }
 export function GlobalSearch() {
+  const [isOpen, setIsOpen] = useState(false);
+  const [query, setQuery] = useState('');
+  const [results, setResults] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [selectedIndex, setSelectedIndex] = useState(0);
+  const navigate = useNavigate();
+  const inputRef = useRef<HTMLInputElement>(null);
+  const modalRef = useRef<HTMLDivElement>(null);
+
+  // Toggle command palette shortcut (Cmd+K or Ctrl+K)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault();
+        setIsOpen((open) => !open);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
+  // Fetch search results on query change
+  useEffect(() => {
+    if (!isOpen) {
+      setQuery('');
+      setResults([]);
+      return;
+    }
+
+    if (inputRef.current) {
+      inputRef.current.focus();
+    }
+
+    if (!query.trim()) {
+      setResults([]);
+      return;
+    }
+
+    const delayDebounce = setTimeout(async () => {
+      setLoading(true);
+      try {
+        const response = await apiRequest<any[]>('/search?q=' + encodeURIComponent(query));
+        setResults(response || []);
+        setSelectedIndex(0);
+      } catch (err) {
+        console.error('Failed to search', err);
+      } finally {
+        setLoading(false);
+      }
+    }, 300);
+
+    return () => clearTimeout(delayDebounce);
+  }, [query, isOpen]);
+
+  // Handle keyboard navigation inside the list
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setSelectedIndex((prev) => (prev + 1) % Math.max(results.length, 1));
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setSelectedIndex((prev) => (prev - 1 + results.length) % Math.max(results.length, 1));
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      if (results[selectedIndex]) {
+        navigate(results[selectedIndex].url);
+        setIsOpen(false);
+      }
+    } else if (e.key === 'Escape') {
+      setIsOpen(false);
+    }
+  };
+
   return (
-    <button
-      className="tvx-global-search"
-      type="button"
-      disabled
-      aria-label="Global search, coming soon"
-    >
-      <Search aria-hidden />
-      <span>Search Talvix</span>
-      <kbd>⌘ K</kbd>
-    </button>
+    <>
+      <button
+        className="tvx-global-search"
+        type="button"
+        onClick={() => setIsOpen(true)}
+        aria-label="Search Talvix"
+      >
+        <Search aria-hidden />
+        <span>Search Talvix...</span>
+        <kbd>⌘ K</kbd>
+      </button>
+
+      {isOpen && (
+        <div 
+          className="fixed inset-0 z-[9999] bg-slate-900/60 backdrop-blur-sm flex justify-center p-4 pt-[12vh]"
+          onClick={() => setIsOpen(false)}
+        >
+          <div 
+            ref={modalRef}
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-2xl bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[500px]"
+          >
+            {/* Search Header */}
+            <div className="flex items-center gap-3 px-4 border-b border-slate-100 py-3">
+              <Search className="w-5 h-5 text-slate-400 shrink-0" />
+              <input
+                ref={inputRef}
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder="Type to search jobs, candidates, users or companies..."
+                className="w-full text-sm text-slate-800 placeholder-slate-400 focus:outline-none bg-transparent"
+              />
+              <span className="text-[10px] font-bold text-slate-400 bg-slate-100 rounded-md px-1.5 py-0.5 select-none shrink-0">
+                ESC
+              </span>
+            </div>
+
+            {/* Results body */}
+            <div className="overflow-y-auto flex-1 divide-y divide-slate-50">
+              {loading && (
+                <div className="py-12 text-center text-sm text-slate-500 flex items-center justify-center gap-2">
+                  <span className="w-4 h-4 border-2 border-slate-300 border-t-slate-800 rounded-full animate-spin"></span>
+                  Searching...
+                </div>
+              )}
+
+              {!loading && query && results.length === 0 && (
+                <div className="py-12 text-center text-sm text-slate-400">
+                  No results found for &ldquo;{query}&rdquo;
+                </div>
+              )}
+
+              {!loading && !query && (
+                <div className="py-8 text-center text-xs text-slate-400 font-medium tracking-wide uppercase select-none">
+                  Press keys to navigate, enter to select
+                </div>
+              )}
+
+              {!loading && results.map((item, index) => {
+                const isSelected = index === selectedIndex;
+                return (
+                  <div
+                    key={item.id}
+                    onClick={() => {
+                      navigate(item.url);
+                      setIsOpen(false);
+                    }}
+                    className={`flex items-center justify-between px-4 py-3.5 cursor-pointer transition-all duration-150 ${
+                      isSelected ? 'bg-slate-50' : 'hover:bg-slate-50/50'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      {item.type === 'Job' && <BriefcaseBusiness className="w-4 h-4 text-slate-500 shrink-0" />}
+                      {item.type === 'Company' && <Building2 className="w-4 h-4 text-slate-500 shrink-0" />}
+                      {item.type === 'User' && <UserRound className="w-4 h-4 text-slate-500 shrink-0" />}
+                      {item.type === 'Candidate' && <Users className="w-4 h-4 text-slate-500 shrink-0" />}
+                      
+                      <div className="min-w-0">
+                        <div className="text-sm font-semibold text-slate-800 truncate">
+                          {item.title}
+                        </div>
+                        <div className="text-xs text-slate-500 truncate">
+                          {item.subtitle}
+                        </div>
+                      </div>
+                    </div>
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider bg-slate-100/80 px-2 py-0.5 rounded-md shrink-0">
+                      {item.type}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
 }
 function useUnreadCountQuery() {
@@ -356,7 +524,7 @@ export function NotificationTrigger() {
             position: 'absolute',
             top: '2px',
             right: '2px',
-            background: 'var(--color-bg-accent, #0066cc)',
+            background: 'var(--color-action-primary)',
             color: 'white',
             borderRadius: '50%',
             padding: '2px 6px',
@@ -378,8 +546,12 @@ export function AccountMenu() {
     <Menu
       label="Account"
       trigger={
-        <Button variant="quiet" trailingIcon={<ChevronDown />}>
-          <CircleUserRound aria-hidden /> {user?.fullName ?? 'Account'}
+        <Button
+          variant="quiet"
+          leadingIcon={<CircleUserRound aria-hidden />}
+          trailingIcon={<ChevronDown />}
+        >
+          {user?.fullName ?? 'Account'}
         </Button>
       }
       items={[

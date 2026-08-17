@@ -49,6 +49,7 @@ import {
   workModes,
 } from './model';
 import { useJobAction, useManagedJob, useManagedJobs, useSaveJob, useCloneJob } from './api';
+import { Sparkles, X } from 'lucide-react';
 import './job-management.css';
 const label = (s: string) =>
   s.replaceAll('-', ' ').replace(/\b\w/g, (c) => c.toUpperCase());
@@ -808,6 +809,8 @@ function validate(d: JobDraft) {
     e.deadline = 'Application deadline must be in the future.';
   if (d.scheduledPublishAt && new Date(d.scheduledPublishAt) <= new Date())
     e.scheduledPublishAt = 'Scheduled publish date must be in the future.';
+  if (d.scheduledPublishAt && d.deadline && new Date(d.scheduledPublishAt) >= new Date(d.deadline))
+    e.scheduledPublishAt = 'Scheduled publish date must be before the application deadline.';
   if (Number(d.minimumExperience) < 0 || Number(d.minimumExperience) > 60)
     e.minimumExperience = 'Experience must be between 0 and 60 years.';
   if (
@@ -886,6 +889,10 @@ export function JobFormPage({ mode }: { mode: 'create' | 'edit' }) {
   const [aiGenerating, setAiGenerating] = useState(false);
   const [aiSuggesting, setAiSuggesting] = useState(false);
   const [aiChecking, setAiChecking] = useState(false);
+  const [safetyCheckResult, setSafetyCheckResult] = useState<{ isSafe: boolean; riskScore: number; issues: string[] } | null>(null);
+  const [submittingAndPublishing, setSubmittingAndPublishing] = useState(false);
+  const [archiving, setArchiving] = useState(false);
+  const cloneMutation = useCloneJob();
   const blocker = useBlocker(dirty);
   const [createdWithoutRead, setCreatedWithoutRead] = useState(false);
   const summary = useRef<HTMLDivElement>(null);
@@ -1134,10 +1141,7 @@ export function JobFormPage({ mode }: { mode: 'create' | 'edit' }) {
                     body: { title: d.title, description: d.description }
                   });
                   if (res?.check) {
-                    alert(`AI Safety Check:
-- Safe: ${res.check.isSafe ? 'Yes' : 'No'}
-- Risk Score: ${res.check.riskScore}/100
-- Issues identified: ${res.check.issues.length > 0 ? res.check.issues.join(', ') : 'None'}`);
+                    setSafetyCheckResult(res.check);
                   }
                 } catch (err) {
                   alert('Failed to run safety check: ' + (err as Error).message);
@@ -1574,6 +1578,90 @@ export function JobFormPage({ mode }: { mode: 'create' | 'edit' }) {
           >
             Cancel
           </Button>
+          {mode === 'edit' && (
+            <>
+              <Button
+                type="button"
+                variant="secondary"
+                disabled={cloneMutation.isPending}
+                onClick={async (e) => {
+                  e.preventDefault();
+                  try {
+                    const result = await cloneMutation.mutateAsync(jobId);
+                    if (result && typeof result === 'object' && 'job' in result) {
+                      const newJob = (result as { job: { _id: string } }).job;
+                      setDirty(false);
+                      sessionStorage.removeItem(key);
+                      alert('Job cloned successfully!');
+                      nav(`/org/jobs/${newJob._id}/edit`);
+                    }
+                  } catch (err) {
+                    alert('Failed to clone job: ' + (err as Error).message);
+                  }
+                }}
+              >
+                {cloneMutation.isPending ? 'Cloning...' : 'Clone job'}
+              </Button>
+              <Button
+                type="button"
+                variant="danger"
+                loading={archiving}
+                onClick={async (e) => {
+                  e.preventDefault();
+                  if (confirm('Are you sure you want to archive this job?')) {
+                    setDirty(false);
+                    setArchiving(true);
+                    try {
+                      await apiRequest(`/jobs/manage/${jobId}`, { method: 'DELETE' });
+                      sessionStorage.removeItem(key);
+                      alert('Job archived successfully.');
+                      nav('/org/jobs');
+                    } catch (err) {
+                      alert('Failed to archive job: ' + (err as Error).message);
+                    } finally {
+                      setArchiving(false);
+                    }
+                  }
+                }}
+              >
+                Archive job
+              </Button>
+            </>
+          )}
+          <Button
+            type="button"
+            variant="secondary"
+            loading={save.isPending || submittingAndPublishing}
+            onClick={async (e) => {
+              e.preventDefault();
+              const nextErrors = validate(d);
+              if (Object.keys(nextErrors).length > 0) {
+                setErrors(nextErrors);
+                summary.current?.scrollIntoView({ behavior: 'smooth' });
+                return;
+              }
+              setSubmittingAndPublishing(true);
+              try {
+                const res = await save.mutateAsync(d);
+                let savedId = jobId;
+                if (res && typeof res === 'object' && 'job' in res) {
+                  const jobData = (res as { job: { _id: string } }).job;
+                  savedId = jobData._id;
+                }
+                await apiRequest(`/jobs/manage/${savedId}/submit`, { method: 'PATCH' });
+                setDirty(false);
+                sessionStorage.removeItem(key);
+                alert('Job submitted and published successfully!');
+                nav('/org/jobs');
+              } catch (err) {
+                alert('Failed to publish job: ' + (err as Error).message);
+              } finally {
+                setSubmittingAndPublishing(false);
+              }
+            }}
+          >
+            Submit & Publish
+          </Button>
           <Button type="submit" loading={save.isPending}>
             Save draft
           </Button>
@@ -1593,6 +1681,82 @@ export function JobFormPage({ mode }: { mode: 'create' | 'edit' }) {
             blocker.proceed();
           }}
         />
+      )}
+      {safetyCheckResult && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'var(--color-overlay)',
+            backdropFilter: 'blur(4px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 9999,
+          }}
+        >
+          <div
+            style={{
+              background: 'var(--color-surface-1)',
+              border: `1px solid ${safetyCheckResult.isSafe ? 'var(--color-success-border)' : 'var(--color-danger-border)'}`,
+              boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)',
+              padding: '24px',
+              borderRadius: 'var(--border-radius-lg, 12px)',
+              width: '95%',
+              maxWidth: '550px',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '16px',
+            }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Sparkles size={20} style={{ color: safetyCheckResult.isSafe ? 'var(--color-success-fg)' : 'var(--color-danger-fg)' }} />
+                <h3 style={{ margin: 0, fontSize: '18px', fontWeight: '600' }}>AI Safety Check Result</h3>
+              </div>
+              <button
+                type="button"
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-text-muted)' }}
+                onClick={() => setSafetyCheckResult(null)}
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <div style={{ display: 'flex', gap: '12px', alignItems: 'center', padding: '12px', borderRadius: '8px', background: safetyCheckResult.isSafe ? 'var(--color-success-bg)' : 'var(--color-danger-bg)' }}>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: '14px', fontWeight: '600', color: safetyCheckResult.isSafe ? 'var(--color-success-fg)' : 'var(--color-danger-fg)' }}>
+                  Status: {safetyCheckResult.isSafe ? 'Passed (Safe)' : 'Flagged (Unsafe)'}
+                </div>
+                <div style={{ fontSize: '12px', color: 'var(--color-text-muted)', marginTop: '2px' }}>
+                  Risk Score: {safetyCheckResult.riskScore}/100
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <strong style={{ display: 'block', marginBottom: '8px', fontSize: '14px' }}>Identified Issues:</strong>
+              {safetyCheckResult.issues.length > 0 ? (
+                <ul style={{ margin: 0, paddingLeft: '20px', fontSize: '13px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                  {safetyCheckResult.issues.map((issue, idx) => (
+                    <li key={idx} style={{ color: 'var(--color-text-secondary)', lineHeight: '1.4' }}>{issue}</li>
+                  ))}
+                </ul>
+              ) : (
+                <span style={{ fontSize: '13px', color: 'var(--color-text-muted)' }}>No issues found. This job description looks safe.</span>
+              )}
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '8px' }}>
+              <Button type="button" variant="primary" onClick={() => setSafetyCheckResult(null)}>
+                Understood
+              </Button>
+            </div>
+          </div>
+        </div>
       )}
     </main>
   );

@@ -54,15 +54,50 @@ export const uploadProfileAsset = async (user, input, file, kind, replace = fals
   const config = profileConfig[kind]; const profile = await profileFor(user, config);
   await assertSession(user, input.uploadSessionId, config.category, config.entityType, profile.id);
   const previous = await current({ owner: user.id, category: config.category, entityType: config.entityType, entityId: profile.id });
+  
+  const activeReplace = replace || !!previous;
   if (replace && !previous) throw new AppError('Current document not found', 404);
-  if (!replace && previous) throw new AppError('A current document already exists; use replace', 409);
-  const overrides = { access: config.access, reference: { model: config.model, id: profile.id, field: config.reference } };
-  const document = replace ? await replaceDocument(user, previous.id, { ...input, category: config.category }, file, overrides) : await uploadDocument(user, { ...input, category: config.category }, file, null, overrides);
-  if (replace && kind !== 'resume') await cleanup(previous);
+  
+  const overrides = { access: config.access };
+  const document = activeReplace ? await replaceDocument(user, previous.id, { ...input, category: config.category }, file, overrides) : await uploadDocument(user, { ...input, category: config.category }, file, null, overrides);
+  if (activeReplace && kind !== 'resume') await cleanup(previous);
+
+  profile[config.reference] = document.id;
+  if (kind === 'candidatePhoto' || kind === 'recruiterPhoto') {
+    profile.profilePhoto = {
+      url: document.storage.secureUrl,
+      publicId: document.storage.publicId,
+    };
+  } else if (kind === 'resume') {
+    profile.resume = {
+      url: document.storage.secureUrl,
+      publicId: document.storage.publicId,
+      fileName: document.originalFileName,
+      uploadedAt: new Date(),
+    };
+  }
+  await profile.save();
+
   return serializeDocument(document);
 };
-export const getProfileAsset = async (user, kind) => { const config = profileConfig[kind]; const profile = await profileFor(user, config); const document = await current({ _id: profile[config.reference], owner: user.id, category: config.category }); if (!document) throw new AppError('Document not found', 404); return serializeDocument(document); };
-export const deleteProfileAsset = async (user, kind) => { const config = profileConfig[kind]; const profile = await profileFor(user, config); const document = await current({ _id: profile[config.reference], owner: user.id }); if (!document) throw new AppError('Document not found', 404); const activeReference = kind === 'resume' && await Application.exists({ resumeDocument: document.id, status: { $nin: LOCKED_APPLICATION } }); if (activeReference) throw new AppError('Resume is retained by an active application', 409); const retained = kind === 'resume' && await Application.exists({ resumeDocument: document.id }); const status = retained ? 'archived' : 'deleted'; const databaseSession = await mongoose.startSession(); try { await databaseSession.withTransaction(async () => { const changed = await Document.updateOne({ _id: document.id, status: 'active', isCurrent: true }, { $set: { status, isCurrent: false, ...(retained ? { archivedAt: new Date() } : { deletedAt: new Date() }) }, $push: { statusHistory: { from: 'active', to: status, changedBy: user.id, reason: 'Profile document removed' } } }, { session: databaseSession }); const cleared = await config.model.updateOne({ _id: profile.id, [config.reference]: document.id }, { $set: { [config.reference]: null } }, { session: databaseSession }); if (!changed.modifiedCount || !cleared.modifiedCount) throw new AppError('Document reference changed during deletion', 409, 'DOCUMENT_REFERENCE_CONFLICT'); }); } finally { await databaseSession.endSession(); } document.status = status; document.isCurrent = false; if (!retained) await cleanup(document); return serializeDocument(document); };
+export const getProfileAsset = async (user, kind) => {
+  const config = profileConfig[kind];
+  const profile = await profileFor(user, config);
+  const document = await current({ _id: profile[config.reference], owner: user.id, category: config.category });
+  if (!document) throw new AppError('Document not found', 404);
+  
+  const serialized = serializeDocument(document);
+  const expiresAt = new Date(Date.now() + env.FILE_SIGNED_URL_TTL_SECONDS * 1000);
+  const signed = await createSignedDownloadUrl({
+    publicId: document.storage.publicId,
+    resourceType: document.mediaType === 'image' ? 'image' : 'raw',
+    expiresAt,
+    attachment: false,
+  });
+  serialized.url = signed.url;
+  return serialized;
+};
+export const deleteProfileAsset = async (user, kind) => { const config = profileConfig[kind]; const profile = await profileFor(user, config); const document = await current({ _id: profile[config.reference], owner: user.id }); if (!document) throw new AppError('Document not found', 404); const activeReference = kind === 'resume' && await Application.exists({ resumeDocument: document.id, status: { $nin: LOCKED_APPLICATION } }); if (activeReference) throw new AppError('Resume is retained by an active application', 409); const retained = kind === 'resume' && await Application.exists({ resumeDocument: document.id }); const status = retained ? 'archived' : 'deleted'; const databaseSession = await mongoose.startSession(); try { await databaseSession.withTransaction(async () => { const changed = await Document.updateOne({ _id: document.id, status: 'active', isCurrent: true }, { $set: { status, isCurrent: false, ...(retained ? { archivedAt: new Date() } : { deletedAt: new Date() }) }, $push: { statusHistory: { from: 'active', to: status, changedBy: user.id, reason: 'Profile document removed' } } }, { session: databaseSession }); const cleared = await config.model.updateOne({ _id: profile.id, [config.reference]: document.id }, { $set: { [config.reference]: null, ...(kind === 'resume' ? { resume: {} } : { profilePhoto: {} }) } }, { session: databaseSession }); if (!changed.modifiedCount || !cleared.modifiedCount) throw new AppError('Document reference changed during deletion', 409, 'DOCUMENT_REFERENCE_CONFLICT'); }); } finally { await databaseSession.endSession(); } document.status = status; document.isCurrent = false; if (!retained) await cleanup(document); return serializeDocument(document); };
 
 export const uploadCompanyLogo = async (user, company, input, file, replace = false) => {
   await assertSession(user, input.uploadSessionId, 'company-logo', 'company', company.id);
@@ -72,7 +107,21 @@ export const uploadCompanyLogo = async (user, company, input, file, replace = fa
   const document = replace ? await replaceDocument(user, previous.id, { ...input, category: 'company-logo' }, file, overrides) : await uploadDocument(user, { ...input, category: 'company-logo' }, file, null, overrides);
   if (replace) await cleanup(previous); return serializeDocument(document);
 };
-export const getCompanyLogo = async (company) => { const document = await current({ _id: company.logoDocument, company: company.id, category: 'company-logo' }); if (!document) throw new AppError('Company logo not found', 404); return serializeDocument(document); };
+export const getCompanyLogo = async (company) => {
+  const document = await current({ _id: company.logoDocument, company: company.id, category: 'company-logo' });
+  if (!document) throw new AppError('Company logo not found', 404);
+  
+  const serialized = serializeDocument(document);
+  const expiresAt = new Date(Date.now() + env.FILE_SIGNED_URL_TTL_SECONDS * 1000);
+  const signed = await createSignedDownloadUrl({
+    publicId: document.storage.publicId,
+    resourceType: 'image',
+    expiresAt,
+    attachment: false,
+  });
+  serialized.url = signed.url;
+  return serialized;
+};
 export const deleteCompanyLogo = async (user, company) => { const document = await current({ _id: company.logoDocument, company: company.id }); if (!document) throw new AppError('Company logo not found', 404); const databaseSession = await mongoose.startSession(); try { await databaseSession.withTransaction(async () => { const changed = await Document.updateOne({ _id: document.id, status: 'active', isCurrent: true }, { $set: { status: 'deleted', isCurrent: false, deletedAt: new Date() }, $push: { statusHistory: { from: 'active', to: 'deleted', changedBy: user.id, reason: 'Company logo deleted' } } }, { session: databaseSession }); const cleared = await Company.updateOne({ _id: company.id, logoDocument: document.id }, { $set: { logoDocument: null } }, { session: databaseSession }); if (!changed.modifiedCount || !cleared.modifiedCount) throw new AppError('Company logo reference changed during deletion', 409, 'DOCUMENT_REFERENCE_CONFLICT'); }); } finally { await databaseSession.endSession(); } document.status = 'deleted'; document.isCurrent = false; await cleanup(document); return serializeDocument(document); };
 
 const candidateApplication = async (user, id, writable = false) => { const application = await Application.findOne({ _id: id, candidate: user.id, isArchived: false }); if (!application) throw new AppError('Application not found', 404); if (writable && LOCKED_APPLICATION.includes(application.status)) throw new AppError('Application documents are locked', 409); return application; };

@@ -88,6 +88,7 @@ export interface DocumentRecord {
     reviewedAt?: string | undefined;
     reason?: string | undefined;
   };
+  url?: string | undefined;
 }
 const record = (value: unknown): Record<string, unknown> =>
   value && typeof value === 'object' ? (value as Record<string, unknown>) : {};
@@ -196,6 +197,7 @@ export function toDocument(value: unknown): DocumentRecord {
     access: text(v.access),
     createdAt: text(v.createdAt) || undefined,
     updatedAt: text(v.updatedAt) || undefined,
+    url: text(v.url) || undefined,
     verification: {
       required: verify.required === true,
       status: ['pending', 'verified', 'rejected', 'not-required'].includes(

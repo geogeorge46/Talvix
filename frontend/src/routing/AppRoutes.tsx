@@ -38,6 +38,7 @@ import {
   JobFormPage,
   ManagedJobsPage,
 } from '../features/job-management';
+import { TalentPoolPage } from '../features/talent-pool/TalentPoolPages';
 import {
   ApplicationDetailPage,
   ApplicationsPage,
@@ -187,6 +188,13 @@ function Protected({
   if (requiredRole && user.role !== requiredRole)
     return <Navigate to="/unauthorized" replace />;
   return children;
+}
+function NotificationsDispatcher() {
+  const { user } = useAuth();
+  if (user?.role === 'candidate') {
+    return <CandidateNotificationsPage />;
+  }
+  return <RecruiterNotificationsPage />;
 }
 function CapabilityRoute({
   anyPermission,
@@ -401,6 +409,14 @@ export function AppRoutes() {
           element={
             <CapabilityRoute anyPermission={['jobs.update']}>
               <JobFormPage mode="edit" />
+            </CapabilityRoute>
+          }
+        />
+        <Route
+          path="talent-pool"
+          element={
+            <CapabilityRoute anyPermission={['jobs.update']}>
+              <TalentPoolPage />
             </CapabilityRoute>
           }
         />
@@ -744,7 +760,7 @@ export function AppRoutes() {
       >
         <Route
           path="notifications"
-          element={<RecruiterNotificationsPage />}
+          element={<NotificationsDispatcher />}
         />
       </Route>
       <Route

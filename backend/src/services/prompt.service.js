@@ -14,7 +14,7 @@ const DEFAULT_PROMPTS = {
     description: 'Suggests comma-separated list of technical skills.'
   },
   perform_scam_check: {
-    template: 'Analyze the following job details for scam indicators, misleading claims, bias, or safety issues. Job Title: "{{title}}". Description: "{{description}}". Return JSON object matching format: {"isSafe": boolean, "riskScore": number (0-100), "issues": string[]}',
+    template: 'Analyze the following job details for scam indicators, misleading claims, bias, or safety issues. Job Title: "{{title}}". Description: "{{description}}". Response format MUST be a clean, flat JSON object (do not wrap in markdown or add text outside of JSON). Structure:\n{\n  "isSafe": <boolean: true if no safety/scam indicators, false otherwise>,\n  "riskScore": <number: 0-100 risk score>,\n  "issues": [<array of strings describing safety issues, or empty array if none>]\n}',
     requiredVariables: ['title', 'description'],
     description: 'Checks if a job is safe or a scam.'
   },

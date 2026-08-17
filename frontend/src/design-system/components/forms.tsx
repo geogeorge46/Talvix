@@ -401,6 +401,7 @@ export function SearchField({
             ref.current.value = '';
             ref.current.focus();
             ref.current.dispatchEvent(new Event('input', { bubbles: true }));
+            onSearch?.('');
           }
         }}
       >

@@ -3,6 +3,7 @@ import { CandidateProfile } from '../models/CandidateProfile.js';
 import { AppError } from '../shared/errors/AppError.js';
 import { buildPagination, createSafeRegex } from '../utils/pagination.js';
 import { calculateProfileCompletion } from '../utils/profileCompletion.js';
+import { createSignedDownloadUrl } from './fileStorageProvider.service.js';
 
 const SELF_PROFILE_POPULATE = { path: 'user', select: 'fullName email role avatar' };
 const COLLECTION_LIMITS = Object.freeze({
@@ -52,6 +53,36 @@ export const createCandidateProfileForUser = async (userId, session) => {
   return profile;
 };
 
+export const signProfileAssets = async (profile) => {
+  if (profile.resume && profile.resume.url && profile.resume.publicId) {
+    try {
+      const signed = await createSignedDownloadUrl({
+        publicId: profile.resume.publicId,
+        resourceType: 'raw',
+        expiresAt: new Date(Date.now() + 3600 * 1000), // 1 hour
+        attachment: false,
+      });
+      profile.set('resume.url', signed.url);
+    } catch (e) {
+      console.error('Failed to sign resume URL:', e);
+    }
+  }
+  if (profile.profilePhoto && profile.profilePhoto.url && profile.profilePhoto.publicId) {
+    try {
+      const signed = await createSignedDownloadUrl({
+        publicId: profile.profilePhoto.publicId,
+        resourceType: 'image',
+        expiresAt: new Date(Date.now() + 3600 * 1000), // 1 hour
+        attachment: false,
+      });
+      profile.set('profilePhoto.url', signed.url);
+    } catch (e) {
+      console.error('Failed to sign profile photo URL:', e);
+    }
+  }
+  return profile;
+};
+
 /** Returns whether a profile is visible to a requesting recruiter or administrator. */
 export const canViewCandidateProfile = (profile, viewerRole) =>
   profile.profileVisibility !== 'private' &&
@@ -61,6 +92,7 @@ export const canViewCandidateProfile = (profile, viewerRole) =>
 export const getOwnCandidateProfile = async (userId) => {
   const profile = await CandidateProfile.findOne({ user: userId }).populate(SELF_PROFILE_POPULATE);
   if (!profile) throw new AppError('Candidate profile not found', 404);
+  await signProfileAssets(profile);
   return profile;
 };
 
@@ -81,6 +113,7 @@ export const updateOwnCandidateProfile = async (userId, input) => {
   recalculateProfileCompletion(profile);
   await profile.save();
   await profile.populate(SELF_PROFILE_POPULATE);
+  await signProfileAssets(profile);
   return profile;
 };
 
@@ -146,6 +179,7 @@ export const getCandidateProfileById = async (candidateId, viewerRole) => {
   if (!profile || !canViewCandidateProfile(profile, viewerRole)) {
     throw new AppError('Candidate profile not found', 404);
   }
+  await signProfileAssets(profile);
   return profile;
 };
 

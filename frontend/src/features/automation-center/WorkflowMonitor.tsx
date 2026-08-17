@@ -12,15 +12,15 @@ export const WorkflowMonitor: React.FC = () => {
 
   return (
     <div style={{ padding: '24px', maxWidth: '1000px', margin: '0 auto', fontFamily: 'sans-serif' }}>
-      <h2 style={{ fontSize: '28px', color: '#2D3748', marginBottom: '24px' }}>Workflow Execution Monitor</h2>
+      <h2 style={{ fontSize: '28px', color: 'var(--color-text-strong)', marginBottom: '24px' }}>Workflow Execution Monitor</h2>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
         {executions.map(ex => (
           <div
             key={ex.id}
             style={{
-              background: '#FFF',
-              border: '1px solid #E2E8F0',
+              background: 'var(--color-surface-1)',
+              border: '1px solid var(--color-border-subtle)',
               borderRadius: '8px',
               padding: '20px',
               boxShadow: '0 4px 6px rgba(0,0,0,0.02)',
@@ -30,8 +30,8 @@ export const WorkflowMonitor: React.FC = () => {
             }}
           >
             <div>
-              <div style={{ fontWeight: 'bold', fontSize: '16px', color: '#2D3748' }}>{ex.name}</div>
-              <div style={{ fontSize: '13px', color: '#718096', marginTop: '4px' }}>
+              <div style={{ fontWeight: 'bold', fontSize: '16px', color: 'var(--color-text-strong)' }}>{ex.name}</div>
+              <div style={{ fontSize: '13px', color: 'var(--color-text-muted)', marginTop: '4px' }}>
                 Trigger: <strong>{ex.trigger}</strong> | Run Duration: <strong>{ex.duration}s</strong> | AI Cost: <strong>${ex.cost}</strong>
               </div>
             </div>
@@ -43,8 +43,8 @@ export const WorkflowMonitor: React.FC = () => {
                   fontWeight: 'bold',
                   padding: '6px 12px',
                   borderRadius: '12px',
-                  background: ex.status === 'completed' ? '#C6F6D5' : '#FED7D7',
-                  color: ex.status === 'completed' ? '#22543D' : '#9B2C2C',
+                  background: ex.status === 'completed' ? 'var(--color-success-bg)' : 'var(--color-danger-bg)',
+                  color: ex.status === 'completed' ? 'var(--color-success-fg)' : 'var(--color-danger-fg)',
                   textTransform: 'uppercase'
                 }}
               >
@@ -53,7 +53,7 @@ export const WorkflowMonitor: React.FC = () => {
               {ex.status === 'failed' && (
                 <button
                   onClick={() => triggerRetry(ex.id)}
-                  style={{ background: '#3182CE', color: '#FFF', border: 'none', padding: '8px 16px', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', fontSize: '13px' }}
+                  style={{ background: 'var(--color-action-primary)', color: 'var(--color-text-inverse)', border: 'none', padding: '8px 16px', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', fontSize: '13px' }}
                 >
                   Retry Execution
                 </button>

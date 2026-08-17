@@ -291,7 +291,7 @@ export function RegisterPage() {
             autoComplete="email"
             required
             error={fields.email}
-            value={inviteEmail || ''}
+            defaultValue={inviteEmail || ''}
             readOnly={!!inviteEmail}
             className={inviteEmail ? 'opacity-70 pointer-events-none' : ''}
           />
@@ -340,6 +340,8 @@ export function RegisterPage() {
             Next
           </Button>
         </form>
+
+        <SocialLogin />
 
         <p className="text-center text-sm text-slate-500 mt-6">
           Already have an account?{' '}

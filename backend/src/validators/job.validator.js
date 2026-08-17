@@ -27,7 +27,12 @@ const baseJobFields = {
   scheduledPublishAt: futurePublishDate.optional().nullable(),
 };
 const rangeCheck = (value, context) => {
-  if (value.maximumExperience !== undefined && value.minimumExperience !== undefined && value.maximumExperience < value.minimumExperience) context.addIssue({ code: 'custom', path: ['maximumExperience'], message: 'Maximum experience cannot be lower than minimum experience' });
+  if (value.maximumExperience !== undefined && value.minimumExperience !== undefined && value.maximumExperience < value.minimumExperience) {
+    context.addIssue({ code: 'custom', path: ['maximumExperience'], message: 'Maximum experience cannot be lower than minimum experience' });
+  }
+  if (value.scheduledPublishAt && value.applicationDeadline && new Date(value.scheduledPublishAt) >= new Date(value.applicationDeadline)) {
+    context.addIssue({ code: 'custom', path: ['scheduledPublishAt'], message: 'Scheduled publish date must be before the application deadline' });
+  }
 };
 export const jobCreateSchema = z.object({
   ...baseJobFields,

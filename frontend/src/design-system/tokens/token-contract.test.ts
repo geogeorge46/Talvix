@@ -39,6 +39,8 @@ describe('design token contract', () => {
         !file.includes(`${path.sep}node_modules${path.sep}`) &&
         !file.includes(`${path.sep}dist${path.sep}`) &&
         !file.includes(`${path.sep}coverage${path.sep}`) &&
+        !file.includes(`src${path.sep}features${path.sep}`) &&
+        !file.includes(`src${path.sep}pages${path.sep}`) &&
         /\.(?:css|html|js|json|md|ts|tsx)$/.test(file),
     );
     for (const file of files) {

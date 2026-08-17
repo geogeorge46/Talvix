@@ -1390,6 +1390,11 @@ export function UploadControl({
       maximumBytes: number;
       allowedMimeTypes: string[];
     } | null>(null);
+  const defaultAccept = ['profile-photo', 'company-logo'].includes(category)
+    ? 'image/jpeg,image/png,image/webp'
+    : category === 'resume'
+      ? 'application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain'
+      : undefined;
   const run = async () => {
     const file = input.current?.files?.[0];
     if (!file) return;
@@ -1441,7 +1446,7 @@ export function UploadControl({
           ref={input}
           className="tvx-input"
           type="file"
-          accept={constraints?.allowedMimeTypes.join(',')}
+          accept={constraints?.allowedMimeTypes.join(',') || defaultAccept}
         />
       </label>
       {path.includes('/manage/offers/') && !replaceId && (

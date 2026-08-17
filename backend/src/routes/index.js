@@ -34,6 +34,8 @@ import { platformAdminRouter } from './admin.routes.js';
 import { realtimeRouter } from './realtime.routes.js';
 import { dashboardConfigRouter } from './dashboardConfig.routes.js';
 import { savedViewsRouter } from './savedViews.routes.js';
+import { searchRouter } from './search.routes.js';
+import { talentPoolRouter } from './talentPool.routes.js';
 
 export const apiRouter = Router();
 
@@ -78,4 +80,6 @@ apiRouter.use('/analytics', recruiterAnalyticsRouter);
 apiRouter.use('/analytics', savedViewsRouter);
 apiRouter.use('/realtime', realtimeRouter);
 apiRouter.use('/dashboard', dashboardConfigRouter);
+apiRouter.use('/search', searchRouter);
+apiRouter.use('/talent-pool', talentPoolRouter);
 

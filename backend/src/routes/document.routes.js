@@ -10,8 +10,21 @@ import { acceptSingleFile } from '../middleware/fileUpload.js';
 import * as documentValidation from '../validators/document.validator.js';
 import * as integrationValidation from '../validators/documentIntegration.validator.js';
 import { validateBody, validateParams, validateQuery } from '../validators/validate.js';
+import { getMemoryFile } from '../services/fileStorageProvider.service.js';
 
 export const documentRouter = Router();
+documentRouter.get('/local-view/*publicId', (req, res) => {
+  try {
+    const publicId = decodeURIComponent(req.path.split('/local-view/')[1]);
+    const file = getMemoryFile(publicId);
+    if (!file) return res.status(404).send('Not Found');
+    res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+    res.setHeader('Content-Type', file.mimeType || 'image/png');
+    res.send(file.buffer);
+  } catch (error) {
+    res.status(500).send('Error');
+  }
+});
 documentRouter.use(authenticate);
 const candidate = authorizeRoles(USER_ROLES.CANDIDATE);
 const recruiter = authorizeRoles(USER_ROLES.RECRUITER);

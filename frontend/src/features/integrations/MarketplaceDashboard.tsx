@@ -13,8 +13,8 @@ export const MarketplaceDashboard: React.FC = () => {
 
   return (
     <div style={{ padding: '24px', maxWidth: '1000px', margin: '0 auto', fontFamily: 'sans-serif' }}>
-      <h2 style={{ fontSize: '28px', color: '#2D3748', marginBottom: '8px' }}>App Marketplace</h2>
-      <p style={{ color: '#718096', fontSize: '14px', marginBottom: '24px' }}>
+      <h2 style={{ fontSize: '28px', color: 'var(--color-text-strong)', marginBottom: '8px' }}>App Marketplace</h2>
+      <p style={{ color: 'var(--color-text-muted)', fontSize: '14px', marginBottom: '24px' }}>
         Install third-party plugins and enterprise connection adapters to synchronize calendars, HRIS suites, and video rooms.
       </p>
 
@@ -23,8 +23,8 @@ export const MarketplaceDashboard: React.FC = () => {
           <div
             key={plugin.name}
             style={{
-              background: '#FFF',
-              border: '1px solid #E2E8F0',
+              background: 'var(--color-surface-1)',
+              border: '1px solid var(--color-border-subtle)',
               borderRadius: '8px',
               padding: '20px',
               boxShadow: '0 4px 6px rgba(0,0,0,0.02)',
@@ -35,16 +35,16 @@ export const MarketplaceDashboard: React.FC = () => {
             }}
           >
             <div>
-              <div style={{ fontWeight: 'bold', fontSize: '16px', color: '#2D3748' }}>{plugin.name}</div>
-              <div style={{ fontSize: '13px', color: '#718096', marginTop: '8px', lineHeight: '1.4' }}>{plugin.desc}</div>
+              <div style={{ fontWeight: 'bold', fontSize: '16px', color: 'var(--color-text-strong)' }}>{plugin.name}</div>
+              <div style={{ fontSize: '13px', color: 'var(--color-text-muted)', marginTop: '8px', lineHeight: '1.4' }}>{plugin.desc}</div>
             </div>
 
             <button
               onClick={() => toggleInstall(plugin.name)}
               style={{
                 width: '100%',
-                background: plugin.installed ? '#E53E3E' : '#3182CE',
-                color: '#FFF',
+                background: plugin.installed ? 'var(--color-danger-fg)' : 'var(--color-action-primary)',
+                color: 'var(--color-text-inverse)',
                 border: 'none',
                 padding: '10px',
                 borderRadius: '6px',

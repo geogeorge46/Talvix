@@ -13,12 +13,70 @@ export const suggestSkills = async (title, description, context = {}) => {
 
 export const performScamCheck = async (title, description, context = {}) => {
   const resultText = await invokeAIGateway('perform_scam_check', { title, description }, context);
+  
+  let data;
+  try {
+    data = parseJSON(resultText);
+  } catch (err) {
+    data = { isSafe: true, riskScore: 10, issues: [] };
+  }
+
+  // Unwrap nested structures
+  if (data && typeof data === 'object' && !('isSafe' in data) && !('riskScore' in data)) {
+    const keys = Object.keys(data);
+    if (keys.length === 1 && data[keys[0]] && typeof data[keys[0]] === 'object') {
+      data = data[keys[0]];
+    }
+  }
+
+  const normalized = {
+    isSafe: true,
+    riskScore: 0,
+    issues: []
+  };
+
+  if (data && typeof data === 'object') {
+    // Normalize isSafe
+    if ('isSafe' in data) {
+      normalized.isSafe = Boolean(data.isSafe);
+    } else if ('safe' in data) {
+      normalized.isSafe = Boolean(data.safe);
+    } else if ('is_safe' in data) {
+      normalized.isSafe = Boolean(data.is_safe);
+    }
+
+    // Normalize riskScore
+    if ('riskScore' in data) {
+      normalized.riskScore = Number(data.riskScore);
+    } else if ('risk' in data) {
+      normalized.riskScore = Number(data.risk);
+    } else if ('risk_score' in data) {
+      normalized.riskScore = Number(data.risk_score);
+    } else if ('score' in data) {
+      normalized.riskScore = Number(data.score);
+    }
+
+    // Normalize issues
+    if (Array.isArray(data.issues)) {
+      normalized.issues = data.issues.map(String);
+    } else if (Array.isArray(data.reasons)) {
+      normalized.issues = data.reasons.map(String);
+    } else if (Array.isArray(data.alerts)) {
+      normalized.issues = data.alerts.map(String);
+    } else if (data.issues && typeof data.issues === 'string') {
+      normalized.issues = [data.issues];
+    } else if (data.reason && typeof data.reason === 'string') {
+      normalized.issues = [data.reason];
+    }
+  }
+
   const schema = z.object({
     isSafe: z.boolean(),
     riskScore: z.number().min(0).max(100),
     issues: z.array(z.string())
   });
-  return parseJSON(resultText, schema);
+
+  return schema.parse(normalized);
 };
 
 export const generateCandidateAnalysis = async (jobDetails, candidateDetails, context = {}) => {

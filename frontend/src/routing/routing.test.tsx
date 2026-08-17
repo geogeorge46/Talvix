@@ -311,7 +311,9 @@ describe('routing, auth, and shell integration', () => {
               pagination: { page: 1, limit: 50, total: 0, pages: 0 },
             },
           });
-        profileCalls += 1;
+        if (url.includes('/recruiters/me')) {
+          profileCalls += 1;
+        }
         return json({
           data: {
             profile: {

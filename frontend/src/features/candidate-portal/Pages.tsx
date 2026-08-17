@@ -47,6 +47,17 @@ import {
 } from './api';
 import type { CandidateProfile } from './model';
 import { UploadControl } from '../offers-documents';
+import {
+  Sparkles,
+  ChevronRight,
+  User,
+  FileText,
+  Briefcase,
+  ClipboardCheck,
+  Calendar,
+  Award,
+  Bell,
+} from 'lucide-react';
 import './candidate-portal.css';
 const message = (error: unknown) =>
   error instanceof Error ? error.message : 'Something went wrong.';
@@ -117,16 +128,21 @@ export function CandidateDashboardPage() {
         title="Candidate workspace"
         description="Keep your search moving, one clear next step at a time."
       />
-      <section className="candidate-hero" aria-label="Next best action">
-        <div>
-          <span className="candidate-eyebrow">NEXT BEST ACTION</span>
-          <h2>
+      
+      {/* Premium Hero Next Best Action */}
+      <section className="candidate-hero-premium" aria-label="Next best action">
+        <div className="hero-content">
+          <div className="hero-badge">
+            <Sparkles size={14} className="hero-badge-icon" />
+            <span>NEXT BEST ACTION</span>
+          </div>
+          <h2 className="hero-heading">
             {nextAction?.label ??
               (!profile.data?.headline
                 ? 'Complete your candidate headline'
                 : 'No urgent deadline')}
           </h2>
-          <p>
+          <p className="hero-subtext">
             {nextAction?.detail ??
               (!profile.data?.headline
                 ? 'Help recruiters understand the work you want to do.'
@@ -134,7 +150,7 @@ export function CandidateDashboardPage() {
           </p>
         </div>
         <Link
-          className="candidate-button-link"
+          className="hero-action-btn"
           to={
             nextAction?.href ??
             (!profile.data?.headline
@@ -142,74 +158,112 @@ export function CandidateDashboardPage() {
               : '/candidate/applications')
           }
         >
-          {nextAction
-            ? 'Open action'
-            : !profile.data?.headline
-              ? 'Complete profile'
-              : 'View applications'}
+          <span>
+            {nextAction
+              ? 'Open action'
+              : !profile.data?.headline
+                ? 'Complete profile'
+                : 'View applications'}
+          </span>
+          <ChevronRight size={16} />
         </Link>
       </section>
-      <div className="candidate-summary">
-        <Card>
-          <h2>Profile</h2>
-          {profile.isPending ? (
-            <LoadingState label="Loading profile" />
-          ) : profile.isError ? (
-            <ErrorState
-              title="Profile unavailable"
-              detail={message(profile.error)}
-            />
-          ) : (
-            <>
-              <strong>{profile.data?.headline || 'Headline needed'}</strong>
-              <p>Visibility: {profile.data?.profileVisibility}</p>
-            </>
-          )}
-        </Card>
-        <Card>
-          <h2>Applications</h2>
-          {apps.isPending ? (
-            <LoadingState label="Loading applications" />
-          ) : apps.isError ? (
-            <ErrorState
-              title="Applications unavailable"
-              detail={message(apps.error)}
-            />
-          ) : (
-            <>
-              <strong className="candidate-number">{apps.data?.total}</strong>
-              <p>Applications in your workspace</p>
-            </>
-          )}
-        </Card>
-        <Card>
-          <h2>Upcoming work</h2>
-          <p>
-            Assessments, interviews and offers stay in their dedicated
-            workspaces.
-          </p>
-          <div className="candidate-inline-links">
-            <Link to="/candidate/assessments">Assessments</Link>
-            <Link to="/candidate/interviews">Interviews</Link>
-            <Link to="/candidate/offers">Offers</Link>
+
+      {/* Top 3 Column Cards Summary */}
+      <div className="candidate-grid-3">
+        <div className="candidate-dashboard-card">
+          <div className="card-icon-wrapper color-profile">
+            <User size={20} />
           </div>
-        </Card>
+          <div className="card-body">
+            <h3>Profile</h3>
+            {profile.isPending ? (
+              <LoadingState label="Loading profile" />
+            ) : profile.isError ? (
+              <ErrorState title="Profile unavailable" detail={message(profile.error)} />
+            ) : (
+              <div className="profile-summary-text">
+                <span className="profile-headline">{profile.data?.headline || 'Headline needed'}</span>
+                <span className="profile-visibility-badge">
+                  Visibility: {profile.data?.profileVisibility}
+                </span>
+              </div>
+            )}
+            <Link className="card-link" to="/candidate/profile">Edit profile →</Link>
+          </div>
+        </div>
+
+        <div className="candidate-dashboard-card">
+          <div className="card-icon-wrapper color-apps">
+            <FileText size={20} />
+          </div>
+          <div className="card-body">
+            <h3>Applications</h3>
+            {apps.isPending ? (
+              <LoadingState label="Loading applications" />
+            ) : apps.isError ? (
+              <ErrorState title="Applications unavailable" detail={message(apps.error)} />
+            ) : (
+              <div className="apps-summary-text">
+                <strong className="summary-number">{apps.data?.total || 0}</strong>
+                <span className="summary-label">Applications in your workspace</span>
+              </div>
+            )}
+            <Link className="card-link" to="/candidate/applications">View all →</Link>
+          </div>
+        </div>
+
+        <div className="candidate-dashboard-card">
+          <div className="card-icon-wrapper color-work">
+            <Briefcase size={20} />
+          </div>
+          <div className="card-body">
+            <h3>Quick links</h3>
+            <p className="card-description">Access your dedicated recruiting workspaces instantly.</p>
+            <div className="candidate-pills">
+              <Link className="pill-link" to="/candidate/assessments">Assessments</Link>
+              <Link className="pill-link" to="/candidate/interviews">Interviews</Link>
+              <Link className="pill-link" to="/candidate/offers">Offers</Link>
+            </div>
+          </div>
+        </div>
       </div>
-      <section>
-        <h2>Recent applications</h2>
+
+      {/* Recent Applications Section */}
+      <section className="dashboard-section">
+        <h2 className="section-title">Recent applications</h2>
         {apps.data?.items.length ? (
-          <ul className="candidate-list">
-            {apps.data.items.map((a) => (
-              <li key={a.id}>
-                <div>
-                  <strong>{a.jobTitle || 'Application'}</strong>
-                  <span>{a.companyName}</span>
-                </div>
-                <StatusTag>{a.status}</StatusTag>
-                <Link to={`/candidate/applications/${a.id}`}>Open</Link>
-              </li>
-            ))}
-          </ul>
+          <div className="applications-table-wrapper">
+            <table className="applications-table">
+              <thead>
+                <tr>
+                  <th>Job details</th>
+                  <th>Status</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {apps.data.items.map((a) => (
+                  <tr key={a.id}>
+                    <td>
+                      <div style={{ display: 'flex', flexDirection: 'column' }}>
+                        <strong className="table-job-title">{a.jobTitle || 'Application'}</strong>
+                        <span className="table-company">{a.companyName}</span>
+                      </div>
+                    </td>
+                    <td>
+                      <StatusTag>{a.status}</StatusTag>
+                    </td>
+                    <td>
+                      <Link className="table-action-link" to={`/candidate/applications/${a.id}`}>
+                        Open details
+                      </Link>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         ) : (
           !apps.isPending && (
             <EmptyState
@@ -224,71 +278,96 @@ export function CandidateDashboardPage() {
           )
         )}
       </section>
-      <section aria-labelledby="candidate-deadlines-title">
-        <h2 id="candidate-deadlines-title">Deadlines and activity</h2>
-        <div className="candidate-summary">
-          <DomainSummary
+
+      {/* Deadlines and Activity Grid (Aligned 4 Columns) */}
+      <section className="dashboard-section" aria-labelledby="candidate-deadlines-title">
+        <h2 id="candidate-deadlines-title" className="section-title">Deadlines and activity</h2>
+        <div className="candidate-grid-4">
+          <DomainSummaryCard
             title="Assessments"
             href="/candidate/assessments"
             pending={assessments.isPending}
             error={assessments.error}
             count={assessments.data?.length}
+            icon={<ClipboardCheck size={20} />}
+            themeClass="theme-assessments"
           />
-          <DomainSummary
+          <DomainSummaryCard
             title="Interviews"
             href="/candidate/interviews"
             pending={interviews.isPending}
             error={interviews.error}
             count={interviews.data?.length}
+            icon={<Calendar size={20} />}
+            themeClass="theme-interviews"
           />
-          <DomainSummary
+          <DomainSummaryCard
             title="Offers"
             href="/candidate/offers"
             pending={offers.isPending}
             error={offers.error}
             count={offers.data?.length}
+            icon={<Award size={20} />}
+            themeClass="theme-offers"
           />
-          <DomainSummary
+          <DomainSummaryCard
             title="Unread updates"
             href="/candidate/notifications"
             pending={notifications.isPending}
             error={notifications.error}
             count={notifications.data?.total}
+            icon={<Bell size={20} />}
+            themeClass="theme-updates"
           />
         </div>
       </section>
     </div>
   );
 }
-function DomainSummary({
-  title,
-  href,
-  pending,
-  error,
-  count,
-}: {
+
+interface DomainSummaryCardProps {
   title: string;
   href: string;
   pending: boolean;
   error: unknown;
   count: number | undefined;
-}) {
+  icon: React.ReactNode;
+  themeClass: string;
+}
+
+function DomainSummaryCard({
+  title,
+  href,
+  pending,
+  error,
+  count,
+  icon,
+  themeClass,
+}: DomainSummaryCardProps) {
   return (
-    <Card>
-      <h3>{title}</h3>
-      {pending ? (
-        <LoadingState label={`Loading ${title.toLowerCase()}`} />
-      ) : error ? (
-        <p role="status">Temporarily unavailable</p>
-      ) : (
-        <strong className="candidate-number">{count ?? 0}</strong>
-      )}
-      <Link to={href}>Open {title.toLowerCase()}</Link>
-    </Card>
+    <div className={`domain-summary-card ${themeClass}`}>
+      <div className="card-header-row">
+        <div className="domain-icon-box">{icon}</div>
+        <h3>{title}</h3>
+      </div>
+      <div className="card-count-box">
+        {pending ? (
+          <LoadingState label={`Loading ${title.toLowerCase()}`} />
+        ) : error ? (
+          <p className="error-text" role="status">Temporarily unavailable</p>
+        ) : (
+          <span className="domain-count">{count ?? 0}</span>
+        )}
+      </div>
+      <Link className="domain-action-btn" to={href}>
+        Open {title.toLowerCase()}
+      </Link>
+    </div>
   );
 }
 
 export function CandidateProfilePage() {
+  const { user } = useAuth();
   const q = useCandidateProfile(),
     mutation = useCandidateProfileMutation();
   const photo = useCandidateProfilePhoto();
@@ -297,18 +376,98 @@ export function CandidateProfilePage() {
     string,
     unknown
   > | null>(null);
+  const [validationError, setValidationError] = useState('');
   if (q.isPending) return <LoadingState label="Loading profile" />;
   if (q.isError)
     return <ErrorState title="Profile unavailable" detail={message(q.error)} />;
   const p = q.data;
+
+  const currentCurrency = p.expectedSalary?.currency ?? 'INR';
+  const currencyOptions = [
+    { value: 'INR', label: 'INR (₹)' },
+    { value: 'USD', label: 'USD ($)' },
+    { value: 'EUR', label: 'EUR (€)' },
+    { value: 'GBP', label: 'GBP (£)' },
+    { value: 'CAD', label: 'CAD (C$)' },
+    { value: 'AUD', label: 'AUD (A$)' },
+    { value: 'SGD', label: 'SGD (S$)' },
+    { value: 'AED', label: 'AED (د.إ)' },
+  ];
+  if (!currencyOptions.some(o => o.value === currentCurrency)) {
+    currencyOptions.push({ value: currentCurrency, label: currentCurrency });
+  }
+
+  const currentJobTypesVal = p.preferredJobTypes.join(', ');
+  const jobTypeOptions = [
+    { value: 'full-time', label: 'Full-time' },
+    { value: 'part-time', label: 'Part-time' },
+    { value: 'contract', label: 'Contract' },
+    { value: 'internship', label: 'Internship' },
+    { value: 'freelance', label: 'Freelance' },
+    { value: 'full-time, part-time', label: 'Full-time & Part-time' },
+    { value: 'full-time, part-time, contract', label: 'Full-time, Part-time & Contract' },
+    { value: 'full-time, part-time, contract, internship, freelance', label: 'All Job Types' },
+  ];
+  if (currentJobTypesVal && !jobTypeOptions.some(o => o.value === currentJobTypesVal)) {
+    jobTypeOptions.push({ value: currentJobTypesVal, label: currentJobTypesVal });
+  }
+
   const submit = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    const f = new FormData(e.currentTarget),
-      visibility = String(f.get('profileVisibility'));
+    setValidationError('');
+    const f = new FormData(e.currentTarget);
+    const phoneVal = String(f.get('phone')).trim();
+    if (phoneVal && !/^[+()\-\s\d]{7,20}$/.test(phoneVal)) {
+      setValidationError('Phone number must contain only numbers, spaces, hyphens, parentheses, or + and be between 7 and 20 characters.');
+      return;
+    }
+
+    const headlineVal = String(f.get('headline')).trim();
+    if (headlineVal.length > 150) {
+      setValidationError('Professional headline must not exceed 150 characters.');
+      return;
+    }
+
+    const bioVal = String(f.get('bio')).trim();
+    if (bioVal.length > 3000) {
+      setValidationError('Bio must not exceed 3000 characters.');
+      return;
+    }
+
+    const availabilityVal = String(f.get('availability'));
+    const noticePeriodDaysVal = String(f.get('noticePeriodDays'));
+    if (availabilityVal === 'notice-period') {
+      const days = Number(noticePeriodDaysVal);
+      if (!noticePeriodDaysVal || Number.isNaN(days) || days < 0) {
+        setValidationError('Notice period days is required and must be a positive number.');
+        return;
+      }
+    }
+
+    const minSalaryVal = String(f.get('salaryMinimum'));
+    const maxSalaryVal = String(f.get('salaryMaximum'));
+    if (minSalaryVal || maxSalaryVal) {
+      const min = Number(minSalaryVal);
+      const max = Number(maxSalaryVal);
+      if (minSalaryVal && (Number.isNaN(min) || min < 0)) {
+        setValidationError('Minimum salary must be a positive number.');
+        return;
+      }
+      if (maxSalaryVal && (Number.isNaN(max) || max < 0)) {
+        setValidationError('Maximum salary must be a positive number.');
+        return;
+      }
+      if (minSalaryVal && maxSalaryVal && min > max) {
+        setValidationError('Minimum salary cannot exceed maximum salary.');
+        return;
+      }
+    }
+
+    const visibility = String(f.get('profileVisibility'));
     const body = {
-      headline: String(f.get('headline')),
-      bio: String(f.get('bio')),
-      phone: String(f.get('phone')),
+      headline: headlineVal,
+      bio: bioVal,
+      phone: phoneVal || undefined,
       location: {
         city: String(f.get('city')),
         state: String(f.get('state')),
@@ -333,18 +492,18 @@ export function CandidateProfilePage() {
         .split(',')
         .map((x) => x.trim())
         .filter(Boolean),
-      ...(String(f.get('salaryMinimum')) && String(f.get('salaryMaximum'))
+      ...(minSalaryVal && maxSalaryVal
         ? {
             expectedSalary: {
-              minimum: Number(f.get('salaryMinimum')),
-              maximum: Number(f.get('salaryMaximum')),
+              minimum: Number(minSalaryVal),
+              maximum: Number(maxSalaryVal),
               currency: String(f.get('salaryCurrency')).toUpperCase(),
             },
           }
         : { expectedSalary: null }),
-      availability: String(f.get('availability')) || undefined,
-      ...(String(f.get('availability')) === 'notice-period'
-        ? { noticePeriodDays: Number(f.get('noticePeriodDays')) }
+      availability: availabilityVal || undefined,
+      ...(availabilityVal === 'notice-period'
+        ? { noticePeriodDays: Number(noticePeriodDaysVal) }
         : {}),
       profileVisibility: visibility,
     };
@@ -366,221 +525,363 @@ export function CandidateProfilePage() {
         administrators—not the open web. Talvix does not support per-section
         privacy.
       </Alert>
-      <Card>
-        <h2>Profile photo</h2>
-        {photo.isPending ? (
-          <LoadingState label="Loading profile photo" />
-        ) : photo.isError ? (
-          <p>
-            The specialized profile-photo service is temporarily unavailable.
-          </p>
-        ) : photo.data ? (
-          <p>
-            {photo.data.displayName} · {photo.data.status}
-          </p>
-        ) : (
-          <p>No profile photo uploaded.</p>
-        )}
-        <p>
-          Profile photos use the private specialized document contract. Upload
-          and replacement remain in the Documents workspace until a dedicated
-          photo picker can safely provide its multipart flow.
-        </p>
-        <Link to="/candidate/documents">Open document manager</Link>
-      </Card>
-      <Card>
-        <h2>Resume</h2>
-        {p.resume ? (
-          <div style={{ marginBottom: '16px' }}>
-            <p>
-              Current Resume: <span style={{ fontWeight: 'bold', color: 'var(--color-success)' }}>{p.resume.displayName || 'resume.pdf'}</span>
-            </p>
-            <p style={{ marginTop: '4px' }}>
-              <a href={p.resume.url} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--color-primary)', textDecoration: 'underline' }}>View Current Resume</a>
-            </p>
+
+      {/* Two-Column Grid Layout */}
+      <div className="profile-layout-grid">
+        
+        {/* Left Column - Avatar & Core Uploads */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+          
+          {/* User profile preview card */}
+          <div className="tvx-card tvx-card--bordered" style={{ padding: '24px', textAlign: 'center', background: 'var(--color-surface-1)', borderRadius: '12px' }}>
+            {photo.data?.url ? (
+              <img 
+                src={photo.data.url} 
+                alt="Profile" 
+                style={{
+                  width: '80px',
+                  height: '80px',
+                  borderRadius: '50%',
+                  objectFit: 'cover',
+                  border: '1px solid var(--color-border-default)',
+                  margin: '0 auto 16px auto',
+                  display: 'block',
+                }}
+              />
+            ) : (
+              <div style={{
+                width: '80px',
+                height: '80px',
+                borderRadius: '50%',
+                background: 'var(--color-info-bg)',
+                color: 'var(--color-info-fg)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                margin: '0 auto 16px auto',
+                fontSize: '32px',
+                fontWeight: 'bold',
+              }}>
+                {user?.fullName ? user.fullName[0]?.toUpperCase() : 'U'}
+              </div>
+            )}
+            <h3 style={{ margin: '0 0 4px 0', fontSize: '18px', fontWeight: '600', color: 'var(--color-text-strong)' }}>{user?.fullName || 'User Profile'}</h3>
+            <span style={{ display: 'block', fontSize: '13px', color: 'var(--color-text-muted)', marginBottom: '12px' }}>{p.headline || 'No headline set'}</span>
+            <StatusTag tone={p.profileVisibility === 'public' ? 'success' : p.profileVisibility === 'recruiters-only' ? 'info' : 'neutral'}>
+              {p.profileVisibility === 'public' ? 'Public' : p.profileVisibility === 'recruiters-only' ? 'Recruiters-Only' : 'Private'}
+            </StatusTag>
           </div>
-        ) : (
-          <p style={{ marginBottom: '16px', color: 'var(--color-warning)' }}>No resume uploaded. A resume is required to apply for most jobs.</p>
-        )}
-        <UploadControl
-          entityType="candidate-profile"
-          entityId={p.id}
-          category="resume"
-          path={p.resumeDocument ? '/documents/me/resume/replace' : '/documents/me/resume'}
-          onDone={() => {
-            q.refetch();
-          }}
-        />
-      </Card>
-      <Card>
-        <form onSubmit={submit}>
-          <FormField label="Professional headline">
-            {({ id, ...control }) => (
-              <TextField
-                id={id}
-                {...control}
-                name="headline"
-                defaultValue={p.headline}
-              />
-            )}
-          </FormField>
-          <FormField label="About you">
-            {({ id, ...control }) => (
-              <TextArea id={id} {...control} name="bio" defaultValue={p.bio} />
-            )}
-          </FormField>
-          <FormField label="Phone">
-            {({ id, ...control }) => (
-              <TextField
-                id={id}
-                {...control}
-                name="phone"
-                defaultValue={p.phone}
-              />
-            )}
-          </FormField>
-          <FormField label="Profile visibility">
-            {({ id, ...control }) => (
-              <Select
-                id={id}
-                {...control}
-                name="profileVisibility"
-                defaultValue={p.profileVisibility}
-                options={[
-                  { value: 'public', label: 'Public within Talvix' },
-                  { value: 'recruiters-only', label: 'Recruiters only' },
-                  { value: 'private', label: 'Private' },
-                ]}
-              />
-            )}
-          </FormField>
-          <div className="candidate-form-grid">
-            <TextField
-              name="city"
-              aria-label="City"
-              placeholder="City"
-              defaultValue={p.location.city}
-            />
-            <TextField
-              name="state"
-              aria-label="State"
-              placeholder="State"
-              defaultValue={p.location.state}
-            />
-            <TextField
-              name="country"
-              aria-label="Country"
-              placeholder="Country"
-              defaultValue={p.location.country}
-            />
-            <TextField
-              name="dateOfBirth"
-              aria-label="Date of birth"
-              type="date"
-              defaultValue={p.dateOfBirth?.slice(0, 10)}
-            />
-            <Select
-              name="gender"
-              aria-label="Gender"
-              placeholder="Gender"
-              defaultValue={p.gender ?? ''}
-              options={[
-                'female',
-                'male',
-                'non-binary',
-                'prefer-not-to-say',
-              ].map((value) => ({ value, label: value }))}
-            />
-            <TextField
-              name="github"
-              aria-label="GitHub URL"
-              type="url"
-              placeholder="GitHub URL"
-              defaultValue={p.socialLinks.github}
-            />
-            <TextField
-              name="linkedin"
-              aria-label="LinkedIn URL"
-              type="url"
-              placeholder="LinkedIn URL"
-              defaultValue={p.socialLinks.linkedin}
-            />
-            <TextField
-              name="portfolio"
-              aria-label="Portfolio URL"
-              type="url"
-              placeholder="Portfolio URL"
-              defaultValue={p.socialLinks.portfolio}
-            />
-            <TextField
-              name="preferredRoles"
-              aria-label="Preferred roles"
-              placeholder="Preferred roles, comma separated"
-              defaultValue={p.preferredRoles.join(', ')}
-            />
-            <TextField
-              name="preferredLocations"
-              aria-label="Preferred locations"
-              placeholder="Preferred locations, comma separated"
-              defaultValue={p.preferredLocations.join(', ')}
-            />
-            <TextField
-              name="preferredJobTypes"
-              aria-label="Preferred job types"
-              placeholder="internship, full-time, part-time, contract, freelance"
-              defaultValue={p.preferredJobTypes.join(', ')}
-            />
-            <TextField
-              name="salaryMinimum"
-              aria-label="Expected salary minimum"
-              type="number"
-              min="0"
-              defaultValue={p.expectedSalary?.minimum}
-            />
-            <TextField
-              name="salaryMaximum"
-              aria-label="Expected salary maximum"
-              type="number"
-              min="0"
-              defaultValue={p.expectedSalary?.maximum}
-            />
-            <TextField
-              name="salaryCurrency"
-              aria-label="Expected salary currency"
-              maxLength={3}
-              defaultValue={p.expectedSalary?.currency ?? 'INR'}
-            />
-            <Select
-              name="availability"
-              aria-label="Availability"
-              placeholder="Availability"
-              defaultValue={p.availability ?? ''}
-              options={['immediately', 'notice-period', 'unavailable'].map(
-                (value) => ({ value, label: value }),
+
+          {/* Privacy & Visibility Settings Card */}
+          <div className="tvx-card tvx-card--bordered" style={{ padding: '24px', background: 'var(--color-surface-1)', borderRadius: '12px' }}>
+            <h3 style={{ margin: '0 0 12px 0', fontSize: '16px', fontWeight: '600', color: 'var(--color-text-strong)' }}>Visibility settings</h3>
+            <FormField label="Configure search discoverability">
+              {({ id, ...control }) => (
+                <Select
+                  id={id}
+                  {...control}
+                  form="profile-form"
+                  name="profileVisibility"
+                  defaultValue={p.profileVisibility}
+                  options={[
+                    { value: 'public', label: 'Public within Talvix' },
+                    { value: 'recruiters-only', label: 'Recruiters only' },
+                    { value: 'private', label: 'Private' },
+                  ]}
+                />
               )}
-            />
-            <TextField
-              name="noticePeriodDays"
-              aria-label="Notice period days"
-              type="number"
-              min="0"
-              max="365"
-              defaultValue={p.noticePeriodDays}
+            </FormField>
+            <p style={{ fontSize: '11px', color: 'var(--color-text-muted)', lineHeight: '1.4', marginTop: '12px', marginBottom: 0 }}>
+              Adjusting this will determine whether recruiters can discover your profile when doing outbound searches on Talvix.
+            </p>
+          </div>
+
+          {/* Profile Photo */}
+          <div className="tvx-card tvx-card--bordered" style={{ padding: '24px', background: 'var(--color-surface-1)', borderRadius: '12px' }}>
+            <h3 style={{ margin: '0 0 12px 0', fontSize: '16px', fontWeight: '600', color: 'var(--color-text-strong)' }}>Profile photo</h3>
+            {photo.isPending ? (
+              <LoadingState label="Loading profile photo" />
+            ) : photo.data ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '16px' }}>
+                <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+                  {photo.data.url ? (
+                    <img 
+                      src={photo.data.url} 
+                      alt="Profile Thumbnail" 
+                      style={{ width: '48px', height: '48px', borderRadius: '50%', objectFit: 'cover', border: '1px solid var(--color-border-default)' }} 
+                    />
+                  ) : (
+                    <div style={{ width: '48px', height: '48px', borderRadius: '50%', background: 'var(--color-info-bg)', color: 'var(--color-info-fg)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold' }}>
+                      {user?.fullName ? user.fullName[0]?.toUpperCase() : 'U'}
+                    </div>
+                  )}
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <strong style={{ display: 'block', fontSize: '13px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: 'var(--color-text-strong)' }}>
+                      {photo.data.displayName || 'photo.jpg'}
+                    </strong>
+                    <span style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>Status: {photo.data.status}</span>
+                  </div>
+                </div>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <Button
+                    variant="danger"
+                    size="compact"
+                    onClick={async () => {
+                      try {
+                        await apiRequest('/documents/me/profile-photo', { method: 'DELETE' });
+                        q.refetch();
+                        photo.refetch();
+                      } catch (e) {
+                        console.error('Failed to delete photo', e);
+                      }
+                    }}
+                  >
+                    Delete photo
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <p style={{ fontSize: '13px', color: 'var(--color-text-muted)', marginBottom: '16px' }}>No profile photo uploaded.</p>
+            )}
+            
+            <div style={{ marginBottom: '16px' }}>
+              <UploadControl
+                entityType="candidate-profile"
+                entityId={p.id}
+                category="profile-photo"
+                path={photo.data ? '/documents/me/profile-photo/replace' : '/documents/me/profile-photo'}
+                onDone={() => {
+                  q.refetch();
+                  photo.refetch();
+                }}
+              />
+            </div>
+            
+            <p style={{ fontSize: '11px', color: 'var(--color-text-muted)', lineHeight: '1.4', margin: 0 }}>
+              Profile photos use the private specialized document contract. You can upload and replace them directly from here.
+            </p>
+          </div>
+
+          {/* Resume Card */}
+          <div className="tvx-card tvx-card--bordered" style={{ padding: '24px', background: 'var(--color-surface-1)', borderRadius: '12px' }}>
+            <h3 style={{ margin: '0 0 12px 0', fontSize: '16px', fontWeight: '600', color: 'var(--color-text-strong)' }}>Resume document</h3>
+            {p.resume ? (
+              <div style={{ marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '10px', background: 'var(--color-surface-2)', padding: '12px', borderRadius: '8px', border: '1px solid var(--color-border-subtle)' }}>
+                <FileText size={24} style={{ color: 'var(--color-success-fg)', flexShrink: 0 }} />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <strong style={{ display: 'block', fontSize: '13px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: 'var(--color-text-strong)' }}>
+                    {p.resume.displayName || 'resume.pdf'}
+                  </strong>
+                  <a href={p.resume.url} target="_blank" rel="noopener noreferrer" style={{ fontSize: '11px', color: 'var(--color-action-primary)', textDecoration: 'underline' }}>
+                    View uploaded resume
+                  </a>
+                </div>
+              </div>
+            ) : (
+              <div style={{ marginBottom: '16px', padding: '12px', background: 'var(--color-warning-bg)', borderRadius: '8px', border: '1px solid var(--color-warning-border)', color: 'var(--color-warning-fg)', fontSize: '12px' }}>
+                No resume uploaded. A resume is required to apply for most jobs.
+              </div>
+            )}
+            <UploadControl
+              entityType="candidate-profile"
+              entityId={p.id}
+              category="resume"
+              path={p.resumeDocument ? '/documents/me/resume/replace' : '/documents/me/resume'}
+              onDone={() => {
+                q.refetch();
+              }}
             />
           </div>
-          {mutation.isError && (
-            <Alert tone="danger" title="Profile was not saved">
-              {message(mutation.error)}
-            </Alert>
-          )}
-          <FormActions>
-            <Button type="submit" loading={mutation.isPending}>
-              Save profile
-            </Button>
-          </FormActions>
-        </form>
-      </Card>
+        </div>
+
+        {/* Right Column - Editor Form */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+          <div className="tvx-card tvx-card--bordered" style={{ padding: '28px', background: 'var(--color-surface-1)', borderRadius: '12px' }}>
+            <form id="profile-form" onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+              
+              <div>
+                <h3 style={{ margin: '0 0 16px 0', fontSize: '16px', fontWeight: '600', borderBottom: '1px solid var(--color-border-subtle)', paddingBottom: '8px', color: 'var(--color-text-strong)' }}>Personal Summary</h3>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                  <FormField label="Professional headline">
+                    {({ id, ...control }) => (
+                      <TextField
+                        id={id}
+                        {...control}
+                        name="headline"
+                        defaultValue={p.headline}
+                      />
+                    )}
+                  </FormField>
+                  <FormField label="About you">
+                    {({ id, ...control }) => (
+                      <TextArea id={id} {...control} name="bio" defaultValue={p.bio} />
+                    )}
+                  </FormField>
+                </div>
+              </div>
+
+              <div>
+                <h3 style={{ margin: '20px 0 16px 0', fontSize: '16px', fontWeight: '600', borderBottom: '1px solid var(--color-border-subtle)', paddingBottom: '8px', color: 'var(--color-text-strong)' }}>Contact & Demographics</h3>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginBottom: '12px' }}>
+                  <FormField label="Phone number">
+                    {({ id, ...control }) => (
+                      <TextField id={id} {...control} name="phone" defaultValue={p.phone} />
+                    )}
+                  </FormField>
+                </div>
+                
+                <div className="candidate-form-grid">
+                  <FormField label="City">
+                    {({ id, ...control }) => (
+                      <TextField id={id} {...control} name="city" placeholder="City" defaultValue={p.location.city} />
+                    )}
+                  </FormField>
+                  <FormField label="State">
+                    {({ id, ...control }) => (
+                      <TextField id={id} {...control} name="state" placeholder="State" defaultValue={p.location.state} />
+                    )}
+                  </FormField>
+                  <FormField label="Country">
+                    {({ id, ...control }) => (
+                      <TextField id={id} {...control} name="country" placeholder="Country" defaultValue={p.location.country} />
+                    )}
+                  </FormField>
+                  <FormField label="Date of birth">
+                    {({ id, ...control }) => (
+                      <TextField id={id} {...control} name="dateOfBirth" type="date" defaultValue={p.dateOfBirth?.slice(0, 10)} />
+                    )}
+                  </FormField>
+                  <FormField label="Gender">
+                    {({ id, ...control }) => (
+                      <Select
+                        id={id}
+                        {...control}
+                        name="gender"
+                        placeholder="Gender"
+                        defaultValue={p.gender ?? ''}
+                        options={[
+                          'female',
+                          'male',
+                          'non-binary',
+                          'prefer-not-to-say',
+                        ].map((value) => ({ value, label: value }))}
+                      />
+                    )}
+                  </FormField>
+                </div>
+              </div>
+
+              <div>
+                <h3 style={{ margin: '20px 0 16px 0', fontSize: '16px', fontWeight: '600', borderBottom: '1px solid var(--color-border-subtle)', paddingBottom: '8px', color: 'var(--color-text-strong)' }}>Online Presence</h3>
+                <div className="candidate-form-grid">
+                  <FormField label="GitHub Profile">
+                    {({ id, ...control }) => (
+                      <TextField id={id} {...control} name="github" type="url" placeholder="https://github.com/..." defaultValue={p.socialLinks.github} />
+                    )}
+                  </FormField>
+                  <FormField label="LinkedIn Profile">
+                    {({ id, ...control }) => (
+                      <TextField id={id} {...control} name="linkedin" type="url" placeholder="https://linkedin.com/in/..." defaultValue={p.socialLinks.linkedin} />
+                    )}
+                  </FormField>
+                  <FormField label="Portfolio URL">
+                    {({ id, ...control }) => (
+                      <TextField id={id} {...control} name="portfolio" type="url" placeholder="https://..." defaultValue={p.socialLinks.portfolio} />
+                    )}
+                  </FormField>
+                </div>
+              </div>
+
+              <div>
+                <h3 style={{ margin: '20px 0 16px 0', fontSize: '16px', fontWeight: '600', borderBottom: '1px solid var(--color-border-subtle)', paddingBottom: '8px', color: 'var(--color-text-strong)' }}>Job Preferences & Compensation</h3>
+                <div className="candidate-form-grid" style={{ marginBottom: '12px' }}>
+                  <FormField label="Preferred roles">
+                    {({ id, ...control }) => (
+                      <TextField id={id} {...control} name="preferredRoles" placeholder="e.g. Frontend Engineer, Product Manager" defaultValue={p.preferredRoles.join(', ')} />
+                    )}
+                  </FormField>
+                  <FormField label="Preferred locations">
+                    {({ id, ...control }) => (
+                      <TextField id={id} {...control} name="preferredLocations" placeholder="e.g. Remote, Bangalore" defaultValue={p.preferredLocations.join(', ')} />
+                    )}
+                  </FormField>
+                  <FormField label="Preferred job types">
+                    {({ id, ...control }) => (
+                      <Select
+                        id={id}
+                        {...control}
+                        name="preferredJobTypes"
+                        placeholder="Choose job type"
+                        defaultValue={currentJobTypesVal || 'full-time'}
+                        options={jobTypeOptions}
+                      />
+                    )}
+                  </FormField>
+                </div>
+                
+                <div className="candidate-form-grid">
+                  <FormField label="Expected salary min">
+                    {({ id, ...control }) => (
+                      <TextField id={id} {...control} name="salaryMinimum" type="number" min="0" defaultValue={p.expectedSalary?.minimum} />
+                    )}
+                  </FormField>
+                  <FormField label="Expected salary max">
+                    {({ id, ...control }) => (
+                      <TextField id={id} {...control} name="salaryMaximum" type="number" min="0" defaultValue={p.expectedSalary?.maximum} />
+                    )}
+                  </FormField>
+                  <FormField label="Salary currency">
+                    {({ id, ...control }) => (
+                      <Select
+                        id={id}
+                        {...control}
+                        name="salaryCurrency"
+                        placeholder="Currency"
+                        defaultValue={p.expectedSalary?.currency ?? 'INR'}
+                        options={currencyOptions}
+                      />
+                    )}
+                  </FormField>
+                  <FormField label="Availability">
+                    {({ id, ...control }) => (
+                      <Select
+                        id={id}
+                        {...control}
+                        name="availability"
+                        placeholder="Availability"
+                        defaultValue={p.availability ?? ''}
+                        options={['immediately', 'notice-period', 'unavailable'].map(
+                          (value) => ({ value, label: value }),
+                        )}
+                      />
+                    )}
+                  </FormField>
+                  <FormField label="Notice period days">
+                    {({ id, ...control }) => (
+                      <TextField id={id} {...control} name="noticePeriodDays" type="number" min="0" max="365" defaultValue={p.noticePeriodDays} />
+                    )}
+                  </FormField>
+                </div>
+              </div>
+
+              {(validationError || mutation.isError) && (
+                <Alert tone="danger" title="Profile was not saved">
+                  {validationError || message(mutation.error)}
+                </Alert>
+              )}
+
+              <FormActions>
+                <Button type="submit" loading={mutation.isPending}>
+                  Save profile details
+                </Button>
+              </FormActions>
+            </form>
+          </div>
+        </div>
+      </div>
+
       <ProfileCollections profile={p} />
+      
       <ConfirmDialog
         open={confirm}
         onOpenChange={setConfirm}
@@ -1190,11 +1491,28 @@ export function CandidateJobsPage() {
           placeholder="Role, skill or keyword"
           defaultValue={params.get('search') ?? ''}
         />
-        <TextField
+        <Select
           name="skills"
-          aria-label="Required skills"
-          placeholder="Skills, comma separated"
+          aria-label="Required skill"
+          placeholder="Any skill"
           defaultValue={params.get('skills') ?? ''}
+          options={[
+            'javascript',
+            'typescript',
+            'react',
+            'node.js',
+            'express',
+            'mongodb',
+            'python',
+            'java',
+            'c++',
+            'aws',
+            'docker',
+            'sql',
+            'css',
+            'html',
+            'git',
+          ].map((value) => ({ value, label: value }))}
         />
         <TextField
           name="company"
