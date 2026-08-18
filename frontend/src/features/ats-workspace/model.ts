@@ -124,16 +124,287 @@ export interface EvidenceItem {
   detail?: string | undefined;
   meta?: string | undefined;
 }
+export interface DetailedEducation {
+  institution: string;
+  degree: string;
+  fieldOfStudy?: string | undefined;
+  startYear: number;
+  endYear?: number | undefined;
+  grade?: string | undefined;
+  description?: string | undefined;
+  source: 'snapshot' | 'profile';
+}
+export interface DetailedExperience {
+  company: string;
+  title: string;
+  employmentType?: string | undefined;
+  location?: string | undefined;
+  startDate: string;
+  endDate?: string | undefined;
+  currentlyWorking?: boolean | undefined;
+  description?: string | undefined;
+  skills?: string[] | undefined;
+  source: 'snapshot' | 'profile';
+}
+export interface DetailedProject {
+  title: string;
+  description?: string | undefined;
+  technologies?: string[] | undefined;
+  githubUrl?: string | undefined;
+  liveUrl?: string | undefined;
+  startDate?: string | undefined;
+  endDate?: string | undefined;
+  source: 'snapshot' | 'profile';
+}
+export interface DetailedCertification {
+  name: string;
+  issuingOrganization: string;
+  issueDate?: string | undefined;
+  expirationDate?: string | undefined;
+  credentialId?: string | undefined;
+  credentialUrl?: string | undefined;
+  source: 'snapshot' | 'profile';
+}
+export interface DetailedSocialLinks {
+  github?: string | undefined;
+  linkedin?: string | undefined;
+  portfolio?: string | undefined;
+  source: 'snapshot' | 'profile';
+}
+export interface ApplicationSkill {
+  name: string;
+  proficiency: string;
+  yearsOfExperience: number;
+}
+export interface SkillMatchBreakdownItem {
+  skill: string;
+  required: boolean;
+  candidateProficiency?: string | undefined;
+  minimumProficiency?: string | undefined;
+  candidateExperience?: number | undefined;
+  minimumExperience?: number | undefined;
+  weight: number;
+  score: number;
+}
 export interface ApplicationDetail extends ApplicationRow {
   source: string;
   coverLetter?: string | undefined;
   answers: { question: string; answer: string }[];
-  resume?: { fileName: string; uploadedAt?: string | undefined } | undefined;
+  resume?: { fileName: string; uploadedAt?: string | undefined; documentId?: string | undefined } | undefined;
+  education: DetailedEducation[];
+  experience: DetailedExperience[];
+  projects: DetailedProject[];
+  certifications: DetailedCertification[];
+  socialLinks?: DetailedSocialLinks | undefined;
+  skillsDetail: ApplicationSkill[];
+  skillMatchBreakdown: SkillMatchBreakdownItem[];
+  history: HistoryItem[];
+}
+
+export function toApplicationDetail(v: unknown): ApplicationDetail {
+  const x = obj(v),
+    c = obj(x.candidateSnapshot),
+    p = obj(x.candidateProfile),
+    r = obj(x.resumeSnapshot);
+
+  const getEvidence = <T>(
+    snapshotItems: any[],
+    profileItems: any[],
+    mapFn: (item: any, source: 'snapshot' | 'profile') => T,
+  ): T[] => {
+    if (snapshotItems && snapshotItems.length > 0) {
+      return snapshotItems.map((item) => mapFn(item, 'snapshot'));
+    }
+    if (profileItems && profileItems.length > 0) {
+      return profileItems.map((item) => mapFn(item, 'profile'));
+    }
+    return [];
+  };
+
+  let socialLinks: DetailedSocialLinks | undefined = undefined;
+  const sS = obj(c.socialLinks);
+  const pS = obj(p.socialLinks);
+
+  if (sS.github || sS.linkedin || sS.portfolio) {
+    socialLinks = {
+      github: text(sS.github) || undefined,
+      linkedin: text(sS.linkedin) || undefined,
+      portfolio: text(sS.portfolio) || undefined,
+      source: 'snapshot',
+    };
+  } else if (pS.github || pS.linkedin || pS.portfolio) {
+    socialLinks = {
+      github: text(pS.github) || undefined,
+      linkedin: text(pS.linkedin) || undefined,
+      portfolio: text(pS.portfolio) || undefined,
+      source: 'profile',
+    };
+  }
+
+  const education = getEvidence<DetailedEducation>(
+    list(c.education),
+    list(p.education),
+    (item, source) => {
+      const y = obj(item);
+      return {
+        institution: text(y.institution) || 'Institution',
+        degree: text(y.degree) || 'Degree',
+        fieldOfStudy: text(y.fieldOfStudy) || undefined,
+        startYear: num(y.startYear) || 0,
+        endYear: num(y.endYear) || undefined,
+        grade: text(y.grade) || undefined,
+        description: text(y.description) || undefined,
+        source,
+      };
+    },
+  );
+
+  const experience = getEvidence<DetailedExperience>(
+    list(c.experience),
+    list(p.experience),
+    (item, source) => {
+      const y = obj(item);
+      return {
+        company: text(y.company) || 'Company',
+        title: text(y.title) || 'Title',
+        employmentType: text(y.employmentType) || undefined,
+        location: text(y.location) || undefined,
+        startDate: text(y.startDate) || '',
+        endDate: text(y.endDate) || undefined,
+        currentlyWorking: Boolean(y.currentlyWorking),
+        description: text(y.description) || undefined,
+        skills: strings(y.skills),
+        source,
+      };
+    },
+  );
+
+  const projects = getEvidence<DetailedProject>(
+    list(c.projects),
+    list(p.projects),
+    (item, source) => {
+      const y = obj(item);
+      return {
+        title: text(y.title) || 'Project',
+        description: text(y.description) || undefined,
+        technologies: strings(y.technologies),
+        githubUrl: text(y.githubUrl) || undefined,
+        liveUrl: text(y.liveUrl) || undefined,
+        startDate: text(y.startDate) || undefined,
+        endDate: text(y.endDate) || undefined,
+        source,
+      };
+    },
+  );
+
+  const certifications = getEvidence<DetailedCertification>(
+    list(c.certifications),
+    list(p.certifications),
+    (item, source) => {
+      const y = obj(item);
+      return {
+        name: text(y.name) || 'Certification',
+        issuingOrganization: text(y.issuingOrganization) || text(y.issuer) || '',
+        issueDate: text(y.issueDate) || undefined,
+        expirationDate: text(y.expirationDate) || text(y.expiryDate) || undefined,
+        credentialId: text(y.credentialId) || undefined,
+        credentialUrl: text(y.credentialUrl) || undefined,
+        source,
+      };
+    },
+  );
+
+  const skillsDetail = getEvidence<ApplicationSkill>(
+    list(c.skills),
+    list(p.skills),
+    (item) => {
+      const y = obj(item);
+      return {
+        name: text(y.name) || '',
+        proficiency: text(y.proficiency) || 'beginner',
+        yearsOfExperience: num(y.yearsOfExperience) || 0,
+      };
+    },
+  );
+
+  const skillMatchBreakdown = list(obj(x.skillMatch).breakdown).map((b) => {
+    const y = obj(b);
+    return {
+      skill: text(y.skill),
+      required: Boolean(y.required),
+      candidateProficiency: text(y.candidateProficiency) || undefined,
+      minimumProficiency: text(y.minimumProficiency) || undefined,
+      candidateExperience: num(y.candidateExperience) || 0,
+      minimumExperience: num(y.minimumExperience) || 0,
+      weight: num(y.weight) || 0,
+      score: num(y.score) || 0,
+    };
+  });
+
+  return {
+    ...toApplicationRow(v),
+    source: text(x.source) || 'talvix',
+    coverLetter: text(x.coverLetter) || undefined,
+    answers: list(x.answers)
+      .map((a) => {
+        const y = obj(a);
+        return {
+          question:
+            text(y.question) || text(y.questionText) || 'Application question',
+          answer: Array.isArray(y.answer)
+            ? strings(y.answer).join(', ')
+            : String(y.answer ?? ''),
+        };
+      })
+      .filter((a) => a.answer),
+    resume: text(r.fileName)
+      ? {
+          fileName: text(r.fileName),
+          uploadedAt: date(r.uploadedAt),
+          documentId: text(x.resumeDocument) || undefined,
+        }
+      : undefined,
+    education,
+    experience,
+    projects,
+    certifications,
+    socialLinks,
+    skillsDetail,
+    skillMatchBreakdown,
+    history: list(x.statusHistory)
+      .map((h) => {
+        const y = obj(h);
+        return {
+          from: text(y.from) || undefined,
+          to: text(y.to),
+          date: date(y.changedAt),
+          reason: text(y.reason) || undefined,
+        };
+      })
+      .filter((h) => h.to),
+  };
+}
+export interface CandidateRow {
+  id: string;
+  name: string;
+  avatar?: string | undefined;
+  headline: string;
+  location: string;
+  skills: string[];
+  completion: number;
+  availability: string;
+  preferredRoles: string[];
+  jobTypes: string[];
+}
+export interface CandidateDetail extends CandidateRow {
+  bio?: string | undefined;
   education: EvidenceItem[];
   experience: EvidenceItem[];
   projects: EvidenceItem[];
   certifications: EvidenceItem[];
-  history: HistoryItem[];
+  skillDetails: { name: string; proficiency: string; years: number }[];
+  preferredLocations: string[];
+  noticeDays?: number | undefined;
 }
 const evidence = (
   v: unknown,
@@ -171,68 +442,7 @@ const evidence = (
         .join(' – '),
     };
   });
-export function toApplicationDetail(v: unknown): ApplicationDetail {
-  const x = obj(v),
-    c = obj(x.candidateSnapshot),
-    r = obj(x.resumeSnapshot);
-  return {
-    ...toApplicationRow(v),
-    source: text(x.source) || 'talvix',
-    coverLetter: text(x.coverLetter) || undefined,
-    answers: list(x.answers)
-      .map((a) => {
-        const y = obj(a);
-        return {
-          question:
-            text(y.question) || text(y.questionText) || 'Application question',
-          answer: Array.isArray(y.answer)
-            ? strings(y.answer).join(', ')
-            : String(y.answer ?? ''),
-        };
-      })
-      .filter((a) => a.answer),
-    resume: text(r.fileName)
-      ? { fileName: text(r.fileName), uploadedAt: date(r.uploadedAt) }
-      : undefined,
-    education: evidence(c.education, 'education'),
-    experience: evidence(c.experience, 'experience'),
-    projects: evidence(c.projects, 'projects'),
-    certifications: evidence(c.certifications, 'certifications'),
-    history: list(x.statusHistory)
-      .map((h) => {
-        const y = obj(h);
-        return {
-          from: text(y.from) || undefined,
-          to: text(y.to),
-          date: date(y.changedAt),
-          reason: text(y.reason) || undefined,
-        };
-      })
-      .filter((h) => h.to),
-  };
-}
-export interface CandidateRow {
-  id: string;
-  name: string;
-  avatar?: string | undefined;
-  headline: string;
-  location: string;
-  skills: string[];
-  completion: number;
-  availability: string;
-  preferredRoles: string[];
-  jobTypes: string[];
-}
-export interface CandidateDetail extends CandidateRow {
-  bio?: string | undefined;
-  education: EvidenceItem[];
-  experience: EvidenceItem[];
-  projects: EvidenceItem[];
-  certifications: EvidenceItem[];
-  skillDetails: { name: string; proficiency: string; years: number }[];
-  preferredLocations: string[];
-  noticeDays?: number | undefined;
-}
+
 export function toCandidate(v: unknown): CandidateDetail {
   const x = obj(v),
     u = obj(x.user),

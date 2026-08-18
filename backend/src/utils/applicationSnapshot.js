@@ -4,5 +4,6 @@ export const buildCandidateSnapshot = (user, profile) => ({
   location: profile.location?.toObject?.() ?? profile.location, skills: profile.skills.map((item) => item.toObject()),
   education: profile.education.map((item) => item.toObject()), experience: profile.experience.map((item) => item.toObject()),
   projects: profile.projects.map((item) => item.toObject()), socialLinks: profile.socialLinks?.toObject?.() ?? profile.socialLinks,
+  certifications: (profile.certifications || []).map((item) => item.toObject()),
 });
 export const buildJobSnapshot = (job, company) => ({ title: job.title, companyName: company.name, employmentType: job.employmentType, workMode: job.workMode, location: job.location?.toObject?.() ?? job.location, skills: job.skills.map((item) => item.toObject()), applicationDeadline: job.applicationDeadline });

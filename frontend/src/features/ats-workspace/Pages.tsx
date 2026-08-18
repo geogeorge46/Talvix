@@ -6,6 +6,8 @@ import {
   useParams,
   useSearchParams,
 } from 'react-router-dom';
+import { Check, X, ExternalLink, Download, FileText, Globe } from 'lucide-react';
+import { safeDownload } from '../offers-documents/api';
 import {
   Alert,
   Badge,
@@ -1150,6 +1152,49 @@ const EvidenceSection = ({
       ))}
     </Card>
   ) : null;
+const isSafeUrl = (url?: string) => {
+  if (!url) return false;
+  try {
+    const parsed = new URL(url);
+    return ['http:', 'https:'].includes(parsed.protocol);
+  } catch {
+    return false;
+  }
+};
+
+const GithubIcon = ({ size = 18 }: { size?: number }) => (
+  <svg
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <path d="M15 22v-4a4.8 4.8 0 0 0-1-3.5c3 0 6-2 6-5.5.08-1.25-.27-2.48-1-3.5.28-1.15.28-2.35 0-3.5 0 0-1 0-3 1.5-2.64-.5-5.36-.5-8 0C6 2 5 2 5 2c-.3 1.15-.3 2.35 0 3.5A5.403 5.403 0 0 0 4 9c0 3.5 3 5.5 6 5.5-.39.49-.68 1.05-.85 1.65-.17.6-.22 1.23-.15 1.85v4" />
+    <path d="M9 18c-4.51 2-5-2-7-2" />
+  </svg>
+);
+
+const LinkedinIcon = ({ size = 18 }: { size?: number }) => (
+  <svg
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-2-2 2 2 0 0 0-2 2v7h-4v-7a6 6 0 0 1 6-6z" />
+    <rect width="4" height="12" x="2" y="9" />
+    <circle cx="4" cy="4" r="2" />
+  </svg>
+);
+
 export function ApplicationDetailPage() {
   const { applicationId = '' } = useParams();
   const { recruiter } = useAuth();
@@ -1213,7 +1258,48 @@ export function ApplicationDetailPage() {
       />
       <div className="ats-detail-grid">
         <div className="ats-detail-primary">
-          <Card heading="Submitted application" headingLevel={2}>
+          {/* Candidate Evaluation Summary Card */}
+          <Card heading="Candidate Evaluation Summary" headingLevel={2}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '16px', padding: '8px 0' }}>
+              <div>
+                <small style={{ color: 'var(--color-text-muted)', display: 'block' }}>Skill Match</small>
+                <strong style={{ fontSize: '1.5rem', display: 'block', margin: '4px 0' }}>{a.matchScore}%</strong>
+                <span style={{ fontSize: '0.85rem' }}>
+                  {a.skillMatchBreakdown.filter(s => s.required && s.score >= 30).length} / {a.skillMatchBreakdown.filter(s => s.required).length} required matched
+                </span>
+              </div>
+              <div>
+                <small style={{ color: 'var(--color-text-muted)', display: 'block' }}>Experience</small>
+                <strong style={{ fontSize: '1.5rem', display: 'block', margin: '4px 0' }}>{a.experience.length}</strong>
+                <span style={{ fontSize: '0.85rem' }}>{a.experience.filter(e => e.employmentType === 'internship').length} internships</span>
+              </div>
+              <div>
+                <small style={{ color: 'var(--color-text-muted)', display: 'block' }}>Education</small>
+                <strong style={{ fontSize: '1.5rem', display: 'block', margin: '4px 0' }}>{a.education.length ? a.education[0]?.degree : 'None'}</strong>
+                <span style={{ fontSize: '0.85rem' }}>{a.education.length ? a.education[0]?.institution : 'No records'}</span>
+              </div>
+              <div>
+                <small style={{ color: 'var(--color-text-muted)', display: 'block' }}>Projects & Certs</small>
+                <strong style={{ fontSize: '1.5rem', display: 'block', margin: '4px 0' }}>{a.projects.length} / {a.certifications.length}</strong>
+                <span style={{ fontSize: '0.85rem' }}>Projects / Certifications</span>
+              </div>
+              <div>
+                <small style={{ color: 'var(--color-text-muted)', display: 'block' }}>Resume</small>
+                <strong style={{ fontSize: '1.5rem', display: 'block', margin: '4px 0' }}>{a.resume ? 'Available' : 'None'}</strong>
+                <span style={{ fontSize: '0.85rem' }}>{a.resume?.fileName ? 'Uploaded snapshot' : 'No upload'}</span>
+              </div>
+              <div>
+                <small style={{ color: 'var(--color-text-muted)', display: 'block' }}>Online Presence</small>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginTop: '6px' }}>
+                  <span style={{ color: a.socialLinks?.github ? 'var(--color-success-strong)' : 'var(--color-text-muted)', fontSize: '0.85rem', fontWeight: 600 }}>GitHub {a.socialLinks?.github ? '✓' : '×'}</span>
+                  <span style={{ color: a.socialLinks?.linkedin ? 'var(--color-success-strong)' : 'var(--color-text-muted)', fontSize: '0.85rem', fontWeight: 600 }}>LinkedIn {a.socialLinks?.linkedin ? '✓' : '×'}</span>
+                </div>
+              </div>
+            </div>
+          </Card>
+
+          {/* Submitted Application Metadata and Answers */}
+          <Card heading="Submitted Application" headingLevel={2}>
             <DescriptionList
               variant="horizontal"
               items={[
@@ -1222,10 +1308,7 @@ export function ApplicationDetailPage() {
                 { term: 'Application', description: a.number },
                 { term: 'Source', description: labelStatus(a.source) },
                 { term: 'Submitted', description: formatDate(a.submittedAt) },
-                {
-                  term: 'Deterministic skill match',
-                  description: `${a.matchScore}%`,
-                },
+                { term: 'Deterministic skill match', description: `${a.matchScore}%` },
                 {
                   term: 'Recruiter rating',
                   description: a.rating ? `${a.rating} of 5` : 'Not rated',
@@ -1234,55 +1317,380 @@ export function ApplicationDetailPage() {
               ]}
             />
             {a.coverLetter && (
-              <section>
-                <h3>Cover letter</h3>
-                <p className="ats-preserve">{a.coverLetter}</p>
+              <section style={{ marginTop: '16px', borderTop: '1px solid var(--color-border-default)', paddingTop: '16px' }}>
+                <h3 style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '8px' }}>Cover letter</h3>
+                <p className="ats-preserve" style={{ fontSize: '0.95rem' }}>{a.coverLetter}</p>
               </section>
             )}
             {a.answers.length > 0 && (
-              <section>
-                <h3>Application answers</h3>
+              <section style={{ marginTop: '16px', borderTop: '1px solid var(--color-border-default)', paddingTop: '16px' }}>
+                <h3 style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '12px' }}>Application answers</h3>
                 {a.answers.map((x, i) => (
-                  <div className="ats-answer" key={i}>
-                    <strong>{x.question}</strong>
-                    <p>{x.answer}</p>
+                  <div className="ats-answer" key={i} style={{ marginBottom: '12px' }}>
+                    <strong style={{ display: 'block', fontSize: '0.9rem' }}>{x.question}</strong>
+                    <p style={{ margin: '4px 0 0', fontSize: '0.95rem' }}>{x.answer}</p>
                   </div>
                 ))}
               </section>
             )}
-            {a.resume && (
-              <section>
-                <h3>Resume evidence</h3>
-                <p>
-                  {a.resume.fileName} · uploaded{' '}
-                  {formatDate(a.resume.uploadedAt)}. Download is unavailable in
-                  this workspace.
-                </p>
-              </section>
+          </Card>
+
+          {/* Resume Evidence */}
+          <Card heading="Resume" headingLevel={2}>
+            {a.resume ? (
+              <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', padding: '8px 0', gap: '16px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <FileText size={24} style={{ color: 'var(--color-primary)' }} />
+                  <div>
+                    <strong style={{ display: 'block' }}>{a.resume.fileName}</strong>
+                    <small style={{ color: 'var(--color-text-muted)' }}>Uploaded: {formatDate(a.resume.uploadedAt)}</small>
+                  </div>
+                </div>
+                {a.resume.documentId ? (
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <Button variant="secondary" onClick={() => safeDownload(`/documents/manage/applications/${applicationId}/${a.resume?.documentId}/download`)}>
+                      View Resume
+                    </Button>
+                    <Button variant="primary" onClick={() => safeDownload(`/documents/manage/applications/${applicationId}/${a.resume?.documentId}/download`)}>
+                      <Download size={14} style={{ marginRight: '6px' }} /> Download
+                    </Button>
+                  </div>
+                ) : (
+                  <span style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>Secure reference token missing.</span>
+                )}
+              </div>
+            ) : (
+              <EmptyState title="No resume submitted" description="The candidate did not attach a resume to this application." />
             )}
           </Card>
+
+          {/* Skill Match Evidence */}
           <Card
-            heading="Skill match evidence"
+            heading="Skill Match"
             headingLevel={2}
-            description="Calculated deterministically from the submitted profile and job snapshot; this is not an AI score."
+            description="Skill Match is deterministic evidence calculated from the submitted candidate profile and the job/application snapshot. It is not an AI hiring decision."
           >
-            <Progress
-              value={a.matchScore}
-              label={`${a.matchScore}% skill match`}
-            />
-            <p>
-              <strong>Matched:</strong>{' '}
-              {a.matchedSkills.join(', ') || 'None recorded'}
-            </p>
-            <p>
-              <strong>Missing required:</strong>{' '}
-              {a.missingSkills.join(', ') || 'None recorded'}
-            </p>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '24px', marginBottom: '20px' }}>
+              <div style={{
+                width: '80px',
+                height: '80px',
+                borderRadius: '50%',
+                border: '4px solid var(--color-primary)',
+                display: 'grid',
+                placeItems: 'center',
+                fontWeight: 'bold',
+                fontSize: '1.5rem'
+              }}>
+                {a.matchScore}%
+              </div>
+              <div>
+                <strong>{a.skillMatchBreakdown.filter(s => s.required && s.score >= 30).length} of {a.skillMatchBreakdown.filter(s => s.required).length} required skills matched</strong>
+                <p style={{ margin: '4px 0 0', fontSize: '0.9rem', color: 'var(--color-text-muted)' }}>
+                  Skill match is calculated deterministically from the submitted profile and the job/application snapshot when the candidate applied.
+                </p>
+              </div>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '20px' }}>
+              <div>
+                <h4 style={{ fontSize: '0.95rem', fontWeight: 600, borderBottom: '1px solid var(--color-border-default)', paddingBottom: '6px', marginBottom: '10px' }}>Required Skills</h4>
+                {a.skillMatchBreakdown.filter(s => s.required).length > 0 ? (
+                  <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+                    {a.skillMatchBreakdown.filter(s => s.required).map((s) => {
+                      const isMatched = s.score >= 30;
+                      return (
+                        <li key={s.skill} style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', marginBottom: '8px', fontSize: '0.9rem' }}>
+                          {isMatched ? <Check size={16} style={{ color: 'var(--color-success-strong)', marginTop: '2px' }} /> : <X size={16} style={{ color: 'var(--color-danger-strong)', marginTop: '2px' }} />}
+                          <div>
+                            <strong>{s.skill}</strong>
+                            <small style={{ display: 'block', color: 'var(--color-text-muted)' }}>
+                              Candidate: {s.candidateProficiency || 'None'} ({s.candidateExperience} yrs) vs Min: {s.minimumProficiency || 'None'} ({s.minimumExperience} yrs)
+                            </small>
+                          </div>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                ) : (
+                  <p style={{ fontSize: '0.9rem', color: 'var(--color-text-muted)' }}>No required skills defined for this job.</p>
+                )}
+              </div>
+
+              <div>
+                <h4 style={{ fontSize: '0.95rem', fontWeight: 600, borderBottom: '1px solid var(--color-border-default)', paddingBottom: '6px', marginBottom: '10px' }}>Preferred Skills</h4>
+                {a.skillMatchBreakdown.filter(s => !s.required).length > 0 ? (
+                  <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+                    {a.skillMatchBreakdown.filter(s => !s.required).map((s) => {
+                      const isMatched = s.score >= 30;
+                      return (
+                        <li key={s.skill} style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', marginBottom: '8px', fontSize: '0.9rem' }}>
+                          {isMatched ? <Check size={16} style={{ color: 'var(--color-success-strong)', marginTop: '2px' }} /> : <span style={{ width: '16px', display: 'inline-block' }} />}
+                          <div>
+                            <strong>{s.skill}</strong>
+                            <small style={{ display: 'block', color: 'var(--color-text-muted)' }}>
+                              Candidate: {s.candidateProficiency || 'None'} ({s.candidateExperience} yrs) vs Min: {s.minimumProficiency || 'None'} ({s.minimumExperience} yrs)
+                            </small>
+                          </div>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                ) : (
+                  <p style={{ fontSize: '0.9rem', color: 'var(--color-text-muted)' }}>No preferred skills defined for this job.</p>
+                )}
+              </div>
+            </div>
           </Card>
-          <EvidenceSection title="Experience" items={a.experience} />
-          <EvidenceSection title="Education" items={a.education} />
-          <EvidenceSection title="Projects" items={a.projects} />
-          <EvidenceSection title="Certifications" items={a.certifications} />
+
+          {/* Candidate Skills List */}
+          <Card heading="Skills" headingLevel={2}>
+            {a.skillsDetail && a.skillsDetail.length > 0 ? (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                {a.skillsDetail.map((s) => (
+                  <div key={s.name} style={{ background: 'var(--color-bg-alt)', border: '1px solid var(--color-border-default)', padding: '6px 12px', borderRadius: '4px', fontSize: '0.9rem' }}>
+                    <strong>{s.name}</strong> <span style={{ color: 'var(--color-text-muted)' }}>({labelStatus(s.proficiency)} · {s.yearsOfExperience} yrs)</span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <EmptyState title="No skills listed" description="The candidate has not listed any skills." />
+            )}
+          </Card>
+
+          {/* Experience Section */}
+          <Card heading="Experience" headingLevel={2}>
+            {a.experience && a.experience.length > 0 ? (
+              <div>
+                {a.experience.map((exp, idx) => (
+                  <div key={idx} style={{ borderBottom: idx === a.experience.length - 1 ? 'none' : '1px solid var(--color-border-default)', paddingBottom: '16px', marginBottom: '16px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                      <div>
+                        <h4 style={{ fontSize: '1.05rem', fontWeight: 600, margin: 0 }}>{exp.title}</h4>
+                        <strong>{exp.company}</strong> {exp.employmentType && <span style={{ color: 'var(--color-text-muted)', fontSize: '0.85rem' }}>({labelStatus(exp.employmentType)})</span>}
+                      </div>
+                      <div style={{ textAlign: 'right' }}>
+                        <span style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>
+                          {exp.startDate ? new Date(exp.startDate).toLocaleDateString(undefined, { year: 'numeric', month: 'short' }) : ''} – {exp.currentlyWorking ? 'Present' : exp.endDate ? new Date(exp.endDate).toLocaleDateString(undefined, { year: 'numeric', month: 'short' }) : ''}
+                        </span>
+                        {exp.source === 'profile' && (
+                          <span style={{ display: 'block', fontSize: '0.75rem', color: 'var(--color-warning-strong)', fontWeight: 600 }}>
+                            Fallback from live profile
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    {exp.description && (
+                      <p style={{ marginTop: '8px', fontSize: '0.9rem', whiteSpace: 'pre-line' }}>{exp.description}</p>
+                    )}
+                    {exp.skills && exp.skills.length > 0 && (
+                      <div style={{ marginTop: '8px', display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
+                        {exp.skills.map(s => <span key={s} style={{ fontSize: '0.75rem', background: 'var(--color-surface-secondary)', border: '1px solid var(--color-border-default)', padding: '2px 6px', borderRadius: '2px' }}>{s}</span>)}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <EmptyState title="No professional experience provided" description="No work history has been logged." />
+            )}
+          </Card>
+
+          {/* Education Section */}
+          <Card heading="Education" headingLevel={2}>
+            {a.education && a.education.length > 0 ? (
+              <div>
+                {a.education.map((edu, idx) => (
+                  <div key={idx} style={{ borderBottom: idx === a.education.length - 1 ? 'none' : '1px solid var(--color-border-default)', paddingBottom: '16px', marginBottom: '16px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                      <div>
+                        <h4 style={{ fontSize: '1.05rem', fontWeight: 600, margin: 0 }}>{edu.degree}</h4>
+                        <strong>{edu.institution}</strong> {edu.fieldOfStudy && <span style={{ color: 'var(--color-text-muted)' }}>· {edu.fieldOfStudy}</span>}
+                      </div>
+                      <div style={{ textAlign: 'right' }}>
+                        <span style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>
+                          {edu.startYear} – {edu.endYear || 'Present'}
+                        </span>
+                        {edu.source === 'profile' && (
+                          <span style={{ display: 'block', fontSize: '0.75rem', color: 'var(--color-warning-strong)', fontWeight: 600 }}>
+                            Fallback from live profile
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    {edu.grade && (
+                      <p style={{ margin: '4px 0 0', fontSize: '0.9rem' }}>
+                        <strong>Grade:</strong> {edu.grade}
+                      </p>
+                    )}
+                    {edu.description && (
+                      <p style={{ marginTop: '8px', fontSize: '0.9rem', whiteSpace: 'pre-line' }}>{edu.description}</p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <EmptyState title="No education information provided" description="No academic history has been logged." />
+            )}
+          </Card>
+
+          {/* Projects Section */}
+          <Card heading="Projects" headingLevel={2}>
+            {a.projects && a.projects.length > 0 ? (
+              <div>
+                {a.projects.map((proj, idx) => {
+                  const safeGithub = isSafeUrl(proj.githubUrl) ? proj.githubUrl : undefined;
+                  const safeLive = isSafeUrl(proj.liveUrl) ? proj.liveUrl : undefined;
+                  return (
+                    <div key={idx} style={{ borderBottom: idx === a.projects.length - 1 ? 'none' : '1px solid var(--color-border-default)', paddingBottom: '16px', marginBottom: '16px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                        <div>
+                          <h4 style={{ fontSize: '1.05rem', fontWeight: 600, margin: 0 }}>{proj.title}</h4>
+                        </div>
+                        {proj.source === 'profile' && (
+                          <span style={{ fontSize: '0.75rem', color: 'var(--color-warning-strong)', fontWeight: 600 }}>
+                            Fallback from live profile
+                          </span>
+                        )}
+                      </div>
+                      {proj.description && (
+                        <p style={{ marginTop: '8px', fontSize: '0.9rem', whiteSpace: 'pre-line' }}>{proj.description}</p>
+                      )}
+                      {proj.technologies && proj.technologies.length > 0 && (
+                        <div style={{ marginTop: '8px', display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
+                          {proj.technologies.map(t => <span key={t} style={{ fontSize: '0.75rem', background: 'var(--color-surface-secondary)', border: '1px solid var(--color-border-default)', padding: '2px 6px', borderRadius: '2px' }}>{t}</span>)}
+                        </div>
+                      )}
+                      <div style={{ marginTop: '12px', display: 'flex', gap: '12px' }}>
+                        {safeGithub && (
+                          <a href={safeGithub} target="_blank" rel="noopener noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '0.85rem', color: 'var(--color-primary)', textDecoration: 'none', fontWeight: 600 }}>
+                            <GithubIcon size={14} /> GitHub <ExternalLink size={12} />
+                          </a>
+                        )}
+                        {safeLive && (
+                          <a href={safeLive} target="_blank" rel="noopener noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '0.85rem', color: 'var(--color-primary)', textDecoration: 'none', fontWeight: 600 }}>
+                            <Globe size={14} /> Live Demo <ExternalLink size={12} />
+                          </a>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <EmptyState title="No projects provided" description="No personal or professional projects listed." />
+            )}
+          </Card>
+
+          {/* Certifications Section */}
+          <Card heading="Certifications" headingLevel={2}>
+            {a.certifications && a.certifications.length > 0 ? (
+              <div>
+                {a.certifications.map((cert, idx) => {
+                  const safeCredUrl = isSafeUrl(cert.credentialUrl) ? cert.credentialUrl : undefined;
+                  return (
+                    <div key={idx} style={{ borderBottom: idx === a.certifications.length - 1 ? 'none' : '1px solid var(--color-border-default)', paddingBottom: '16px', marginBottom: '16px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                        <div>
+                          <h4 style={{ fontSize: '1.05rem', fontWeight: 600, margin: 0 }}>{cert.name}</h4>
+                          <strong>{cert.issuingOrganization}</strong>
+                        </div>
+                        <div style={{ textAlign: 'right' }}>
+                          <span style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>
+                            Issued: {cert.issueDate ? new Date(cert.issueDate).toLocaleDateString(undefined, { year: 'numeric', month: 'short' }) : '—'}
+                          </span>
+                          {cert.source === 'profile' && (
+                            <span style={{ display: 'block', fontSize: '0.75rem', color: 'var(--color-warning-strong)', fontWeight: 600 }}>
+                              Fallback from live profile
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      {cert.credentialId && (
+                        <p style={{ margin: '4px 0 0', fontSize: '0.9rem' }}>
+                          <strong>Credential ID:</strong> {cert.credentialId}
+                        </p>
+                      )}
+                      {safeCredUrl && (
+                        <div style={{ marginTop: '8px' }}>
+                          <a href={safeCredUrl} target="_blank" rel="noopener noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '0.85rem', color: 'var(--color-primary)', textDecoration: 'none', fontWeight: 600 }}>
+                            View Credential <ExternalLink size={12} />
+                          </a>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <EmptyState title="No certifications provided" description="No credentials or licenses listed." />
+            )}
+          </Card>
+
+          {/* Online Presence */}
+          <Card heading="Online Presence" headingLevel={2}>
+            {a.socialLinks ? (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px' }}>
+                <div>
+                  <h4 style={{ fontSize: '0.9rem', fontWeight: 600, marginBottom: '8px', color: 'var(--color-text-muted)' }}>
+                    GitHub Link {a.socialLinks.source === 'profile' && <span style={{ fontSize: '0.75rem', color: 'var(--color-warning-strong)' }}>(profile fallback)</span>}
+                  </h4>
+                  {isSafeUrl(a.socialLinks.github) ? (
+                    <a href={a.socialLinks.github} target="_blank" rel="noopener noreferrer" style={{ display: 'flex', alignItems: 'center', gap: '8px', textDecoration: 'none', padding: '12px', background: 'var(--color-bg-alt)', border: '1px solid var(--color-border-default)', borderRadius: '4px' }}>
+                      <GithubIcon size={18} />
+                      <span style={{ textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap', fontSize: '0.9rem', fontWeight: 600 }}>Open GitHub Profile</span>
+                      <ExternalLink size={14} style={{ marginLeft: 'auto' }} />
+                    </a>
+                  ) : (
+                    <span style={{ fontSize: '0.9rem', color: 'var(--color-text-muted)' }}>No GitHub profile provided.</span>
+                  )}
+                </div>
+
+                <div>
+                  <h4 style={{ fontSize: '0.9rem', fontWeight: 600, marginBottom: '8px', color: 'var(--color-text-muted)' }}>
+                    LinkedIn Link {a.socialLinks.source === 'profile' && <span style={{ fontSize: '0.75rem', color: 'var(--color-warning-strong)' }}>(profile fallback)</span>}
+                  </h4>
+                  {isSafeUrl(a.socialLinks.linkedin) ? (
+                    <a href={a.socialLinks.linkedin} target="_blank" rel="noopener noreferrer" style={{ display: 'flex', alignItems: 'center', gap: '8px', textDecoration: 'none', padding: '12px', background: 'var(--color-bg-alt)', border: '1px solid var(--color-border-default)', borderRadius: '4px' }}>
+                      <LinkedinIcon size={18} />
+                      <span style={{ textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap', fontSize: '0.9rem', fontWeight: 600 }}>Open LinkedIn Profile</span>
+                      <ExternalLink size={14} style={{ marginLeft: 'auto' }} />
+                    </a>
+                  ) : (
+                    <span style={{ fontSize: '0.9rem', color: 'var(--color-text-muted)' }}>No LinkedIn profile provided.</span>
+                  )}
+                </div>
+
+                {a.socialLinks.portfolio && (
+                  <div style={{ gridColumn: 'span 2' }}>
+                    <h4 style={{ fontSize: '0.9rem', fontWeight: 600, marginBottom: '8px', color: 'var(--color-text-muted)' }}>
+                      Portfolio Link {a.socialLinks.source === 'profile' && <span style={{ fontSize: '0.75rem', color: 'var(--color-warning-strong)' }}>(profile fallback)</span>}
+                    </h4>
+                    {isSafeUrl(a.socialLinks.portfolio) ? (
+                      <a href={a.socialLinks.portfolio} target="_blank" rel="noopener noreferrer" style={{ display: 'flex', alignItems: 'center', gap: '8px', textDecoration: 'none', padding: '12px', background: 'var(--color-bg-alt)', border: '1px solid var(--color-border-default)', borderRadius: '4px' }}>
+                        <Globe size={18} />
+                        <span style={{ textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap', fontSize: '0.9rem', fontWeight: 600 }}>{a.socialLinks.portfolio}</span>
+                        <ExternalLink size={14} style={{ marginLeft: 'auto' }} />
+                      </a>
+                    ) : (
+                      <span style={{ fontSize: '0.9rem', color: 'var(--color-text-muted)' }}>No portfolio provided.</span>
+                    )}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                <div>
+                  <h4 style={{ fontSize: '0.9rem', fontWeight: 600, marginBottom: '8px', color: 'var(--color-text-muted)' }}>GitHub Link</h4>
+                  <span style={{ fontSize: '0.9rem', color: 'var(--color-text-muted)' }}>No GitHub profile provided.</span>
+                </div>
+                <div>
+                  <h4 style={{ fontSize: '0.9rem', fontWeight: 600, marginBottom: '8px', color: 'var(--color-text-muted)' }}>LinkedIn Link</h4>
+                  <span style={{ fontSize: '0.9rem', color: 'var(--color-text-muted)' }}>No LinkedIn profile provided.</span>
+                </div>
+              </div>
+            )}
+          </Card>
+
           <ApplicationCommentsSection applicationId={applicationId} />
         </div>
         <ApplicationTimelineSection applicationId={applicationId} />

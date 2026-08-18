@@ -6,13 +6,14 @@ import { User } from '../models/User.js';
 import { AuditLog } from '../models/AuditLog.js';
 import { CompanyMember } from '../models/CompanyMember.js';
 import { Comment } from '../models/Comment.js';
+import { CandidateProfile } from '../models/CandidateProfile.js';
 import { AppError } from '../shared/errors/AppError.js';
 import { changeApplicationStatus } from '../utils/applicationStatus.js';
 import { buildPagination, createSafeRegex } from '../utils/pagination.js';
 import { genericApplicationEvent } from '../utils/applicationNotificationPolicy.js';
 import { publishOptionalDomainEvent } from './domainEvent.service.js';
 
-const companyApplication = async (companyId, id) => { const application = await Application.findOne({ _id: id, company: companyId, isArchived: false }); if (!application) throw new AppError('Application not found', 404); return application; };
+const companyApplication = async (companyId, id) => { const application = await Application.findOne({ _id: id, company: companyId, isArchived: false }).populate('candidateProfile'); if (!application) throw new AppError('Application not found', 404); return application; };
 const filterFor = (companyId, query) => {
   const filter = { company: companyId, isArchived: false };
   if (query.jobId) filter.job = query.jobId; if (query.status) filter.status = query.status;

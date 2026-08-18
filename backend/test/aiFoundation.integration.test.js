@@ -19,6 +19,7 @@ import { executeJob } from '../src/services/backgroundJobs.service.js';
 
 let replicaSet;
 let sequence = 0;
+let originalOpenRouterKey;
 
 const createAccount = async (role = 'candidate') => {
   sequence += 1;
@@ -41,6 +42,8 @@ const createMockCompany = async (ownerId) => {
 };
 
 beforeAll(async () => {
+  originalOpenRouterKey = process.env.OPENROUTER_API_KEY;
+  delete process.env.OPENROUTER_API_KEY;
   replicaSet = await MongoMemoryReplSet.create({ replSet: { count: 1 } });
   await mongoose.connect(replicaSet.getUri());
   await User.init();
@@ -80,6 +83,9 @@ beforeEach(async () => {
 });
 
 afterAll(async () => {
+  if (originalOpenRouterKey !== undefined) {
+    process.env.OPENROUTER_API_KEY = originalOpenRouterKey;
+  }
   await mongoose.disconnect();
   await replicaSet.stop();
 });

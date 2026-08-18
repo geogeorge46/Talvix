@@ -281,10 +281,12 @@ const callProvider = async (provider, model, promptText) => {
           });
         } else if (promptText.includes('scam') || promptText.includes('safety') || promptText.includes('Safe')) {
           text = JSON.stringify({ isSafe: true, riskScore: 5, issues: [] });
+        } else if (promptText.includes('Analyze the candidate profile details against') || promptText.includes('Calculate an overall matching score')) {
+          text = JSON.stringify({ matchScore: 85, summary: 'Matches perfectly.', skillGap: ['GraphQL', 'Docker'], suggestedStage: 'interview-scheduled' });
         } else if (promptText.includes('skills') || promptText.includes('suggest')) {
           text = 'React, Node.js, TypeScript';
         } else if (promptText.includes('matching score') || promptText.includes('candidate profile') || promptText.includes('Analysis')) {
-          text = JSON.stringify({ matchScore: 85, summary: 'Matches perfectly.', skillGap: ['Docker'], suggestedStage: 'interview-scheduled' });
+          text = JSON.stringify({ matchScore: 85, summary: 'Matches perfectly.', skillGap: ['GraphQL', 'Docker'], suggestedStage: 'interview-scheduled' });
         } else if (promptText.includes('offer') || promptText.includes('salaryBenchmarking')) {
           text = JSON.stringify({
             salaryBenchmarking: { status: 'competitive', percentile: 75, marketAverage: 120000 },
@@ -543,10 +545,12 @@ const callProvider = async (provider, model, promptText) => {
           });
         } else if (promptText.includes('scam') || promptText.includes('safety') || promptText.includes('Safe')) {
           text = JSON.stringify({ isSafe: true, riskScore: 5, issues: [] });
+        } else if (promptText.includes('Analyze the candidate profile details against') || promptText.includes('Calculate an overall matching score')) {
+          text = JSON.stringify({ matchScore: 85, summary: 'Matches perfectly.', skillGap: ['GraphQL', 'Docker'], suggestedStage: 'interview-scheduled' });
         } else if (promptText.includes('skills') || promptText.includes('suggest')) {
           text = 'React, Node.js, TypeScript';
         } else if (promptText.includes('matching score') || promptText.includes('candidate profile') || promptText.includes('Analysis')) {
-          text = JSON.stringify({ matchScore: 85, summary: 'Matches perfectly.', skillGap: ['Docker'], suggestedStage: 'interview-scheduled' });
+          text = JSON.stringify({ matchScore: 85, summary: 'Matches perfectly.', skillGap: ['GraphQL', 'Docker'], suggestedStage: 'interview-scheduled' });
         } else if (promptText.includes('offer') || promptText.includes('salaryBenchmarking')) {
           text = JSON.stringify({
             salaryBenchmarking: { status: 'competitive', percentile: 75, marketAverage: 120000 },

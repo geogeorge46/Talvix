@@ -111,13 +111,13 @@ describe('Recruiter Module Enhancements', () => {
       .expect(200);
 
     expect(resGet.body.success).toBe(true);
-    expect(resGet.body.data.widgets.length).toBe(10);
-    expect(resGet.body.data.widgets[0].id).toBe('activeJobs');
+    expect(resGet.body.data.widgets.length).toBe(6);
+    expect(resGet.body.data.widgets[0].id).toBe('metrics');
 
     // 2. Update widget layouts (reorder and toggle visibility)
     const customLayout = [
-      { id: 'analytics', visible: true, order: 0 },
-      { id: 'activeJobs', visible: false, order: 1 }
+      { id: 'quickActions', visible: true, order: 0 },
+      { id: 'insights', visible: false, order: 1 }
     ];
 
     const resPatch = await request(app)
@@ -127,7 +127,7 @@ describe('Recruiter Module Enhancements', () => {
       .expect(200);
 
     expect(resPatch.body.success).toBe(true);
-    expect(resPatch.body.data.widgets[0].id).toBe('analytics');
+    expect(resPatch.body.data.widgets[0].id).toBe('quickActions');
     expect(resPatch.body.data.widgets[1].visible).toBe(false);
 
     // 3. Reset widgets
@@ -138,7 +138,7 @@ describe('Recruiter Module Enhancements', () => {
       .expect(200);
 
     expect(resReset.body.success).toBe(true);
-    expect(resReset.body.data.widgets[0].id).toBe('activeJobs');
+    expect(resReset.body.data.widgets[0].id).toBe('metrics');
     expect(resReset.body.data.widgets[0].visible).toBe(true);
   });
 
