@@ -377,6 +377,7 @@ export function CandidateProfilePage() {
     unknown
   > | null>(null);
   const [validationError, setValidationError] = useState('');
+  const [selectedAvailability, setSelectedAvailability] = useState<string | null>(null);
   if (q.isPending) return <LoadingState label="Loading profile" />;
   if (q.isError)
     return <ErrorState title="Profile unavailable" detail={message(q.error)} />;
@@ -417,9 +418,11 @@ export function CandidateProfilePage() {
     setValidationError('');
     const f = new FormData(e.currentTarget);
     const phoneVal = String(f.get('phone')).trim();
-    if (phoneVal && !/^[+()\-\s\d]{7,20}$/.test(phoneVal)) {
-      setValidationError('Phone number must contain only numbers, spaces, hyphens, parentheses, or + and be between 7 and 20 characters.');
-      return;
+    if (phoneVal) {
+      if (!/^\+91\d{10}$/.test(phoneVal)) {
+        setValidationError('Phone number must start with +91 followed by exactly 10 digits.');
+        return;
+      }
     }
 
     const headlineVal = String(f.get('headline')).trim();
@@ -432,6 +435,32 @@ export function CandidateProfilePage() {
     if (bioVal.length > 3000) {
       setValidationError('Bio must not exceed 3000 characters.');
       return;
+    }
+
+    const dobVal = String(f.get('dateOfBirth')).trim();
+    if (dobVal) {
+      const dob = new Date(dobVal);
+      const today = new Date();
+      if (Number.isNaN(dob.getTime())) {
+        setValidationError('Invalid date of birth format.');
+        return;
+      }
+      if (dob > today) {
+        setValidationError('Date of birth cannot be in the future.');
+        return;
+      }
+      const hundredYearsAgo = new Date();
+      hundredYearsAgo.setFullYear(today.getFullYear() - 100);
+      if (dob < hundredYearsAgo) {
+        setValidationError('Date of birth cannot be more than 100 years ago.');
+        return;
+      }
+      const eighteenYearsAgo = new Date();
+      eighteenYearsAgo.setFullYear(today.getFullYear() - 18);
+      if (dob > eighteenYearsAgo) {
+        setValidationError('You must be at least 18 years old to use Talvix.');
+        return;
+      }
     }
 
     const availabilityVal = String(f.get('availability'));
@@ -447,17 +476,21 @@ export function CandidateProfilePage() {
     const minSalaryVal = String(f.get('salaryMinimum'));
     const maxSalaryVal = String(f.get('salaryMaximum'));
     if (minSalaryVal || maxSalaryVal) {
+      if (!minSalaryVal || !maxSalaryVal) {
+        setValidationError('Both minimum and maximum expected salary must be specified.');
+        return;
+      }
       const min = Number(minSalaryVal);
       const max = Number(maxSalaryVal);
-      if (minSalaryVal && (Number.isNaN(min) || min < 0)) {
+      if (Number.isNaN(min) || min < 0) {
         setValidationError('Minimum salary must be a positive number.');
         return;
       }
-      if (maxSalaryVal && (Number.isNaN(max) || max < 0)) {
+      if (Number.isNaN(max) || max < 0) {
         setValidationError('Maximum salary must be a positive number.');
         return;
       }
-      if (minSalaryVal && maxSalaryVal && min > max) {
+      if (min > max) {
         setValidationError('Minimum salary cannot exceed maximum salary.');
         return;
       }
@@ -843,24 +876,30 @@ export function CandidateProfilePage() {
                     )}
                   </FormField>
                   <FormField label="Availability">
-                    {({ id, ...control }) => (
-                      <Select
-                        id={id}
-                        {...control}
-                        name="availability"
-                        placeholder="Availability"
-                        defaultValue={p.availability ?? ''}
-                        options={['immediately', 'notice-period', 'unavailable'].map(
-                          (value) => ({ value, label: value }),
-                        )}
-                      />
-                    )}
+                    {({ id, ...control }) => {
+                      const availabilityStateVal = selectedAvailability ?? p.availability ?? '';
+                      return (
+                        <Select
+                          id={id}
+                          {...control}
+                          name="availability"
+                          placeholder="Availability"
+                          value={availabilityStateVal}
+                          onChange={(e) => setSelectedAvailability(e.target.value)}
+                          options={['immediately', 'notice-period', 'unavailable'].map(
+                            (value) => ({ value, label: value }),
+                          )}
+                        />
+                      );
+                    }}
                   </FormField>
-                  <FormField label="Notice period days">
-                    {({ id, ...control }) => (
-                      <TextField id={id} {...control} name="noticePeriodDays" type="number" min="0" max="365" defaultValue={p.noticePeriodDays} />
-                    )}
-                  </FormField>
+                  {(selectedAvailability ?? p.availability ?? '') === 'notice-period' && (
+                    <FormField label="Notice period days">
+                      {({ id, ...control }) => (
+                        <TextField id={id} {...control} name="noticePeriodDays" type="number" min="0" max="365" defaultValue={p.noticePeriodDays} />
+                      )}
+                    </FormField>
+                  )}
                 </div>
               </div>
 
@@ -1003,60 +1042,64 @@ function ProfileCollections({
   return (
     <>
       {groups.map(([label, items, path]) => (
-        <Card key={path}>
-          <div className="candidate-section-heading">
-            <h2>{label}</h2>
-            <Badge>{items.length}</Badge>
-            <Button
-              variant="secondary"
-              onClick={() => setEditor({ kind: path })}
-            >
-              Add {label.toLowerCase()}
-            </Button>
-          </div>
-          {items.length ? (
-            <ul className="candidate-collection">
-              {items.map((item) => (
-                <li key={item.id}>
-                  <ProfileItemContent item={item} path={path} />
-                  <Button
-                    variant="quiet"
-                    onClick={() => setEditor({ kind: path, id: item.id })}
-                  >
-                    Edit
-                  </Button>
-                  <Button
-                    variant="quiet"
-                    onClick={() =>
-                      setRemove({
-                        path: `/candidates/me/${path}/${item.id}`,
-                        label,
-                      })
-                    }
-                  >
-                    Remove
-                  </Button>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p>No {label.toLowerCase()} added.</p>
+        <div key={path} style={{ marginBottom: '16px' }}>
+          <Card>
+            <div className="candidate-section-heading">
+              <h2>{label}</h2>
+              <Badge>{items.length}</Badge>
+              <Button
+                variant="secondary"
+                onClick={() => setEditor({ kind: path })}
+              >
+                Add {label.toLowerCase()}
+              </Button>
+            </div>
+            {items.length ? (
+              <ul className="candidate-collection">
+                {items.map((item) => (
+                  <li key={item.id}>
+                    <ProfileItemContent item={item} path={path} />
+                    <Button
+                      variant="quiet"
+                      onClick={() => setEditor({ kind: path, id: item.id })}
+                    >
+                      Edit
+                    </Button>
+                    <Button
+                      variant="quiet"
+                      onClick={() =>
+                        setRemove({
+                          path: `/candidates/me/${path}/${item.id}`,
+                          label,
+                        })
+                      }
+                    >
+                      Remove
+                    </Button>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p>No {label.toLowerCase()} added.</p>
+            )}
+          </Card>
+          {editor && editor.kind === path && (
+            <div style={{ marginTop: '12px' }}>
+              <CollectionEditor
+                kind={editor.kind}
+                id={editor.id}
+                data={
+                  groups
+                    .find((group) => group[2] === editor.kind)?.[1]
+                    .find((item) => item.id === editor.id) as
+                    Record<string, unknown> | undefined
+                }
+                onClose={() => setEditor(null)}
+              />
+            </div>
           )}
-        </Card>
+        </div>
       ))}
-      {editor && (
-        <CollectionEditor
-          kind={editor.kind}
-          id={editor.id}
-          data={
-            groups
-              .find((group) => group[2] === editor.kind)?.[1]
-              .find((item) => item.id === editor.id) as
-              Record<string, unknown> | undefined
-          }
-          onClose={() => setEditor(null)}
-        />
-      )}
       <ConfirmDialog
         open={Boolean(remove)}
         onOpenChange={(open) => !open && setRemove(null)}
@@ -1084,6 +1127,16 @@ function CollectionEditor({
   onClose: () => void;
   data: Record<string, unknown> | undefined;
 }) {
+  const predefinedSkills = ['JavaScript', 'TypeScript', 'React', 'Node.js', 'Python', 'Java', 'C++', 'Go', 'HTML', 'CSS', 'SQL', 'MongoDB', 'AWS', 'Docker', 'Kubernetes', 'Git'];
+  const isOtherSkill = data?.name && !predefinedSkills.includes(String(data.name));
+
+  const [skillSelect, setSkillSelect] = useState(
+    isOtherSkill ? 'other' : String(data?.name ?? predefinedSkills[0])
+  );
+  const [customSkill, setCustomSkill] = useState(
+    isOtherSkill ? String(data.name) : ''
+  );
+
   const mutation = useCandidateProfileMutation();
   const [current, setCurrent] = useState(
     Boolean(data?.currentlyWorking ?? data?.currentlyStudying),
@@ -1093,12 +1146,14 @@ function CollectionEditor({
     const f = new FormData(event.currentTarget),
       value = (name: string) => String(f.get(name) ?? '').trim();
     let body: Record<string, unknown>;
-    if (kind === 'skills')
+    if (kind === 'skills') {
+      const finalSkillName = skillSelect === 'other' ? customSkill.trim() : skillSelect;
       body = {
-        name: value('name'),
+        name: finalSkillName,
         proficiency: value('proficiency'),
         yearsOfExperience: Number(value('yearsOfExperience') || 0),
       };
+    }
     else if (kind === 'experience')
       body = {
         company: value('company'),
@@ -1170,15 +1225,31 @@ function CollectionEditor({
           <>
             <label htmlFor="collection-skill-name">
               Skill name
-              <TextField
+              <Select
                 id="collection-skill-name"
-                name="name"
-                aria-label="Skill name"
-                required
-                maxLength={100}
-                defaultValue={String(data?.name ?? '')}
+                name="skillSelect"
+                value={skillSelect}
+                onChange={(e) => setSkillSelect(e.target.value)}
+                options={[
+                  ...predefinedSkills.map((s) => ({ value: s, label: s })),
+                  { value: 'other', label: 'Other (Enter custom skill)' },
+                ]}
               />
             </label>
+            {skillSelect === 'other' && (
+              <label htmlFor="collection-skill-custom" style={{ marginTop: '12px', display: 'block' }}>
+                Custom skill name
+                <TextField
+                  id="collection-skill-custom"
+                  name="customSkill"
+                  aria-label="Custom skill name"
+                  required
+                  maxLength={100}
+                  value={customSkill}
+                  onChange={(e) => setCustomSkill(e.target.value)}
+                />
+              </label>
+            )}
             <label htmlFor="collection-proficiency">
               Proficiency
               <Select

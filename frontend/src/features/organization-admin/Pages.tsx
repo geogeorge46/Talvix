@@ -802,12 +802,40 @@ export function TeamPage() {
                   ) : joinRequestsQuery.data && joinRequestsQuery.data.length > 0 ? (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                       {joinRequestsQuery.data.map((req: any) => (
-                        <div key={req._id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.75rem', border: '1px solid var(--color-border-subtle)', borderRadius: '6px' }}>
-                          <div>
+                        <div key={req._id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', padding: '1rem', border: '1px solid var(--color-border-subtle)', borderRadius: '6px', gap: '1rem' }}>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', minWidth: 0, flex: 1 }}>
                             <strong>{req.user?.fullName}</strong>
-                            <div style={{ fontSize: '0.85rem', color: 'var(--color-text-subtle)' }}>{req.user?.email}</div>
+                            <div style={{ fontSize: '0.85rem', color: 'var(--color-text-subtle)', wordBreak: 'break-all' }}>{req.user?.email}</div>
+                            {req.profile && (
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', marginTop: '4px', fontSize: '0.8rem', color: 'var(--color-text-muted)' }}>
+                                {(req.profile.designation || req.profile.department) && (
+                                  <div>
+                                    <strong>Role:</strong> {req.profile.designation || '—'} 
+                                    {req.profile.department ? ` (${req.profile.department})` : ''}
+                                  </div>
+                                )}
+                                {req.profile.phone && (
+                                  <div>
+                                    <strong>Phone:</strong> {req.profile.phone}
+                                  </div>
+                                )}
+                                {req.profile.linkedinUrl && (
+                                  <div>
+                                    <strong>LinkedIn:</strong>{' '}
+                                    <a
+                                      href={req.profile.linkedinUrl.startsWith('http') ? req.profile.linkedinUrl : `https://${req.profile.linkedinUrl}`}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      style={{ color: 'var(--color-action-primary)', textDecoration: 'underline' }}
+                                    >
+                                      View Profile
+                                    </a>
+                                  </div>
+                                )}
+                              </div>
+                            )}
                           </div>
-                          <div style={{ display: 'flex', gap: '0.5rem' }}>
+                          <div style={{ display: 'flex', gap: '0.5rem', flexShrink: 0, marginTop: '2px' }}>
                             <Button
                               variant="primary"
                               size="compact"

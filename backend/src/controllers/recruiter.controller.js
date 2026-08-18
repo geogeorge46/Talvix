@@ -1,3 +1,20 @@
 import { getOwnRecruiterProfile, updateOwnRecruiterProfile } from '../services/recruiter.service.js';
+import { submitRecruiterVerification } from '../services/recruiterVerification.service.js';
 export const getMyRecruiterProfile = async (request, response, next) => { try { const profile = await getOwnRecruiterProfile(request.user.id); return response.json({ success: true, message: 'Recruiter profile retrieved successfully', data: { profile } }); } catch (error) { return next(error); } };
 export const updateMyRecruiterProfile = async (request, response, next) => { try { const profile = await updateOwnRecruiterProfile(request.user.id, request.body); return response.json({ success: true, message: 'Recruiter profile updated successfully', data: { profile } }); } catch (error) { return next(error); } };
+export const submitVerification = async (request, response, next) => {
+  try {
+    const result = await submitRecruiterVerification(
+      request.user.id,
+      request.ip || 'Unknown',
+      request.headers['user-agent'] || 'Unknown'
+    );
+    return response.json({
+      success: true,
+      message: 'Verification submitted successfully',
+      data: result
+    });
+  } catch (error) {
+    return next(error);
+  }
+};

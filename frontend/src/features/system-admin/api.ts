@@ -10,6 +10,10 @@ export const adminApi = {
   detail: async (path: string) => detailFrom(await apiRequest<AdminRecord>(path)),
   mutate: (path: string, method: 'PATCH' | 'POST' | 'DELETE', body?: unknown) =>
     apiRequest<unknown>(path, { method, body }),
+  getVerificationHistory: (companyId: string) =>
+    apiRequest<any>(`/admin/management/companies/${companyId}/verification-history`),
+  getRecruiterVerificationHistory: (recruiterId: string) =>
+    apiRequest<any>(`/admin/management/recruiters/${recruiterId}/verification-history`),
 };
 
 export async function downloadAnalyticsCsv(query: Record<string, string>) {

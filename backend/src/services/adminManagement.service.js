@@ -16,6 +16,8 @@ import { Notification } from '../models/Notification.js';
 import { EmailLog } from '../models/EmailLog.js';
 import { AuditLog } from '../models/AuditLog.js';
 import { RefreshSession } from '../models/RefreshSession.js';
+import { CompanyVerificationHistory } from '../models/CompanyVerificationHistory.js';
+import { RecruiterVerificationHistory } from '../models/RecruiterVerificationHistory.js';
 import { AppError } from '../shared/errors/AppError.js';
 import { buildPagination } from '../utils/pagination.js';
 import { revokeUserSessions } from '../utils/sessionRevocation.js';
@@ -114,9 +116,73 @@ export const updateUserStatus = async (userId, action, adminId, ip, ua) => {
     user.isActive = false;
     user.blocked = true;
     await revokeUserSessions(userId);
+
+    if (user.role === 'recruiter') {
+      const oldStatus = user.recruiterVerificationStatus;
+      user.recruiterVerificationStatus = 'suspended';
+      
+      await RecruiterProfile.updateOne(
+        { user: userId },
+        { 
+          $set: { 
+            isApproved: false,
+            suspendedBy: adminId,
+            suspendedAt: new Date(),
+            suspensionReason: 'Suspended via User Management'
+          } 
+        }
+      );
+
+      const adminUser = await User.findById(adminId);
+      const adminName = adminUser?.fullName || 'System Administrator';
+
+      await RecruiterVerificationHistory.create({
+        recruiterId: userId,
+        action: 'verification.suspended',
+        previousStatus: oldStatus,
+        newStatus: 'suspended',
+        performedBy: adminId,
+        performedByName: adminName,
+        reason: 'Suspended via User Management'
+      });
+    }
   } else if (action === 'restore') {
     user.isActive = true;
     user.blocked = false;
+
+    if (user.role === 'recruiter') {
+      const oldStatus = user.recruiterVerificationStatus;
+      user.recruiterVerificationStatus = 'verified';
+
+      await RecruiterProfile.updateOne(
+        { user: userId },
+        { 
+          $set: { 
+            isApproved: true,
+            restoredBy: adminId,
+            restoredAt: new Date(),
+            approvedBy: adminId,
+            approvedAt: new Date(),
+            suspendedBy: null,
+            suspendedAt: null,
+            suspensionReason: ''
+          } 
+        }
+      );
+
+      const adminUser = await User.findById(adminId);
+      const adminName = adminUser?.fullName || 'System Administrator';
+
+      await RecruiterVerificationHistory.create({
+        recruiterId: userId,
+        action: 'verification.restored',
+        previousStatus: oldStatus,
+        newStatus: 'verified',
+        performedBy: adminId,
+        performedByName: adminName,
+        reason: 'Restored via User Management'
+      });
+    }
   } else if (action === 'verify-email') {
     user.isVerified = true;
     user.emailVerified = true;
@@ -237,17 +303,58 @@ export const listRecruiters = async (query) => {
   const limit = parseInt(query.limit || 20, 10);
   const filter = {};
 
+  let userIds = null;
+
   if (query.search) {
     const matchedUsers = await User.find({
       role: 'recruiter',
       fullName: { $regex: query.search, $options: 'i' }
     }).select('_id').lean();
-    filter.user = { $in: matchedUsers.map(u => u._id) };
+    userIds = matchedUsers.map(u => u._id);
+  }
+
+  if (query.status) {
+    let statusFilter = {};
+    if (query.status === 'pending') {
+      filter.isApproved = false;
+      statusFilter = { recruiterVerificationStatus: 'pending', isActive: { $ne: false } };
+    } else if (query.status === 'approved') {
+      filter.isApproved = true;
+      statusFilter = { recruiterVerificationStatus: 'verified', isActive: { $ne: false } };
+    } else if (query.status === 'rejected') {
+      statusFilter = { recruiterVerificationStatus: 'rejected' };
+    } else if (query.status === 'suspended') {
+      statusFilter = { isActive: false };
+    }
+    const matchedUsers = await User.find({
+      role: 'recruiter',
+      ...statusFilter
+    }).select('_id').lean();
+    const statusUserIds = matchedUsers.map(u => u._id);
+    if (userIds) {
+      userIds = userIds.filter(id => statusUserIds.some(sid => sid.equals(id)));
+    } else {
+      userIds = statusUserIds;
+    }
+  }
+
+  if (userIds !== null) {
+    filter.user = { $in: userIds };
+  }
+
+  if (query.company) {
+    filter.company = query.company;
+  }
+
+  if (query.startDate || query.endDate) {
+    filter.createdAt = {};
+    if (query.startDate) filter.createdAt.$gte = new Date(query.startDate);
+    if (query.endDate) filter.createdAt.$lte = new Date(query.endDate);
   }
 
   const [profiles, total] = await Promise.all([
     RecruiterProfile.find(filter)
-      .populate('user', 'fullName email role isVerified blocked lastLogin')
+      .populate('user', 'fullName email role isVerified blocked lastLogin recruiterVerificationStatus')
       .populate('company', 'name verificationStatus')
       .skip((page - 1) * limit)
       .limit(limit)
@@ -257,10 +364,11 @@ export const listRecruiters = async (query) => {
 
   // Aggregate company membership details for each profile
   const rows = await Promise.all(profiles.map(async (profile) => {
-    const membership = await CompanyMember.findOne({ recruiter: profile.user?._id, status: 'active' }).lean();
+    const membership = await CompanyMember.findOne({ recruiter: profile.user?._id }).lean();
     return {
       ...profile,
       membershipRole: membership?.role || 'none',
+      membershipStatus: membership?.status || 'none',
       joinedAt: membership?.createdAt || null
     };
   }));
@@ -270,20 +378,30 @@ export const listRecruiters = async (query) => {
 
 export const getRecruiterDetail = async (recruiterId) => {
   const profile = await RecruiterProfile.findById(recruiterId)
-    .populate('user', 'fullName email role isVerified blocked')
-    .populate('company', 'name verificationStatus')
+    .populate('user', 'fullName email role isVerified blocked recruiterVerificationStatus')
+    .populate('company', 'name verificationStatus website email officialEmailDomain companySize industry headquarters locations')
+    .populate('approvedBy', 'fullName email')
+    .populate('rejectedBy', 'fullName email')
+    .populate('suspendedBy', 'fullName email')
+    .populate('restoredBy', 'fullName email')
     .lean();
   if (!profile) throw new AppError('Recruiter not found', 404);
+
+  // Inconsistent/legacy state fallback reconciliation
+  if (profile.user && profile.isApproved && profile.user.recruiterVerificationStatus === 'none') {
+    profile.user.recruiterVerificationStatus = 'verified';
+  }
 
   const userId = profile.user?._id;
   const companyId = profile.company?._id;
 
-  const [jobs, interviews, offers, members, logs] = await Promise.all([
+  const [jobs, interviews, offers, members, logs, membership] = await Promise.all([
     userId ? Job.find({ createdBy: userId }).limit(10).lean() : [],
     companyId ? InterviewSchedule.find({ company: companyId }).limit(10).lean() : [],
     companyId ? Offer.find({ company: companyId }).limit(10).lean() : [],
     companyId ? CompanyMember.find({ company: companyId }).lean() : [],
-    userId ? AuditLog.find({ actor: userId }).sort({ timestamp: -1 }).limit(5).lean() : []
+    userId ? AuditLog.find({ actor: userId }).sort({ timestamp: -1 }).limit(5).lean() : [],
+    (companyId && userId) ? CompanyMember.findOne({ company: companyId, recruiter: userId }).lean() : null
   ]);
 
   return {
@@ -292,7 +410,8 @@ export const getRecruiterDetail = async (recruiterId) => {
     jobs,
     interviews,
     offers,
-    companyMembers: members
+    companyMembers: members,
+    membership
   };
 };
 
@@ -338,22 +457,54 @@ export const listCompanies = async (query) => {
   if (query.status) {
     filter.verificationStatus = query.status;
   }
+  if (query.startDate || query.endDate) {
+    filter.createdAt = {};
+    if (query.startDate) filter.createdAt.$gte = new Date(query.startDate);
+    if (query.endDate) filter.createdAt.$lte = new Date(query.endDate);
+  }
 
   const [rows, total] = await Promise.all([
     Company.find(filter)
-      .populate('owner', 'fullName email')
+      .populate('owner', 'fullName email recruiterVerificationStatus')
       .skip((page - 1) * limit)
       .limit(limit)
       .lean(),
     Company.countDocuments(filter)
   ]);
 
-  return { rows, meta: buildPagination(page, limit, total) };
+  const enrichedRows = await Promise.all(rows.map(async (company) => {
+    const [memberCount, jobCount] = await Promise.all([
+      CompanyMember.countDocuments({ company: company._id }),
+      Job.countDocuments({ company: company._id })
+    ]);
+    return {
+      ...company,
+      memberCount,
+      jobCount
+    };
+  }));
+
+  return { rows: enrichedRows, meta: buildPagination(page, limit, total) };
 };
 
 export const getCompanyDetail = async (companyId) => {
-  const company = await Company.findById(companyId).populate('owner', 'fullName email').lean();
+  const company = await Company.findById(companyId)
+    .populate('owner', 'fullName email')
+    .populate('verifiedBy', 'fullName email')
+    .populate('rejectedBy', 'fullName email')
+    .populate('suspendedBy', 'fullName email')
+    .lean();
   if (!company) throw new AppError('Company not found', 404);
+
+  let domain = company.officialEmailDomain;
+  if (!domain) {
+    if (company.email && company.email.includes('@')) {
+      domain = company.email.split('@')[1];
+    } else if (company.owner?.email && company.owner.email.includes('@')) {
+      domain = company.owner.email.split('@')[1];
+    }
+  }
+  company.officialEmailDomain = domain || '';
 
   const [team, jobs, offers, claims, assessments, interviews] = await Promise.all([
     CompanyMember.find({ company: companyId }).populate('recruiter', 'fullName email').lean(),
@@ -826,4 +977,115 @@ export const listAuditLogs = async (query) => {
   ]);
 
   return { rows, meta: buildPagination(page, limit, total) };
+};
+
+export const getCompanyVerificationHistory = async (companyId, query) => {
+  const page = parseInt(query.page || 1, 10);
+  const limit = parseInt(query.limit || 20, 10);
+  const skip = (page - 1) * limit;
+
+  const [items, total] = await Promise.all([
+    CompanyVerificationHistory.find({ companyId })
+      .sort({ timestamp: -1 })
+      .skip(skip)
+      .limit(limit)
+      .lean(),
+    CompanyVerificationHistory.countDocuments({ companyId })
+  ]);
+
+  let formattedItems = items.map((item) => ({
+    id: item._id,
+    action: item.action,
+    previousStatus: item.previousStatus,
+    newStatus: item.newStatus,
+    performedBy: {
+      id: item.performedBy,
+      name: item.performedByName,
+    },
+    reason: item.reason,
+    notes: item.notes,
+    timestamp: item.timestamp
+  }));
+
+  // Historical migration backfill synthesis
+  if (formattedItems.length === 0) {
+    const company = await Company.findById(companyId).populate('verifiedBy', 'fullName email').lean();
+    if (company && (company.verificationStatus === 'verified' || company.verifiedAt)) {
+      formattedItems.push({
+        id: new mongoose.Types.ObjectId(),
+        action: 'verification.approved',
+        previousStatus: 'pending',
+        newStatus: 'verified',
+        performedBy: {
+          id: company.verifiedBy?._id || null,
+          name: company.verifiedBy?.fullName || 'Talvix Admin',
+        },
+        reason: '',
+        notes: 'Historical verification event',
+        timestamp: company.verifiedAt || company.createdAt || new Date('2026-08-17T16:17:00.000Z')
+      });
+    }
+  }
+
+  return { items: formattedItems, pagination: buildPagination(page, limit, total || formattedItems.length) };
+};
+
+export const getRecruiterVerificationHistory = async (recruiterId, query) => {
+  const page = parseInt(query.page || 1, 10);
+  const limit = parseInt(query.limit || 20, 10);
+  const skip = (page - 1) * limit;
+
+  const profile = await RecruiterProfile.findById(recruiterId).populate('user').lean();
+  const userId = profile?.user?._id;
+
+  if (!userId) {
+    return { items: [], pagination: buildPagination(page, limit, 0) };
+  }
+
+  const [items, total] = await Promise.all([
+    RecruiterVerificationHistory.find({ recruiterId: userId })
+      .sort({ timestamp: -1 })
+      .skip(skip)
+      .limit(limit)
+      .lean(),
+    RecruiterVerificationHistory.countDocuments({ recruiterId: userId })
+  ]);
+
+  let formattedItems = items.map((item) => ({
+    id: item._id,
+    action: item.action,
+    previousStatus: item.previousStatus,
+    newStatus: item.newStatus,
+    performedBy: {
+      id: item.performedBy,
+      name: item.performedByName,
+    },
+    reason: item.reason,
+    notes: item.notes,
+    timestamp: item.timestamp
+  }));
+
+  // Historical migration backfill synthesis
+  if (formattedItems.length === 0) {
+    const fullProfile = await RecruiterProfile.findById(recruiterId)
+      .populate('approvedBy', 'fullName email')
+      .lean();
+    if (fullProfile && (fullProfile.isApproved || fullProfile.approvedAt)) {
+      formattedItems.push({
+        id: new mongoose.Types.ObjectId(),
+        action: 'verification.approved',
+        previousStatus: 'pending',
+        newStatus: 'verified',
+        performedBy: {
+          id: fullProfile.approvedBy?._id || null,
+          name: fullProfile.approvedBy?.fullName || 'Talvix Admin',
+        },
+        reason: '',
+        notes: 'Historical verification event',
+        timestamp: fullProfile.approvedAt || fullProfile.createdAt || new Date('2026-08-17T16:17:00.000Z')
+      });
+    }
+  }
+
+  return { items: formattedItems, pagination: buildPagination(page, limit, total || formattedItems.length) };
 };

@@ -1,16 +1,49 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Link, Navigate, useParams, useSearchParams } from 'react-router-dom';
-import { Activity, ArrowRight, Download, RefreshCw, Search, ShieldAlert, Cpu } from 'lucide-react';
+import { Link, Navigate, useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { 
+  Activity, ArrowRight, Download, RefreshCw, Search, ShieldAlert, Cpu, 
+  CheckCircle2, XCircle, AlertTriangle, Check, X, Ban, Users, Building2, 
+  Briefcase, FileText, CheckCircle, BarChart2, ShieldCheck, Heart, 
+  RadioTower, MessageSquareText, Shield, ExternalLink, HelpCircle
+} from 'lucide-react';
 import { ApiError, tokenStore } from '../../api/client';
 import { adminApi, adminPaths, approvalAction, downloadAnalyticsCsv } from './api';
 import { APPLICATION_ADMIN_STATUSES, displayValue, recordId, type AdminRecord, type PageMeta } from './model';
 import { useGetAdminClaims, useResolveClaim } from '../organization-admin/api';
+import { useAuth } from '../../auth/AuthProvider';
 import './system-admin.css';
 
 const objectId = /^[a-f\d]{24}$/i;
 const label = (value: string) => value.replace(/([A-Z])/g, ' $1').replace(/[-_]/g, ' ').replace(/^./, (x) => x.toUpperCase());
 const errorText = (error: unknown) => error instanceof ApiError ? error.message : 'The request could not be completed.';
+
+const formatActionLabel = (action: string) => {
+  switch (action) {
+    case 'verification.submitted':
+      return 'Verification Submitted';
+    case 'verification.rejected':
+      return 'Verification Rejected';
+    case 'verification.resubmitted':
+      return 'Verification Resubmitted';
+    case 'verification.approved':
+    case 'verified':
+    case 'approved':
+      return 'Verified';
+    case 'verification.suspended':
+    case 'suspended':
+      return 'Suspended';
+    case 'verification.restored':
+    case 'restored':
+      return 'Restored';
+    case 'profile.updated':
+      return 'Profile Updated';
+    case 'company.updated':
+      return 'Company Updated';
+    default:
+      return action.replace(/\./g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+  }
+};
 
 function State({ kind, children }: { kind: 'loading' | 'error' | 'empty'; children: React.ReactNode }) {
   return <div className={`sys-state sys-state--${kind}`} role={kind === 'error' ? 'alert' : 'status'}>{children}</div>;
@@ -47,7 +80,12 @@ function LedgerTable({ rows, detailBase, actions }: {
         <td data-label="Record"><strong>{rowTitle(row)}</strong><small className="sys-mono">{rowSubtitle(row)}</small></td>
         <td data-label="Status"><Status value={status} /></td>
         <td data-label="Updated" className="sys-mono">{displayValue(row.updatedAt ?? row.createdAt ?? row.submittedAt)}</td>
-        <td data-label="Actions" className="sys-row-actions">{detailBase && id && <Link to={`${detailBase}/${id}`}>Inspect <ArrowRight size={14} /></Link>}{actions?.(row)}</td>
+        <td data-label="Actions">
+          <div className="sys-row-actions">
+            {detailBase && id && <Link to={`${detailBase}/${id}`}>Inspect <ArrowRight size={14} /></Link>}
+            {actions?.(row)}
+          </div>
+        </td>
       </tr>;
     })}</tbody>
   </table></div>;
@@ -75,11 +113,16 @@ function ActionDialog({ action, onClose, onDone }: { action: PendingAction; onCl
   }, [onClose]);
   const mutation = useMutation({ mutationFn: () => {
     const hasBody = action.body || action.field || action.reason;
-    const body = hasBody ? { ...action.body, ...(action.field ? { [action.field.name]: fieldValue } : {}), ...(action.reason ? { reason } : {}) } : {};
+    const isCompanyPath = action.path.includes('/companies/admin/');
+    const body = hasBody ? {
+      ...action.body,
+      ...(action.field ? { [action.field.name]: fieldValue } : {}),
+      ...(action.reason ? (isCompanyPath ? { notes: reason } : { reason }) : {})
+    } : {};
     return adminApi.mutate(action.path, action.method ?? 'PATCH', body);
   } });
-  return <div className="sys-dialog-backdrop">
-    <section ref={dialog} tabIndex={-1} className="sys-dialog" role="dialog" aria-modal="true" aria-labelledby="admin-action-title">
+  return <div className="sys-dialog-backdrop" style={{ zIndex: 20000, display: 'grid', placeItems: 'center', background: 'rgba(0, 0, 0, 0.6)' }}>
+    <section ref={dialog} tabIndex={-1} className="sys-dialog" role="dialog" aria-modal="true" aria-labelledby="admin-action-title" style={{ zIndex: 20001, maxWidth: '500px', width: 'calc(100% - 32px)', background: 'var(--color-surface-primary)', borderRadius: '8px', border: '1px solid var(--color-border-default)', padding: '24px' }}>
       <p className="sys-eyebrow">Audited action</p><h2 id="admin-action-title">{action.title}</h2>
       <p>This change is applied immediately after the backend rechecks your administrator role.</p>
       {action.field && <label>{action.field.label}<select value={fieldValue} onChange={(e) => setFieldValue(e.target.value)}>{action.field.options.map((option) => <option key={option} value={option}>{label(option)}</option>)}</select></label>}
@@ -99,72 +142,459 @@ function Pager({ page, setPage, meta }: { page: number; setPage: (page: number) 
 }
 
 
+function MiniSeriesChart({ data }: { data: { date: string; value: number }[] }) {
+  if (!data || data.length === 0) {
+    return <div className="sys-state sys-state--empty">No activity data available</div>;
+  }
+
+  const values = data.map((d) => d.value);
+  const maxValue = Math.max(...values, 5);
+  const width = 500;
+  const height = 150;
+  const padding = 20;
+
+  const points = data.map((d, i) => {
+    const x = padding + (i / (data.length - 1 || 1)) * (width - padding * 2);
+    const y = height - padding - (d.value / maxValue) * (height - padding * 2);
+    return { x, y, date: d.date, value: d.value };
+  });
+
+  const linePath = points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ');
+  const firstPoint = points[0];
+  const lastPoint = points[points.length - 1];
+  const midPoint = points[Math.floor(points.length / 2)];
+
+  const areaPath = points.length > 0 && firstPoint && lastPoint
+    ? `${linePath} L ${lastPoint.x} ${height - padding} L ${firstPoint.x} ${height - padding} Z`
+    : '';
+
+  const formatDate = (dateStr: string) => {
+    try {
+      const d = new Date(dateStr);
+      return d.toLocaleDateString([], { month: 'short', day: 'numeric' });
+    } catch {
+      return '';
+    }
+  };
+
+  return (
+    <div className="sys-chart-container" style={{ height: '160px', marginTop: '10px' }}>
+      <svg viewBox={`0 0 ${width} ${height}`} width="100%" height="100%">
+        <defs>
+          <linearGradient id="chartGradient" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="var(--color-action-primary)" stopOpacity="0.15" />
+            <stop offset="100%" stopColor="var(--color-action-primary)" stopOpacity="0.0" />
+          </linearGradient>
+        </defs>
+
+        <line x1={padding} y1={height - padding} x2={width - padding} y2={height - padding} stroke="var(--color-border-default)" strokeWidth={1} />
+        <line x1={padding} y1={padding} x2={width - padding} y2={padding} stroke="var(--color-border-default)" strokeDasharray="3 3" strokeWidth={1} />
+
+        {areaPath && <path d={areaPath} fill="url(#chartGradient)" />}
+        {linePath && <path d={linePath} fill="none" stroke="var(--color-action-primary)" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" />}
+
+        {points.map((p, idx) => (
+          <g key={idx}>
+            <circle cx={p.x} cy={p.y} r={3.5} fill="var(--color-surface-primary)" stroke="var(--color-action-primary)" strokeWidth={1.5} />
+            <title>{`${formatDate(p.date)}: ${p.value} registrations`}</title>
+          </g>
+        ))}
+
+        {points.length > 0 && firstPoint && midPoint && lastPoint && (
+          <>
+            <text x={padding} y={height - 4} fontSize="9px" fill="var(--color-text-secondary)" textAnchor="start">
+              {formatDate(firstPoint.date)}
+            </text>
+            <text x={width / 2} y={height - 4} fontSize="9px" fill="var(--color-text-secondary)" textAnchor="middle">
+              {formatDate(midPoint.date)}
+            </text>
+            <text x={width - padding} y={height - 4} fontSize="9px" fill="var(--color-text-secondary)" textAnchor="end">
+              {formatDate(lastPoint.date)}
+            </text>
+            <text x={width - padding} y={padding - 4} fontSize="9px" fill="var(--color-text-secondary)" textAnchor="end">
+              Max: {maxValue}
+            </text>
+          </>
+        )}
+      </svg>
+    </div>
+  );
+}
+
 export function AdminOverviewPage() {
+  const { user } = useAuth();
   const [preset, setPreset] = useState('last-30-days');
+  
+  // Real backend analytics queries
   const overview = useQuery({ queryKey: ['system-admin', 'overview', preset], queryFn: () => adminApi.analytics('overview', { preset }) });
   const health = useQuery({ queryKey: ['system-admin', 'health'], queryFn: () => adminApi.analytics('health', { preset: 'today' }), refetchInterval: 30_000 });
+  
+  // Pending verification queues
   const recruiterQueue = useCollection(adminPaths.recruiterQueue, { page: 1, limit: 1 });
   const companyQueue = useCollection(adminPaths.companyQueue, { page: 1, limit: 1 });
   const jobQueue = useCollection(adminPaths.jobQueue, { page: 1, limit: 1 });
-  const data = (overview.data ?? {}) as Record<string, unknown>;
-  const summary = (data.summary ?? data) as Record<string, unknown>;
+
+  // Recruiter verifications count query metrics
+  const approvedRecruiters = useCollection(adminPaths.recruiters, { page: 1, limit: 1, status: 'approved' });
+  const rejectedRecruiters = useCollection(adminPaths.recruiters, { page: 1, limit: 1, status: 'rejected' });
+  const suspendedRecruiters = useCollection(adminPaths.recruiters, { page: 1, limit: 1, status: 'suspended' });
+
+  // Company verifications count query metrics
+  const verifiedCompanies = useCollection(adminPaths.companies, { page: 1, limit: 1, status: 'verified' });
+  const rejectedCompanies = useCollection(adminPaths.companies, { page: 1, limit: 1, status: 'rejected' });
+  const suspendedCompanies = useCollection(adminPaths.companies, { page: 1, limit: 1, status: 'suspended' });
+
+  // Play activity audits & recent data lists
+  const auditsQuery = useCollection(adminPaths.audits, { page: 1, limit: 6 });
+  const recentRecruitersQuery = useCollection(adminPaths.recruiters, { page: 1, limit: 5 });
+  const recentCompaniesQuery = useCollection(adminPaths.companies, { page: 1, limit: 5 });
+
+  // Data mapping
+  const data = (overview.data ?? {}) as Record<string, any>;
+  const summary = (data.summary ?? {}) as Record<string, any>;
+  const usersSummary = (summary.users ?? {}) as Record<string, any>;
+  const businessSummary = (summary.business ?? {}) as Record<string, any>;
+  const seriesData = (data.series ?? []) as { date: string; value: number }[];
+
   const healthData = (health.data ?? {}) as Record<string, unknown>;
   const healthText = JSON.stringify(healthData).toLowerCase();
   const healthState = health.isError ? 'unhealthy' : health.isLoading ? 'checking' :
     /unhealthy|failed|disconnected|critical/.test(healthText) ? 'unhealthy' :
     /degraded|backlog|warning|stale/.test(healthText) ? 'degraded' : 'healthy';
-  const metrics = Object.entries(summary).filter(([, v]) => typeof v === 'number').slice(0, 8);
 
-  const drilldowns: Record<string, string> = {
-    totalUsers: '/admin/analytics/users',
-    activeUsers: '/admin/analytics/users',
-    totalCompanies: '/admin/analytics/companies',
-    verifiedCompanies: '/admin/analytics/companies',
-    totalRecruiters: '/admin/analytics/recruiters',
-    approvedRecruiters: '/admin/analytics/recruiters',
-    totalCandidateProfiles: '/admin/analytics/candidates',
-    totalJobs: '/admin/analytics/jobs',
-    activeJobs: '/admin/analytics/jobs',
-    totalAssessments: '/admin/analytics/assessments',
-    totalAttempts: '/admin/analytics/assessments',
-    totalInterviews: '/admin/analytics/interviews',
-    scheduledInterviews: '/admin/analytics/interviews',
-    totalOffers: '/admin/analytics/offers',
-    activeOffers: '/admin/analytics/offers',
-    databaseState: '/admin/analytics/health',
-    uptimeSeconds: '/admin/analytics/health',
+  const pendingRecruitersCount = recruiterQueue.data?.meta.total ?? 0;
+  const pendingCompaniesCount = companyQueue.data?.meta.total ?? 0;
+  const pendingJobsCount = jobQueue.data?.meta.total ?? 0;
+  const totalPendingVerifications = pendingRecruitersCount + pendingCompaniesCount + pendingJobsCount;
+
+  const suspendedRecruitersCount = suspendedRecruiters.data?.meta.total ?? 0;
+  const suspendedCompaniesCount = suspendedCompanies.data?.meta.total ?? 0;
+
+  // Build Requires Attention items
+  const attentionItems = [];
+  if (pendingRecruitersCount > 0) {
+    attentionItems.push({
+      id: 'p-rec',
+      text: `${pendingRecruitersCount} recruiter verification${pendingRecruitersCount > 1 ? 's' : ''} pending`,
+      link: '/admin/recruiter-verification',
+      severity: 'warning'
+    });
+  }
+  if (pendingCompaniesCount > 0) {
+    attentionItems.push({
+      id: 'p-comp',
+      text: `${pendingCompaniesCount} company verification${pendingCompaniesCount > 1 ? 's' : ''} pending`,
+      link: '/admin/company-verification',
+      severity: 'warning'
+    });
+  }
+  if (pendingJobsCount > 0) {
+    attentionItems.push({
+      id: 'p-job',
+      text: `${pendingJobsCount} job verification${pendingJobsCount > 1 ? 's' : ''} pending`,
+      link: '/admin/approvals?queue=jobs',
+      severity: 'warning'
+    });
+  }
+  if (suspendedRecruitersCount > 0) {
+    attentionItems.push({
+      id: 's-rec',
+      text: `${suspendedRecruitersCount} recruiter${suspendedRecruitersCount > 1 ? 's' : ''} suspended`,
+      link: '/admin/operations?view=recruiters',
+      severity: 'danger'
+    });
+  }
+  if (suspendedCompaniesCount > 0) {
+    attentionItems.push({
+      id: 's-comp',
+      text: `${suspendedCompaniesCount} compan${suspendedCompaniesCount > 1 ? 'ies' : 'y'} suspended`,
+      link: '/admin/operations?view=companies',
+      severity: 'danger'
+    });
+  }
+
+  const formatDate = (dateStr: any) => {
+    if (!dateStr) return '—';
+    try {
+      return new Date(dateStr).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' });
+    } catch {
+      return '—';
+    }
   };
 
   return <main className="sys-page">
-    <Header eyebrow="System administration / Overview" title="Platform command center" intro="A UTC-bounded operational ledger for platform health, volume, and queues." actions={<select aria-label="Overview range" value={preset} onChange={(e) => setPreset(e.target.value)}><option value="today">Last 24 hours</option><option value="last-7-days">Last 7 days</option><option value="last-30-days">Last 30 days</option><option value="last-90-days">Last 90 days</option></select>} />
-    <section className="sys-pulse" aria-labelledby="pulse-title"><div><Activity size={18} /><span><strong id="pulse-title">Platform pulse</strong><small>Live operational scan · UTC</small></span></div>
-      <Link to="/admin/analytics/health"><Status value={healthState} /></Link>
-      <Link to="/admin/approvals?queue=recruiters">Recruiters · {recruiterQueue.data?.meta.total ?? '—'} <ArrowRight size={14} /></Link>
-      <Link to="/admin/approvals?queue=companies">Companies · {companyQueue.data?.meta.total ?? '—'} <ArrowRight size={14} /></Link>
-      <Link to="/admin/approvals?queue=jobs">Jobs · {jobQueue.data?.meta.total ?? '—'} <ArrowRight size={14} /></Link>
-      <time className="sys-mono">Updated {health.dataUpdatedAt ? new Date(health.dataUpdatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—'}</time>
+    <Header 
+      eyebrow="System administration / Overview" 
+      title="Platform command center" 
+      intro="A comprehensive operational status scanning ledger for platform health, verification queues, and activity." 
+      actions={
+        <select aria-label="Overview range" value={preset} onChange={(e) => setPreset(e.target.value)}>
+          <option value="today">Last 24 hours</option>
+          <option value="last-7-days">Last 7 days</option>
+          <option value="last-30-days">Last 30 days</option>
+          <option value="last-90-days">Last 90 days</option>
+        </select>
+      } 
+    />
+
+    {/* Section 1: KPI Summary */}
+    <section className="sys-overview-kpi-grid" aria-label="Key Performance Indicators">
+      <article className="sys-overview-kpi-card">
+        <div className="sys-overview-kpi-icon-box"><Users size={16} /></div>
+        <span className="sys-overview-kpi-label">Total Users</span>
+        <strong className="sys-overview-kpi-value">{usersSummary.total?.toLocaleString() ?? '—'}</strong>
+        {usersSummary.registrations?.changePercent !== undefined && (
+          <span className="sys-overview-kpi-subtext" style={{ color: usersSummary.registrations.changePercent >= 0 ? 'var(--color-success-fg)' : 'var(--color-danger-fg)' }}>
+            {usersSummary.registrations.changePercent >= 0 ? '+' : ''}{usersSummary.registrations.changePercent.toFixed(1)}% vs previous
+          </span>
+        )}
+      </article>
+
+      <article className="sys-overview-kpi-card">
+        <div className="sys-overview-kpi-icon-box"><ShieldAlert size={16} /></div>
+        <span className="sys-overview-kpi-label">Pending Verifications</span>
+        <strong className="sys-overview-kpi-value">{totalPendingVerifications.toLocaleString()}</strong>
+        <span className="sys-overview-kpi-subtext">Requires attention</span>
+      </article>
+
+      <article className="sys-overview-kpi-card">
+        <div className="sys-overview-kpi-icon-box"><Building2 size={16} /></div>
+        <span className="sys-overview-kpi-label">Verified Companies</span>
+        <strong className="sys-overview-kpi-value">{businessSummary.verifiedCompanies?.toLocaleString() ?? '—'}</strong>
+        <span className="sys-overview-kpi-subtext">Active partners</span>
+      </article>
+
+      <article className="sys-overview-kpi-card">
+        <div className="sys-overview-kpi-icon-box"><Briefcase size={16} /></div>
+        <span className="sys-overview-kpi-label">Active Jobs</span>
+        <strong className="sys-overview-kpi-value">{businessSummary.activeJobs?.toLocaleString() ?? '—'}</strong>
+        <span className="sys-overview-kpi-subtext">Currently recruiting</span>
+      </article>
+
+      <article className="sys-overview-kpi-card">
+        <div className="sys-overview-kpi-icon-box"><FileText size={16} /></div>
+        <span className="sys-overview-kpi-label">Total Applications</span>
+        <strong className="sys-overview-kpi-value">{businessSummary.applications?.toLocaleString() ?? '—'}</strong>
+        <span className="sys-overview-kpi-subtext">Received overall</span>
+      </article>
+
+      <article className="sys-overview-kpi-card">
+        <div className="sys-overview-kpi-icon-box"><Ban size={16} /></div>
+        <span className="sys-overview-kpi-label">Suspended Accounts</span>
+        <strong className="sys-overview-kpi-value">{usersSummary.suspendedOrDeactivated?.toLocaleString() ?? '—'}</strong>
+        <span className="sys-overview-kpi-subtext">Restricted profiles</span>
+      </article>
     </section>
-    {overview.isLoading ? <State kind="loading">Reading platform metrics…</State> : overview.isError ? <State kind="error">{errorText(overview.error)}</State> :
-      <section className="sys-metrics" aria-label="Platform totals">
-        {metrics.length ? metrics.map(([key, value], index) => {
-          const path = drilldowns[key] || `/admin/analytics?domain=${key}`;
-          return (
-            <article key={key} className={index === 0 ? 'sys-metric--lead' : ''} style={{ position: 'relative' }}>
-              <span>{label(key)}</span>
-              <strong>{Number(value).toLocaleString()}</strong>
-              <div style={{ marginTop: 'auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <small>Within selected range</small>
-                <Link to={path} style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--color-action-primary)', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                  Drill down <ArrowRight size={12} />
-                </Link>
-              </div>
-            </article>
-          );
-        }) : <State kind="empty">No aggregate metrics were returned for this range.</State>}
-      </section>}
-    <section className="sys-queue-links"><div><p className="sys-eyebrow">Triage</p><h2>Urgent work stays close</h2><p>Review pending identities and records before moving into corrective operations.</p></div>
-      {([['Approvals', '/admin/approvals'], ['Operations', '/admin/operations'], ['Communications', '/admin/communications'], ['Analytics', '/admin/analytics']] as const).map(([name, to]) => <Link key={to} to={to}>{name}<ArrowRight size={16} /></Link>)}
-    </section>
+
+    <div className="sys-overview-layout">
+      {/* Left Column: Verification Overview, Activity Chart, Recent Recruiters, Recent Companies */}
+      <div className="sys-overview-left-col">
+        {/* Section 2: Verification Overview */}
+        <section className="sys-overview-card">
+          <h3><CheckCircle size={18} /> Verification overview</h3>
+          <div className="sys-verification-grid">
+            <div className="sys-verification-list">
+              <h4 style={{ margin: '0 0 8px', fontSize: '0.9rem', fontWeight: 600 }}>Recruiters</h4>
+              <div className="sys-verification-item"><span>Pending verification</span><strong className="sys-mono">{pendingRecruitersCount}</strong></div>
+              <div className="sys-verification-item"><span>Verified / Approved</span><strong className="sys-mono">{approvedRecruiters.data?.meta.total ?? 0}</strong></div>
+              <div className="sys-verification-item"><span>Rejected</span><strong className="sys-mono">{rejectedRecruiters.data?.meta.total ?? 0}</strong></div>
+              <div className="sys-verification-item"><span>Suspended</span><strong className="sys-mono">{suspendedRecruitersCount}</strong></div>
+              <Link to="/admin/recruiter-verification" className="sys-button sys-button--quiet" style={{ marginTop: '8px', justifyContent: 'center' }}>Review Recruiters</Link>
+            </div>
+
+            <div className="sys-verification-list">
+              <h4 style={{ margin: '0 0 8px', fontSize: '0.9rem', fontWeight: 600 }}>Companies</h4>
+              <div className="sys-verification-item"><span>Pending verification</span><strong className="sys-mono">{pendingCompaniesCount}</strong></div>
+              <div className="sys-verification-item"><span>Verified</span><strong className="sys-mono">{verifiedCompanies.data?.meta.total ?? 0}</strong></div>
+              <div className="sys-verification-item"><span>Rejected</span><strong className="sys-mono">{rejectedCompanies.data?.meta.total ?? 0}</strong></div>
+              <div className="sys-verification-item"><span>Suspended</span><strong className="sys-mono">{suspendedCompaniesCount}</strong></div>
+              <Link to="/admin/company-verification" className="sys-button sys-button--quiet" style={{ marginTop: '8px', justifyContent: 'center' }}>Review Companies</Link>
+            </div>
+          </div>
+        </section>
+
+        {/* Section 4: Platform User growth chart */}
+        <section className="sys-overview-card">
+          <h3><BarChart2 size={18} /> User registrations trend</h3>
+          {overview.isLoading ? <State kind="loading">Loading chart data…</State> : overview.isError ? <State kind="error">{errorText(overview.error)}</State> : (
+            <MiniSeriesChart data={seriesData} />
+          )}
+        </section>
+
+        {/* Section 7: Recent Recruiters */}
+        <section className="sys-overview-card">
+          <div className="sys-overview-card-header">
+            <h3><Users size={18} /> Recent recruiter registrations</h3>
+            <Link to="/admin/recruiter-verification" className="sys-overview-card-link">View all recruiters <ArrowRight size={14} /></Link>
+          </div>
+          {recentRecruitersQuery.isLoading ? <State kind="loading">Loading recruiters…</State> : recentRecruitersQuery.isError ? <State kind="error">{errorText(recentRecruitersQuery.error)}</State> : recentRecruitersQuery.data?.rows.length ? (
+            <table className="sys-overview-table">
+              <thead>
+                <tr>
+                  <th>Recruiter</th>
+                  <th>Company</th>
+                  <th>Status</th>
+                  <th>Registered</th>
+                </tr>
+              </thead>
+              <tbody>
+                {recentRecruitersQuery.data.rows.slice(0, 5).map((row: any) => {
+                  const status = row.user?.recruiterVerificationStatus ?? 'none';
+                  return (
+                    <tr key={row._id}>
+                      <td>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <span style={{ width: '24px', height: '24px', borderRadius: '50%', background: 'var(--color-surface-secondary)', border: '1px solid var(--color-border-default)', display: 'grid', placeItems: 'center', fontSize: '0.68rem', fontWeight: 600 }}>
+                            {row.user?.fullName?.slice(0,2).toUpperCase() || 'RC'}
+                          </span>
+                          <strong>{row.user?.fullName ?? 'Recruiter'}</strong>
+                        </div>
+                      </td>
+                      <td>{row.company?.name ?? '—'}</td>
+                      <td><span className={`sys-badge sys-badge--${status}`}>{status}</span></td>
+                      <td className="sys-mono">{formatDate(row.createdAt)}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          ) : <State kind="empty">No recruiters registered.</State>}
+        </section>
+
+        {/* Section 8: Recent Companies */}
+        <section className="sys-overview-card">
+          <div className="sys-overview-card-header">
+            <h3><Building2 size={18} /> Recent company registrations</h3>
+            <Link to="/admin/company-verification" className="sys-overview-card-link">View all companies <ArrowRight size={14} /></Link>
+          </div>
+          {recentCompaniesQuery.isLoading ? <State kind="loading">Loading companies…</State> : recentCompaniesQuery.isError ? <State kind="error">{errorText(recentCompaniesQuery.error)}</State> : recentCompaniesQuery.data?.rows.length ? (
+            <table className="sys-overview-table">
+              <thead>
+                <tr>
+                  <th>Company</th>
+                  <th>Industry</th>
+                  <th>Status</th>
+                  <th>Registered</th>
+                </tr>
+              </thead>
+              <tbody>
+                {recentCompaniesQuery.data.rows.slice(0, 5).map((row: any) => {
+                  const status = row.verificationStatus ?? 'pending';
+                  return (
+                    <tr key={row._id}>
+                      <td>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <strong>{row.name ?? 'Company'}</strong>
+                        </div>
+                      </td>
+                      <td>{row.industry ?? '—'}</td>
+                      <td><span className={`sys-badge sys-badge--${status}`}>{status}</span></td>
+                      <td className="sys-mono">{formatDate(row.createdAt)}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          ) : <State kind="empty">No companies registered.</State>}
+        </section>
+      </div>
+
+      {/* Right Column: Requires Attention, Recruitment Activity, Recent Activity, System Health, Quick Actions */}
+      <div className="sys-overview-right-col">
+        {/* Section 3: Requires Attention */}
+        <section className="sys-overview-card">
+          <h3><ShieldAlert size={18} style={{ color: 'var(--color-warning-fg)' }} /> Requires attention</h3>
+          {attentionItems.length > 0 ? (
+            <div className="sys-attention-list">
+              {attentionItems.map((item) => (
+                <div key={item.id} className={`sys-attention-item ${item.severity === 'danger' ? 'sys-attention-item--danger' : ''}`}>
+                  <span>{item.text}</span>
+                  <Link to={item.link} className="sys-overview-card-link">Triage <ArrowRight size={12} /></Link>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="sys-state sys-state--empty" style={{ border: 'none', padding: '12px 0' }}>
+              <CheckCircle2 size={32} style={{ color: 'var(--color-success-fg)', marginBottom: '8px', display: 'block', margin: '0 auto' }} />
+              No items require immediate attention.
+            </div>
+          )}
+        </section>
+
+        {/* Section 5: Recruitment Activity */}
+        <section className="sys-overview-card">
+          <h3><Activity size={18} /> Recruitment snapshot</h3>
+          <div className="sys-verification-list">
+            <div className="sys-verification-item"><span>Jobs published</span><strong className="sys-mono">{businessSummary.activeJobs ?? 0}</strong></div>
+            <div className="sys-verification-item"><span>Closed jobs</span><strong className="sys-mono">{businessSummary.closedJobs ?? 0}</strong></div>
+            <div className="sys-verification-item"><span>Candidate applications</span><strong className="sys-mono">{businessSummary.applications ?? 0}</strong></div>
+            <div className="sys-verification-item"><span>Active assessments</span><strong className="sys-mono">{businessSummary.activeAssessments ?? 0}</strong></div>
+            <div className="sys-verification-item"><span>Scheduled interviews</span><strong className="sys-mono">{businessSummary.scheduledInterviews ?? 0}</strong></div>
+            <div className="sys-verification-item"><span>Active offers</span><strong className="sys-mono">{businessSummary.activeOffers ?? 0}</strong></div>
+          </div>
+        </section>
+
+        {/* Section 6: Recent Activity (Audit logs) */}
+        <section className="sys-overview-card">
+          <div className="sys-overview-card-header">
+            <h3><Cpu size={18} /> Recent platform actions</h3>
+            <Link to="/admin/operations?view=audits" className="sys-overview-card-link">Audit logs <ArrowRight size={14} /></Link>
+          </div>
+          {auditsQuery.isLoading ? <State kind="loading">Loading activity logs…</State> : auditsQuery.isError ? <State kind="error">{errorText(auditsQuery.error)}</State> : auditsQuery.data?.rows.length ? (
+            <div className="sys-activity-list">
+              {auditsQuery.data.rows.slice(0, 6).map((log: any) => (
+                <div key={log._id} className="sys-activity-item">
+                  <span className="sys-activity-time sys-mono">
+                    {new Date(log.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  </span>
+                  <div className="sys-activity-content">
+                    <strong>{formatActionLabel(log.action)}</strong>
+                    <span style={{ display: 'block', fontSize: '0.72rem', color: 'var(--color-text-secondary)' }}>
+                      by {log.actor?.fullName ?? 'System'}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : <State kind="empty">No recent activity logs.</State>}
+        </section>
+
+        {/* Section 9: System Health */}
+        <section className="sys-overview-card">
+          <h3><Heart size={18} style={{ color: healthState === 'healthy' ? 'var(--color-success-fg)' : 'var(--color-danger-fg)' }} /> System status</h3>
+          <div className="sys-health-grid">
+            <div className="sys-health-card">
+              <span style={{ fontSize: '0.72rem', color: 'var(--color-text-secondary)' }}>Platform API</span>
+              <span className={`sys-status sys-status--${healthState === 'healthy' ? 'good' : healthState === 'degraded' ? 'warn' : 'bad'}`}>
+                <i></i>{healthState}
+              </span>
+            </div>
+            <div className="sys-health-card">
+              <span style={{ fontSize: '0.72rem', color: 'var(--color-text-secondary)' }}>Database</span>
+              <span className={`sys-status sys-status--${healthState === 'healthy' ? 'good' : healthState === 'degraded' ? 'warn' : 'bad'}`}>
+                <i></i>{healthState === 'unhealthy' ? 'unhealthy' : 'operational'}
+              </span>
+            </div>
+          </div>
+        </section>
+
+        {/* Section 10: Quick Actions */}
+        <section className="sys-overview-card">
+          <h3><RadioTower size={18} /> Operations command list</h3>
+          <div className="sys-quick-actions-grid">
+            <Link to="/admin/recruiter-verification" className="sys-quick-action-btn"><Users size={14} /> Recruiters</Link>
+            <Link to="/admin/company-verification" className="sys-quick-action-btn"><Building2 size={14} /> Companies</Link>
+            <Link to="/admin/approvals?queue=jobs" className="sys-quick-action-btn"><Briefcase size={14} /> Verify Jobs</Link>
+            <Link to="/admin/operations?view=audits" className="sys-quick-action-btn"><FileText size={14} /> Audit Trail</Link>
+            {user?.role === 'admin' && (
+              <>
+                <Link to="/admin/operations" className="sys-quick-action-btn" style={{ gridColumn: 'span 2' }}><RadioTower size={14} /> System Operations console</Link>
+              </>
+            )}
+          </div>
+        </section>
+      </div>
+    </div>
   </main>;
 }
 
@@ -174,15 +604,14 @@ const queues = {
   jobs: { path: adminPaths.jobQueue, kind: 'jobs' as const, actions: ['approve', 'reject', 'feature', 'unfeature'] },
 };
 export function AdminApprovalsPage() {
-  const [sp, setSp] = useSearchParams(); const queue = (sp.get('queue') ?? 'recruiters') as keyof typeof queues;
-  const active = queues[queue] ?? queues.recruiters; const [search, setSearch] = useState(''); const [page, setPage] = useState(1); const [pending, setPending] = useState<PendingAction | null>(null);
-  const query = useCollection(active.path, { page, limit: 20 }); const client = useQueryClient();
+  const active = queues.jobs;
+  const [search, setSearch] = useState(''); const [page, setPage] = useState(1);
+  const query = useCollection(active.path, { page, limit: 20 });
   const rows = (query.data?.rows ?? []).filter((row) => `${rowTitle(row)} ${rowSubtitle(row)}`.toLowerCase().includes(search.toLowerCase()));
-  return <main className="sys-page"><Header eyebrow="System administration / Triage" title="Approval ledger" intro="Review recruiter identities, company verification, and job publishing requests." />
-    <div className="sys-tabs" role="tablist">{Object.keys(queues).map((key) => <button role="tab" aria-selected={queue === key} key={key} onClick={() => { setPage(1); setSp({ queue: key }); }}>{label(key)}</button>)}</div>
-    <div className="sys-toolbar"><label><Search size={16} /><span className="sr-only">Search queue</span><input placeholder={`Search ${queue}`} value={search} onChange={(e) => setSearch(e.target.value)} /></label><button className="sys-button sys-button--quiet" onClick={() => query.refetch()}><RefreshCw size={15} />Refresh</button></div>
-    {query.isLoading ? <State kind="loading">Loading approval queue…</State> : query.isError ? <State kind="error">{errorText(query.error)}</State> : rows.length ? <><LedgerTable rows={rows} actions={(row) => <>{active.actions.map((action) => <button key={action} onClick={() => setPending({ title: `${label(action)} ${rowTitle(row)}?`, path: approvalAction(active.kind, recordId(row), action), reason: action === 'reject' || action === 'suspend', body: active.kind === 'companies' && action !== 'reject' ? {} : undefined })}>{label(action)}</button>)}</>} /><Pager page={page} setPage={setPage} meta={query.data?.meta} /></> : <State kind="empty">No pending {queue} match this view.</State>}
-    {pending && <ActionDialog action={pending} onClose={() => setPending(null)} onDone={() => client.invalidateQueries({ queryKey: ['system-admin', active.path] })} />}
+  const detailBase = '/admin/operations/jobs';
+  return <main className="sys-page"><Header eyebrow="System administration / Triage" title="Job verification" intro="Review pending job post publishing requests." />
+    <div className="sys-toolbar"><label><Search size={16} /><span className="sr-only">Search jobs</span><input placeholder="Search pending jobs" value={search} onChange={(e) => setSearch(e.target.value)} /></label><button className="sys-button sys-button--quiet" onClick={() => query.refetch()}><RefreshCw size={15} />Refresh</button></div>
+    {query.isLoading ? <State kind="loading">Loading pending jobs…</State> : query.isError ? <State kind="error">{errorText(query.error)}</State> : rows.length ? <><LedgerTable rows={rows} detailBase={detailBase} /><Pager page={page} setPage={setPage} meta={query.data?.meta} /></> : <State kind="empty">No pending jobs match this view.</State>}
   </main>;
 }
 
@@ -201,6 +630,7 @@ const operations = {
 };
 
 export function AdminOperationsPage() {
+  const navigate = useNavigate();
   const [sp, setSp] = useSearchParams();
   const view = (sp.get('view') ?? 'users') as keyof typeof operations;
   const active = operations[view] ?? operations.users;
@@ -372,7 +802,7 @@ export function AdminOperationsPage() {
                         {new Date(row.updatedAt || row.createdAt || row.timestamp).toLocaleString()}
                       </td>
                       <td>
-                        <button className="sys-button sys-button--quiet" onClick={() => setDrawerRecordId(id)}>
+                        <button className="sys-button sys-button--quiet" onClick={() => navigate(`/admin/operations/${view}/${id}`)}>
                           Inspect
                         </button>
                       </td>
@@ -450,97 +880,124 @@ function DetailDrawer({ recordId, type, onClose, onActionDone }: { recordId: str
   };
 
   return (
-    <div className="sys-dialog-backdrop">
-      <div className="sys-dialog" style={{ maxWidth: '600px', width: '100%', right: 0, height: '100vh', position: 'fixed', top: 0, borderRadius: 0, zIndex: 100 }}>
-        <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+    <div className="sys-dialog-backdrop" style={{ zIndex: 9999, display: 'grid', placeItems: 'center', background: 'rgba(0, 0, 0, 0.6)' }}>
+      <div className="sys-dialog" style={{
+        maxWidth: '1000px',
+        width: 'calc(100% - 32px)',
+        maxHeight: 'calc(100vh - 48px)',
+        borderRadius: '8px',
+        zIndex: 10000,
+        display: 'flex',
+        flexDirection: 'column',
+        padding: 0,
+        border: '1px solid var(--color-border-default)',
+        background: 'var(--color-surface-primary)',
+        overflow: 'hidden'
+      }}>
+        <header style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          padding: '20px 24px',
+          borderBottom: '1px solid var(--color-border-default)'
+        }}>
           <div>
             <p className="sys-eyebrow">Operational details</p>
-            <h2>${type.toUpperCase()} Record</h2>
+            <h2 style={{ margin: '4px 0 0', fontSize: '1.5rem', fontWeight: 620 }}>{type.toUpperCase()} Record</h2>
           </div>
-          <button className="sys-button sys-button--quiet" onClick={onClose}>Close</button>
+          <button className="sys-button sys-button--quiet" onClick={onClose} style={{ cursor: 'pointer' }}>Close</button>
         </header>
 
-        {query.isLoading ? (
-          <State kind="loading">Loading details...</State>
-        ) : query.isError ? (
-          <State kind="error">{errorText(query.error)}</State>
-        ) : query.data ? (
-          <div style={{ overflowY: 'auto', height: 'calc(100vh - 150px)', paddingBottom: '40px' }}>
-            <section className="sys-detail">
-              <dl style={{ gridTemplateColumns: '1fr' }}>
-                {Object.entries(data).filter(([k, v]) => typeof v !== 'object' || v === null).map(([k, v]) => (
-                  <div key={k}>
-                    <dt>{label(k)}</dt>
-                    <dd>{displayValue(v)}</dd>
-                  </div>
-                ))}
-              </dl>
-            </section>
-
-            <div style={{ marginTop: '24px', padding: '16px', borderRadius: '6px', background: 'var(--color-bg-alt)' }}>
-              <h3>Operational overrides</h3>
-              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '12px' }}>
-                {type === 'users' && (
-                  <>
-                    <button className="sys-button sys-button--danger" onClick={() => performAction('Suspend User', { path: `/admin/management/users/${recordId}/status`, body: { action: 'suspend' }, reason: true })}>Suspend</button>
-                    <button className="sys-button" onClick={() => performAction('Restore User', { path: `/admin/management/users/${recordId}/status`, body: { action: 'restore' }, reason: true })}>Restore</button>
-                    <button className="sys-button" onClick={() => performAction('Verify Email', { path: `/admin/management/users/${recordId}/status`, body: { action: 'verify-email' } })}>Verify Email</button>
-                    <button className="sys-button" onClick={() => performAction('Change Role', { path: `/admin/management/users/${recordId}/role`, reason: true, field: { name: 'role', label: 'New Role', options: ['candidate', 'recruiter', 'admin'] } })}>Change Role</button>
-                    <button className="sys-button sys-button--danger" onClick={() => performAction('Soft Delete User', { path: `/admin/management/users/${recordId}`, method: 'DELETE', reason: true })}>Soft Delete</button>
-                  </>
-                )}
-                {type === 'recruiters' && (
-                  <button className="sys-button sys-button--danger" onClick={() => performAction('Remove from Company', { path: `/admin/management/recruiters/${recordId}/company`, method: 'DELETE', reason: true })}>Remove Company</button>
-                )}
-                {type === 'companies' && (
-                  <>
-                    <button className="sys-button sys-button--danger" onClick={() => performAction('Suspend Company', { path: `/admin/companies/admin/${recordId}/suspend`, reason: true })}>Suspend</button>
-                    <button className="sys-button" onClick={() => performAction('Verify Company', { path: `/admin/companies/admin/${recordId}/verify` })}>Verify</button>
-                    <button className="sys-button" onClick={() => performAction('Merge Company', { path: `/admin/management/companies/merge`, method: 'POST', reason: true, field: { name: 'secondaryId', label: 'Merge Secondary Company ID', options: [] } })}>Merge Company</button>
-                  </>
-                )}
-                {type === 'jobs' && (
-                  <>
-                    <button className="sys-button" onClick={() => performAction('Pause Job', { path: `/admin/management/jobs/${recordId}/status`, body: { status: 'paused' }, reason: true })}>Pause</button>
-                    <button className="sys-button" onClick={() => performAction('Resume Job', { path: `/admin/management/jobs/${recordId}/status`, body: { status: 'published' } })}>Resume</button>
-                    <button className="sys-button sys-button--danger" onClick={() => performAction('Close Job', { path: `/admin/management/jobs/${recordId}/status`, body: { status: 'closed' }, reason: true })}>Close</button>
-                    <button className="sys-button" onClick={() => performAction('Clone Job', { path: `/admin/management/jobs/${recordId}/clone`, method: 'POST' })}>Clone</button>
-                  </>
-                )}
-                {type === 'documents' && (
-                  <>
-                    <button className="sys-button sys-button--danger" onClick={() => performAction('Quarantine Document', { path: `/admin/management/documents/${recordId}/status`, body: { action: 'quarantine' }, reason: true })}>Quarantine</button>
-                    <button className="sys-button" onClick={() => performAction('Release Document', { path: `/admin/management/documents/${recordId}/status`, body: { action: 'release' } })}>Release</button>
-                  </>
-                )}
-                {type === 'applications' && (
-                  <button className="sys-button" onClick={() => performAction('Move Application Stage', { path: `/admin/management/applications/${recordId}/stage`, reason: true, field: { name: 'status', label: 'New Stage', options: ['applied', 'shortlisted', 'interviewing', 'offered', 'hired', 'rejected'] } })}>Move Stage</button>
-                )}
-                {type === 'assessments' && (
-                  <>
-                    <button className="sys-button" onClick={() => performAction('Clone Assessment', { path: `/admin/management/assessments/${recordId}/clone`, method: 'POST' })}>Clone Assessment</button>
-                    <button className="sys-button sys-button--danger" onClick={() => performAction('Force Submit Attempt', { path: `/admin/management/attempts/${recordId}/force-submit`, method: 'POST', reason: true })}>Force Submit</button>
-                  </>
-                )}
-              </div>
-            </div>
-
-            {data.auditLogs && data.auditLogs.length > 0 && (
-              <section style={{ marginTop: '24px' }}>
-                <h3>Audit Timeline</h3>
-                <ul style={{ paddingLeft: '20px', marginTop: '12px' }}>
-                  {data.auditLogs.map((log: any) => (
-                    <li key={log._id} style={{ marginBottom: '8px' }}>
-                      <strong>{log.action}</strong>
-                      <span style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)' }}> by {log.actor?.fullName || 'System'} on {new Date(log.timestamp).toLocaleString()}</span>
-                    </li>
+        <div style={{ flex: 1, overflowY: 'auto', padding: '24px' }}>
+          {query.isLoading ? (
+            <State kind="loading">Loading details...</State>
+          ) : query.isError ? (
+            <State kind="error">{errorText(query.error)}</State>
+          ) : query.data ? (
+            <>
+              <section className="sys-detail" style={{ marginTop: 0 }}>
+                <dl style={{ borderLeft: '1px solid var(--color-border-default)', borderTop: '1px solid var(--color-border-default)' }}>
+                  {Object.entries(data).filter(([k, v]) => typeof v !== 'object' || v === null).map(([k, v]) => (
+                    <div key={k}>
+                      <dt>{label(k)}</dt>
+                      <dd className={k.includes('Id') || k.startsWith('_') ? 'sys-mono' : ''}>{displayValue(v)}</dd>
+                    </div>
                   ))}
-                </ul>
+                </dl>
               </section>
+
+              {data.auditLogs && data.auditLogs.length > 0 && (
+                <section style={{ marginTop: '24px' }}>
+                  <h3 style={{ fontSize: '1rem', fontWeight: 600, borderBottom: '1px solid var(--color-border-default)', paddingBottom: '8px', margin: '0 0 16px' }}>Audit Timeline</h3>
+                  <ul style={{ padding: 0, margin: 0, listStyle: 'none' }}>
+                    {data.auditLogs.map((log: any) => (
+                      <li key={log._id} style={{ marginBottom: '12px', display: 'flex', gap: '8px', fontSize: '0.9rem', padding: '12px', border: '1px solid var(--color-border-default)', borderRadius: '4px', background: 'var(--color-bg-alt)' }}>
+                        <strong>{log.action}</strong>
+                        <span style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)' }}> by {log.actor?.fullName || 'System'} on {new Date(log.timestamp).toLocaleString()}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              )}
+            </>
+          ) : (
+            <State kind="empty">No record details found.</State>
+          )}
+        </div>
+
+        {query.data && (
+          <footer style={{
+            padding: '16px 24px',
+            borderTop: '1px solid var(--color-border-default)',
+            background: 'var(--color-bg-alt)',
+            display: 'flex',
+            justifyContent: 'flex-end',
+            gap: '12px',
+            flexWrap: 'wrap'
+          }}>
+            {type === 'users' && (
+              <>
+                <button className="sys-button sys-button--danger" onClick={() => performAction('Suspend User', { path: `/admin/management/users/${recordId}/status`, body: { action: 'suspend' }, reason: true })} style={{ cursor: 'pointer' }}>Suspend User</button>
+                <button className="sys-button" onClick={() => performAction('Restore User', { path: `/admin/management/users/${recordId}/status`, body: { action: 'restore' }, reason: true })} style={{ cursor: 'pointer' }}>Restore User</button>
+                <button className="sys-button" onClick={() => performAction('Verify Email', { path: `/admin/management/users/${recordId}/status`, body: { action: 'verify-email' } })} style={{ cursor: 'pointer' }}>Verify Email</button>
+                <button className="sys-button" onClick={() => performAction('Change Role', { path: `/admin/management/users/${recordId}/role`, reason: true, field: { name: 'role', label: 'New Role', options: ['candidate', 'recruiter', 'admin'] } })} style={{ cursor: 'pointer' }}>Change Role</button>
+                <button className="sys-button sys-button--danger" onClick={() => performAction('Soft Delete User', { path: `/admin/management/users/${recordId}`, method: 'DELETE', reason: true })} style={{ cursor: 'pointer' }}>Soft Delete</button>
+              </>
             )}
-          </div>
-        ) : (
-          <State kind="empty">No record details found.</State>
+            {type === 'recruiters' && (
+              <button className="sys-button sys-button--danger" onClick={() => performAction('Remove from Company', { path: `/admin/management/recruiters/${recordId}/company`, method: 'DELETE', reason: true })} style={{ cursor: 'pointer' }}>Remove Company</button>
+            )}
+            {type === 'companies' && (
+              <>
+                <button className="sys-button sys-button--danger" onClick={() => performAction('Suspend Company', { path: `/companies/admin/${recordId}/suspend`, reason: true })} style={{ cursor: 'pointer' }}>Suspend</button>
+                <button className="sys-button" onClick={() => performAction('Verify Company', { path: `/companies/admin/${recordId}/verify`, reason: true })} style={{ cursor: 'pointer' }}>Verify</button>
+                <button className="sys-button" onClick={() => performAction('Merge Company', { path: `/admin/management/companies/merge`, method: 'POST', reason: true, field: { name: 'secondaryId', label: 'Merge Secondary Company ID', options: [] } })} style={{ cursor: 'pointer' }}>Merge Company</button>
+              </>
+            )}
+            {type === 'jobs' && (
+              <>
+                <button className="sys-button" onClick={() => performAction('Pause Job', { path: `/admin/management/jobs/${recordId}/status`, body: { status: 'paused' }, reason: true })} style={{ cursor: 'pointer' }}>Pause</button>
+                <button className="sys-button" onClick={() => performAction('Resume Job', { path: `/admin/management/jobs/${recordId}/status`, body: { status: 'published' } })} style={{ cursor: 'pointer' }}>Resume</button>
+                <button className="sys-button sys-button--danger" onClick={() => performAction('Close Job', { path: `/admin/management/jobs/${recordId}/status`, body: { status: 'closed' }, reason: true })} style={{ cursor: 'pointer' }}>Close</button>
+                <button className="sys-button" onClick={() => performAction('Clone Job', { path: `/admin/management/jobs/${recordId}/clone`, method: 'POST' })} style={{ cursor: 'pointer' }}>Clone</button>
+              </>
+            )}
+            {type === 'documents' && (
+              <>
+                <button className="sys-button sys-button--danger" onClick={() => performAction('Quarantine Document', { path: `/admin/management/documents/${recordId}/status`, body: { action: 'quarantine' }, reason: true })} style={{ cursor: 'pointer' }}>Quarantine</button>
+                <button className="sys-button" onClick={() => performAction('Release Document', { path: `/admin/management/documents/${recordId}/status`, body: { action: 'release' } })} style={{ cursor: 'pointer' }}>Release</button>
+              </>
+            )}
+            {type === 'applications' && (
+              <button className="sys-button" onClick={() => performAction('Move Application Stage', { path: `/admin/management/applications/${recordId}/stage`, reason: true, field: { name: 'status', label: 'New Stage', options: ['applied', 'shortlisted', 'interviewing', 'offered', 'hired', 'rejected'] } })} style={{ cursor: 'pointer' }}>Move Stage</button>
+            )}
+            {type === 'assessments' && (
+              <>
+                <button className="sys-button" onClick={() => performAction('Clone Assessment', { path: `/admin/management/assessments/${recordId}/clone`, method: 'POST' })} style={{ cursor: 'pointer' }}>Clone Assessment</button>
+                <button className="sys-button sys-button--danger" onClick={() => performAction('Force Submit Attempt', { path: `/admin/management/attempts/${recordId}/force-submit`, method: 'POST', reason: true })} style={{ cursor: 'pointer' }}>Force Submit</button>
+              </>
+            )}
+          </footer>
         )}
       </div>
 
@@ -567,6 +1024,12 @@ const detailConfig = {
   feedback: { base: '/interviews/admin/feedback', actions: [['Reopen feedback', 'reopen', true]] },
   offers: { base: '/offers/admin', actions: [['Override status', 'status', true, ['draft','pending-approval','approved','sent','viewed','accepted','declined','expired','withdrawn']], ['Expire', 'expire', true], ['Reopen', 'reopen', true], ['Archive', 'archive', true]] },
   documents: { base: '/documents/admin', actions: [['Set scan status', 'scan-status', true, ['clean','suspicious','infected','failed']], ['Quarantine', 'quarantine', true], ['Release', 'release', true], ['Archive', 'archive', true]] },
+  recruiters: { base: '/admin/management/recruiters', actionBase: '/recruiters/admin', actions: [['Approve', 'approve', false], ['Reject', 'reject', true], ['Suspend', 'suspend', true], ['Restore', 'restore', false]] },
+  companies: { base: '/admin/management/companies', actionBase: '/companies/admin', actions: [['Verify', 'verify', false], ['Reject', 'reject', true], ['Suspend', 'suspend', true]] },
+  jobs: { base: '/admin/management/jobs', actionBase: '/jobs/admin', actions: [['Approve', 'approve', false], ['Reject', 'reject', true], ['Feature', 'feature', false], ['Unfeature', 'unfeature', false]] },
+  users: { base: '/admin/management/users', actions: [] },
+  questions: { base: '/admin/management/questions', actions: [] },
+  audits: { base: '/admin/management/audits', actions: [] },
 } as const;
 export function AdminRecordDetailPage() {
   const { type = '', id = '' } = useParams(); const valid = objectId.test(id) && type in detailConfig;
@@ -575,8 +1038,39 @@ export function AdminRecordDetailPage() {
   if (!valid) return <Navigate to="/not-found" replace />;
   return <main className="sys-page"><Header eyebrow={`Operations / ${label(type)}`} title="Record inspection" intro={`Immutable identifier ${id}`} />
     {query.isLoading ? <State kind="loading">Loading record…</State> : query.isError ? <State kind="error">{errorText(query.error)}</State> : query.data && <><section className="sys-detail"><dl>{Object.entries(query.data).filter(([, v]) => typeof v !== 'object' || v === null).slice(0, 24).map(([key, value]) => <div key={key}><dt>{label(key)}</dt><dd className={key.includes('Id') || key.startsWith('_') ? 'sys-mono' : ''}>{displayValue(value)}</dd></div>)}</dl></section>
+      {type === 'jobs' && (() => {
+        const job = query.data as any;
+        return (
+          <section className="sys-detail" style={{ marginTop: '20px', borderTop: '1px solid var(--color-border-subtle)', paddingTop: '20px' }}>
+            <h2 style={{ fontSize: '1.1rem', margin: '0 0 12px 0', color: 'var(--color-text-strong)' }}>Publishing details</h2>
+            <dl>
+              <div>
+                <dt>Publishing company</dt>
+                <dd><strong>{job.company?.name || '—'}</strong></dd>
+              </div>
+              <div>
+                <dt>Company ID</dt>
+                <dd className="sys-mono">{job.company?._id || job.company || '—'}</dd>
+              </div>
+              <div>
+                <dt>Publishing recruiter</dt>
+                <dd><strong>{job.createdBy?.fullName || '—'}</strong></dd>
+              </div>
+              <div>
+                <dt>Recruiter ID</dt>
+                <dd className="sys-mono">{job.createdBy?._id || job.createdBy || '—'}</dd>
+              </div>
+            </dl>
+          </section>
+        );
+      })()}
       {type === 'applications' && Array.isArray(query.data.notes) && query.data.notes.length > 0 && <section className="sys-notes"><h2>Administrative notes</h2>{(query.data.notes as AdminRecord[]).map((note) => <article key={recordId(note)}><p>{displayValue(note.note ?? note.text)}</p><button onClick={() => setPending({ title: 'Delete this application note?', path: `${path}/notes/${recordId(note)}`, method: 'DELETE' })}>Delete note</button></article>)}</section>}
-      <section className="sys-action-strip"><div><ShieldAlert size={18} /><span><strong>Corrective actions</strong><small>Current status: {displayValue(query.data.status)} · every intervention is recorded.</small></span></div>{config.actions.map(([title, action, needsReason, options]) => <button key={action} onClick={() => setPending({ title: `${title}?`, path: `${path}/${action}`, reason: needsReason, field: options ? { name: 'status', label: 'New status', options: [...options].filter((status) => status !== query.data?.status) } : undefined })}>{title}</button>)}</section></>}
+      <section className="sys-action-strip"><div><ShieldAlert size={18} /><span><strong>Corrective actions</strong><small>Current status: {displayValue(query.data.status ?? query.data.verificationStatus ?? query.data.approvalStatus)} · every intervention is recorded.</small></span></div>{config.actions.map(([title, action, needsReason, options]) => {
+        const actionPath = (config as any).actionBase
+          ? `${(config as any).actionBase}/${id}/${action}`
+          : `${path}/${action}`;
+        return <button key={action} onClick={() => setPending({ title: `${title}?`, path: actionPath, reason: needsReason, field: options ? { name: 'status', label: 'New status', options: [...options].filter((status) => status !== query.data?.status) } : undefined })}>{title}</button>;
+      })}</section></>}
     {pending && <ActionDialog action={pending} onClose={() => setPending(null)} onDone={() => query.refetch()} />}
   </main>;
 }
@@ -1346,7 +1840,7 @@ export function PlatformHealthPage() {
           </section>
           <div className="sys-detail" style={{ marginTop: '32px' }}>
             <h3 style={{ margin: '0 0 12px', fontSize: '1.2rem', fontWeight: 600 }}>Memory Profiles</h3>
-            <dl>
+            <dl style={{ borderLeft: '1px solid var(--color-border-default)', borderTop: '1px solid var(--color-border-default)' }}>
               <div><dt>RSS Memory</dt><dd>{Number(summary.memoryMegabytes?.rss ?? 0).toFixed(2)} MB</dd></div>
               <div><dt>Heap Used</dt><dd>{Number(summary.memoryMegabytes?.heapUsed ?? 0).toFixed(2)} MB</dd></div>
               <div><dt>Storage Uploads Allowed</dt><dd>{summary.uploadsEnabled ? 'Enabled' : 'Disabled'}</dd></div>
@@ -1355,5 +1849,1004 @@ export function PlatformHealthPage() {
         </>
       )}
     </main>
+  );
+}
+
+export function AdminRecruiterVerificationPage() {
+  const [sp, setSp] = useSearchParams();
+  const search = sp.get('search') ?? '';
+  const status = sp.get('status') ?? '';
+  const company = sp.get('company') ?? '';
+  const startDate = sp.get('startDate') ?? '';
+  const endDate = sp.get('endDate') ?? '';
+  const page = parseInt(sp.get('page') ?? '1', 10);
+
+  const queryParams = {
+    page,
+    limit: 10,
+    ...(search && { search }),
+    ...(status && { status }),
+    ...(company && { company }),
+    ...(startDate && { startDate }),
+    ...(endDate && { endDate }),
+  };
+
+  const query = useQuery({
+    queryKey: ['system-admin', 'recruiter-verification-list', queryParams],
+    queryFn: () => adminApi.list(adminPaths.recruiters, queryParams),
+  });
+
+  const companiesQuery = useQuery({
+    queryKey: ['system-admin', 'companies-list-dropdown'],
+    queryFn: () => adminApi.list(adminPaths.companies, { limit: 100 }),
+  });
+
+  const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null);
+  const [pending, setPending] = useState<PendingAction | null>(null);
+
+  const client = useQueryClient();
+  const rows = query.data?.rows ?? [];
+
+  const updateSearchParam = (key: string, value: string) => {
+    const next = new URLSearchParams(sp);
+    if (value) {
+      next.set(key, value);
+    } else {
+      next.delete(key);
+    }
+    if (key !== 'page') {
+      next.set('page', '1');
+    }
+    setSp(next);
+  };
+
+  const handleActionDone = () => {
+    client.invalidateQueries({ queryKey: ['system-admin'] });
+  };
+
+  return (
+    <main className="sys-page">
+      <Header
+        eyebrow="System administration / Verification"
+        title="Recruiter Verification Module"
+        intro="Review recruiter identities, corporate email domain matching, and permissions."
+      />
+
+      <div style={{
+        display: 'flex',
+        alignItems: 'flex-end',
+        gap: '16px',
+        flexWrap: 'wrap',
+        marginBottom: '24px',
+        padding: '16px',
+        background: 'var(--color-bg-alt)',
+        border: '1px solid var(--color-border-default)',
+        borderRadius: '6px',
+        width: '100%'
+      }}>
+        {/* Search Field */}
+        <div style={{ flex: '2 1 200px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+          <span style={{ fontSize: '0.72rem', fontWeight: 600, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.08em', fontFamily: 'var(--font-mono)' }}>Search Recruiter</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', border: '1px solid var(--color-border-default)', background: 'var(--color-surface-primary)', padding: '9px 12px', height: '38px', boxSizing: 'border-box' }}>
+            <Search size={16} style={{ color: 'var(--color-text-secondary)' }} />
+            <input
+              placeholder="Search by recruiter name..."
+              value={search}
+              onChange={(e) => updateSearchParam('search', e.target.value)}
+              style={{ border: 'none', background: 'transparent', outline: 'none', width: '100%', color: 'inherit', font: 'inherit', padding: 0 }}
+            />
+          </div>
+        </div>
+
+        {/* Status Dropdown */}
+        <div style={{ flex: '1 1 140px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+          <span style={{ fontSize: '0.72rem', fontWeight: 600, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.08em', fontFamily: 'var(--font-mono)' }}>Status</span>
+          <select 
+            value={status} 
+            onChange={(e) => updateSearchParam('status', e.target.value)}
+            style={{ border: '1px solid var(--color-border-default)', background: 'var(--color-surface-primary)', padding: '8px 12px', borderRadius: 0, outline: 'none', color: 'inherit', font: 'inherit', height: '38px', boxSizing: 'border-box' }}
+          >
+            <option value="">All Statuses</option>
+            <option value="pending">Pending Approval</option>
+            <option value="approved">Approved</option>
+            <option value="rejected">Rejected</option>
+            <option value="suspended">Suspended</option>
+          </select>
+        </div>
+
+        {/* Company Dropdown */}
+        <div style={{ flex: '1 1 150px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+          <span style={{ fontSize: '0.72rem', fontWeight: 600, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.08em', fontFamily: 'var(--font-mono)' }}>Company</span>
+          <select 
+            value={company} 
+            onChange={(e) => updateSearchParam('company', e.target.value)}
+            style={{ border: '1px solid var(--color-border-default)', background: 'var(--color-surface-primary)', padding: '8px 12px', borderRadius: 0, outline: 'none', color: 'inherit', font: 'inherit', height: '38px', boxSizing: 'border-box' }}
+          >
+            <option value="">All Companies</option>
+            {(companiesQuery.data?.rows ?? []).map((c: any) => (
+              <option key={c._id} value={c._id}>
+                {c.name}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {/* From Date */}
+        <div style={{ flex: '1 1 130px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+          <span style={{ fontSize: '0.72rem', fontWeight: 600, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.08em', fontFamily: 'var(--font-mono)' }}>From Date</span>
+          <input
+            type="date"
+            value={startDate}
+            onChange={(e) => updateSearchParam('startDate', e.target.value)}
+            style={{ border: '1px solid var(--color-border-default)', background: 'var(--color-surface-primary)', padding: '8px 12px', borderRadius: 0, outline: 'none', color: 'inherit', font: 'inherit', height: '38px', boxSizing: 'border-box' }}
+          />
+        </div>
+
+        {/* To Date */}
+        <div style={{ flex: '1 1 130px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+          <span style={{ fontSize: '0.72rem', fontWeight: 600, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.08em', fontFamily: 'var(--font-mono)' }}>To Date</span>
+          <input
+            type="date"
+            value={endDate}
+            onChange={(e) => updateSearchParam('endDate', e.target.value)}
+            style={{ border: '1px solid var(--color-border-default)', background: 'var(--color-surface-primary)', padding: '8px 12px', borderRadius: 0, outline: 'none', color: 'inherit', font: 'inherit', height: '38px', boxSizing: 'border-box' }}
+          />
+        </div>
+
+        {/* Refresh Button */}
+        <div style={{ display: 'flex', alignItems: 'flex-end' }}>
+          <button 
+            className="sys-button sys-button--quiet" 
+            onClick={() => query.refetch()}
+            style={{ height: '38px', display: 'inline-flex', alignItems: 'center', gap: '8px', border: '1px solid var(--color-border-strong)', background: 'transparent', padding: '0 16px', boxSizing: 'border-box', fontWeight: 600, cursor: 'pointer' }}
+          >
+            <RefreshCw size={15} />
+            Refresh
+          </button>
+        </div>
+      </div>
+
+      {query.isLoading ? (
+        <State kind="loading">Loading recruiter list...</State>
+      ) : query.isError ? (
+        <State kind="error">{errorText(query.error)}</State>
+      ) : rows.length ? (
+        <>
+          <div className="sys-table-wrap">
+            <table className="sys-table">
+              <thead>
+                <tr>
+                  <th>Recruiter Name</th>
+                  <th>Company Info</th>
+                  <th>Verification States</th>
+                  <th>Job Title</th>
+                  <th>Registered</th>
+                  <th><span className="sr-only">Actions</span></th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((row: any) => {
+                  const id = recordId(row);
+                  return (
+                    <tr key={id}>
+                      <td data-label="Recruiter">
+                        <strong>{row.user?.fullName || '—'}</strong>
+                        <small className="sys-mono">{row.user?.email || '—'}</small>
+                      </td>
+                      <td data-label="Company">
+                        <strong>{row.company?.name || 'No Company'}</strong>
+                      </td>
+                      <td data-label="Verification">
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                          <span style={{ fontSize: '0.8rem' }}>
+                            Recruiter: <Status value={row.user?.recruiterVerificationStatus ?? 'none'} />
+                          </span>
+                          <span style={{ fontSize: '0.8rem' }}>
+                            Company: <Status value={row.company?.verificationStatus ?? 'none'} />
+                          </span>
+                          <span style={{ fontSize: '0.8rem' }}>
+                            Membership: <Status value={row.membershipStatus ?? 'none'} />
+                          </span>
+                        </div>
+                      </td>
+                      <td data-label="Job Title">{row.designation || '—'}</td>
+                      <td data-label="Registered" className="sys-mono" style={{ fontSize: '0.8rem' }}>
+                        {row.createdAt ? new Date(row.createdAt).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }) : '—'}
+                      </td>
+                      <td data-label="Actions">
+                        <div className="sys-row-actions">
+                          <button className="sys-button" onClick={() => setSelectedProfileId(id)} style={{ cursor: 'pointer' }}>
+                            Inspect <ArrowRight size={14} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+          <Pager page={page} setPage={(p) => updateSearchParam('page', String(p))} meta={query.data?.meta} />
+        </>
+      ) : (
+        <State kind="empty">No recruiters matching this view.</State>
+      )}
+
+      {selectedProfileId && (
+        <RecruiterVerificationDrawer
+          profileId={selectedProfileId}
+          onClose={() => setSelectedProfileId(null)}
+          onActionDone={handleActionDone}
+        />
+      )}
+
+      {pending && (
+        <ActionDialog
+          action={pending}
+          onClose={() => setPending(null)}
+          onDone={handleActionDone}
+        />
+      )}
+    </main>
+  );
+}
+
+function RecruiterVerificationDrawer({
+  profileId,
+  onClose,
+  onActionDone,
+}: {
+  profileId: string;
+  onClose: () => void;
+  onActionDone: () => void;
+}) {
+  const path = `${adminPaths.recruiters}/${profileId}`;
+  const query = useQuery({
+    queryKey: ['system-admin', 'recruiter-verification-detail', profileId],
+    queryFn: () => adminApi.detail(path),
+  });
+  const data = (query.data ?? {}) as any;
+
+  const historyQuery = useQuery({
+    queryKey: ['system-admin', 'recruiter-verification-history', profileId],
+    queryFn: () => adminApi.getRecruiterVerificationHistory(profileId),
+    enabled: !!profileId,
+  });
+  const historyItems = historyQuery.data?.data?.items || [];
+
+  const [pending, setPending] = useState<PendingAction | null>(null);
+
+  const performAction = (actionName: string, config: { path: string; method?: 'PATCH' | 'POST' | 'DELETE'; reason?: boolean; body?: any }) => {
+    setPending({
+      title: `${actionName}?`,
+      path: config.path,
+      method: config.method || 'PATCH',
+      reason: config.reason,
+      body: config.body,
+    });
+  };
+
+  const recruiterStatus = data.user?.recruiterVerificationStatus || 'none';
+
+  return (
+    <div className="sys-dialog-backdrop" style={{ zIndex: 9999, display: 'grid', placeItems: 'center', background: 'rgba(0, 0, 0, 0.6)' }}>
+      <div className="sys-dialog" style={{
+        maxWidth: '1000px',
+        width: 'calc(100% - 32px)',
+        maxHeight: 'calc(100vh - 48px)',
+        borderRadius: '8px',
+        zIndex: 10000,
+        display: 'flex',
+        flexDirection: 'column',
+        padding: 0,
+        border: '1px solid var(--color-border-default)',
+        background: 'var(--color-surface-primary)',
+        overflow: 'hidden'
+      }}>
+        <header style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          padding: '20px 24px',
+          borderBottom: '1px solid var(--color-border-default)'
+        }}>
+          <div>
+            <p className="sys-eyebrow">Verification Inspection</p>
+            <h2 style={{ margin: '4px 0 0', fontSize: '1.5rem', fontWeight: 620 }}>Recruiter Details</h2>
+          </div>
+          <button className="sys-button sys-button--quiet" onClick={onClose} style={{ cursor: 'pointer' }}>Close</button>
+        </header>
+
+        <div style={{ flex: 1, overflowY: 'auto', padding: '24px' }}>
+          {query.isLoading ? (
+            <State kind="loading">Loading details...</State>
+          ) : query.isError ? (
+            <State kind="error">{errorText(query.error)}</State>
+          ) : query.data ? (
+            <>
+              <section className="sys-detail" style={{ marginTop: 0 }}>
+                <h3 style={{ fontSize: '1rem', fontWeight: 600, borderBottom: '1px solid var(--color-border-default)', paddingBottom: '8px', margin: '0 0 16px' }}>Recruiter Information</h3>
+                <dl style={{ borderLeft: '1px solid var(--color-border-default)', borderTop: '1px solid var(--color-border-default)' }}>
+                  <div><dt>Full Name</dt><dd>{data.user?.fullName || '—'}</dd></div>
+                  <div><dt>Email</dt><dd className="sys-mono">{data.user?.email || '—'}</dd></div>
+                  <div><dt>Phone</dt><dd>{data.phone || '—'}</dd></div>
+                  <div><dt>Job Title</dt><dd>{data.designation || '—'}</dd></div>
+                  <div><dt>Department</dt><dd>{data.department || '—'}</dd></div>
+                  <div><dt>LinkedIn URL</dt><dd>{data.linkedinUrl || '—'}</dd></div>
+                  <div><dt>Biography</dt><dd>{data.bio || '—'}</dd></div>
+                  <div><dt>Registration Date</dt><dd>{data.createdAt ? new Date(data.createdAt).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' }) : '—'}</dd></div>
+                  <div><dt>Account Status</dt><dd>{data.user?.isDeleted ? 'Deleted' : data.user?.blocked ? 'Blocked' : 'Active'}</dd></div>
+                </dl>
+              </section>
+
+              <section className="sys-detail" style={{ marginTop: '24px' }}>
+                <h3 style={{ fontSize: '1rem', fontWeight: 600, borderBottom: '1px solid var(--color-border-default)', paddingBottom: '8px', margin: '0 0 16px' }}>Company & Membership Information</h3>
+                <dl style={{ borderLeft: '1px solid var(--color-border-default)', borderTop: '1px solid var(--color-border-default)' }}>
+                  <div><dt>Company Name</dt><dd>{data.company?.name || '—'}</dd></div>
+                  <div><dt>Website</dt><dd>{data.company?.website ? <a href={data.company.website} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--color-action-primary)', textDecoration: 'underline' }}>{data.company.website}</a> : '—'}</dd></div>
+                  <div><dt>Company Email/Domain</dt><dd className="sys-mono">{data.company?.officialEmailDomain || '—'}</dd></div>
+                  <div><dt>Company Size</dt><dd>{data.company?.companySize || '—'}</dd></div>
+                  <div><dt>Company Status</dt><dd><Status value={data.company?.verificationStatus ?? 'none'} /></dd></div>
+                  <div><dt>Recruiter's Company Role</dt><dd>{data.membership?.role ? (data.membership.role.charAt(0).toUpperCase() + data.membership.role.slice(1)) : (data.isCompanyOwner ? 'Owner' : 'Member')}</dd></div>
+                </dl>
+              </section>
+
+              <section className="sys-detail" style={{ marginTop: '24px' }}>
+                <h3 style={{ fontSize: '1rem', fontWeight: 600, borderBottom: '1px solid var(--color-border-default)', paddingBottom: '8px', margin: '0 0 16px' }}>Verification Information</h3>
+                <dl style={{ borderLeft: '1px solid var(--color-border-default)', borderTop: '1px solid var(--color-border-default)' }}>
+                  <div><dt>Recruiter Verification Status</dt><dd><Status value={recruiterStatus} /></dd></div>
+                  <div><dt>Profile isApproved</dt><dd>{data.isApproved ? 'Approved' : 'Pending'}</dd></div>
+                  {recruiterStatus === 'verified' && (
+                    <>
+                      <div><dt>Approved By</dt><dd>{data.approvedBy?.fullName || '—'}</dd></div>
+                      <div><dt>Approved Date</dt><dd>{data.approvedAt ? new Date(data.approvedAt).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—'}</dd></div>
+                    </>
+                  )}
+                  {recruiterStatus === 'rejected' && (
+                    <>
+                      <div><dt>Rejected By</dt><dd>{data.rejectedBy?.fullName || '—'}</dd></div>
+                      <div><dt>Rejected Date</dt><dd>{data.rejectedAt ? new Date(data.rejectedAt).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—'}</dd></div>
+                      <div><dt>Rejection Reason</dt><dd>{data.rejectionReason || '—'}</dd></div>
+                    </>
+                  )}
+                  {recruiterStatus === 'suspended' && (
+                    <>
+                      <div><dt>Suspended By</dt><dd>{data.suspendedBy?.fullName || '—'}</dd></div>
+                      <div><dt>Suspended Date</dt><dd>{data.suspendedAt ? new Date(data.suspendedAt).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—'}</dd></div>
+                      <div><dt>Suspension Reason</dt><dd>{data.suspensionReason || '—'}</dd></div>
+                    </>
+                  )}
+                  {recruiterStatus === 'restored' && (
+                    <>
+                      <div><dt>Restored By</dt><dd>{data.restoredBy?.fullName || '—'}</dd></div>
+                      <div><dt>Restored Date</dt><dd>{data.restoredAt ? new Date(data.restoredAt).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—'}</dd></div>
+                    </>
+                  )}
+                  {recruiterStatus !== 'verified' && recruiterStatus !== 'rejected' && recruiterStatus !== 'suspended' && recruiterStatus !== 'restored' && (
+                    <>
+                      <div><dt>Approved By</dt><dd>—</dd></div>
+                      <div><dt>Approved Date</dt><dd>—</dd></div>
+                    </>
+                  )}
+                </dl>
+              </section>
+
+              <section className="sys-detail" style={{ marginTop: '24px' }}>
+                <h3 style={{ fontSize: '1rem', fontWeight: 600, borderBottom: '1px solid var(--color-border-default)', paddingBottom: '8px', margin: '0 0 16px' }}>Verification History</h3>
+                {historyQuery.isLoading ? (
+                  <p style={{ fontSize: '0.875rem', color: 'var(--color-text-secondary)' }}>Loading history...</p>
+                ) : historyItems.length === 0 ? (
+                  <p style={{ fontSize: '0.875rem', color: 'var(--color-text-secondary)' }}>No verification history found.</p>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', paddingLeft: '8px', borderLeft: '2px solid var(--color-border-default)', margin: '8px 0 0 8px' }}>
+                    {historyItems.map((item: any) => {
+                      const actionLabel = formatActionLabel(item.action);
+                      const statusTransition = `${item.previousStatus} → ${item.newStatus}`;
+                      const dateStr = item.timestamp
+                        ? new Date(item.timestamp).toLocaleDateString(undefined, {
+                            year: 'numeric',
+                            month: 'short',
+                            day: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit',
+                          })
+                        : '—';
+
+                      return (
+                        <div key={item.id} style={{ position: 'relative', paddingLeft: '16px' }}>
+                          <div style={{
+                            position: 'absolute',
+                            left: '-13px',
+                            top: '4px',
+                            width: '8px',
+                            height: '8px',
+                            borderRadius: '50%',
+                            background: item.action.includes('rejected') || item.action.includes('suspended') ? 'var(--color-danger-primary, #ea3838)' : 'var(--color-success-primary, #10b981)',
+                            border: '2px solid var(--color-surface-primary)'
+                          }} />
+                          
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '8px' }}>
+                            <div>
+                              <strong style={{ fontSize: '0.9rem', color: 'var(--color-text-primary)' }}>
+                                {actionLabel}
+                              </strong>
+                              <span style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)', marginLeft: '8px', background: 'var(--color-surface-secondary, #f3f4f6)', padding: '2px 6px', borderRadius: '4px' }}>
+                                {statusTransition}
+                              </span>
+                            </div>
+                            <span style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)' }}>{dateStr}</span>
+                          </div>
+                          
+                          <div style={{ marginTop: '4px', fontSize: '0.85rem', color: 'var(--color-text-secondary)' }}>
+                            <strong>By:</strong> {item.performedBy?.name || '—'}
+                          </div>
+                          
+                          {(item.reason || item.notes) && (
+                            <div style={{
+                              marginTop: '6px',
+                              padding: '8px 12px',
+                              background: 'var(--color-bg-alt, #fafafa)',
+                              border: '1px solid var(--color-border-default)',
+                              borderRadius: '4px',
+                              fontSize: '0.85rem',
+                              color: 'var(--color-text-primary)',
+                              whiteSpace: 'pre-wrap'
+                            }}>
+                              {item.reason ? <strong>Reason: </strong> : null}
+                              {item.reason || item.notes}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </section>
+
+              {data.profilePhotoDocument && (
+                <section className="sys-detail" style={{ marginTop: '24px' }}>
+                  <h3 style={{ fontSize: '1rem', fontWeight: 600, borderBottom: '1px solid var(--color-border-default)', paddingBottom: '8px', margin: '0 0 16px' }}>Uploaded Documents</h3>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginTop: '12px', background: 'var(--color-bg-alt)', padding: '12px', borderRadius: '6px' }}>
+                    <div style={{ flex: 1 }}>
+                      <strong>Profile Photo Document</strong>
+                      <small style={{ display: 'block', color: 'var(--color-text-muted)' }}>ID: {data.profilePhotoDocument}</small>
+                    </div>
+                    <a href={`/api/v1/documents/${data.profilePhotoDocument}/download`} target="_blank" rel="noopener noreferrer" className="sys-button sys-button--quiet">
+                      View
+                    </a>
+                  </div>
+                </section>
+              )}
+            </>
+          ) : (
+            <State kind="empty">No recruiter details found.</State>
+          )}
+        </div>
+
+        {query.data && (
+          <footer style={{
+            padding: '16px 24px',
+            borderTop: '1px solid var(--color-border-default)',
+            background: 'var(--color-bg-alt)',
+            display: 'flex',
+            justifyContent: 'flex-end',
+            gap: '12px',
+            flexWrap: 'wrap'
+          }}>
+            {recruiterStatus === 'pending' && (
+              <>
+                <button className="sys-button sys-button--success" onClick={() => performAction('Approve Recruiter', { path: `/recruiters/admin/${profileId}/approve` })} style={{ cursor: 'pointer' }}>
+                  Approve Recruiter
+                </button>
+                <button className="sys-button sys-button--danger" onClick={() => performAction('Reject Recruiter', { path: `/recruiters/admin/${profileId}/reject`, reason: true })} style={{ cursor: 'pointer' }}>
+                  Reject Recruiter
+                </button>
+              </>
+            )}
+            {recruiterStatus === 'verified' && (
+              <button className="sys-button sys-button--danger" onClick={() => performAction('Suspend Recruiter', { path: `/recruiters/admin/${profileId}/suspend`, reason: true })} style={{ cursor: 'pointer' }}>
+                Suspend Recruiter
+              </button>
+            )}
+            {recruiterStatus === 'suspended' && (
+              <button className="sys-button sys-button--success" onClick={() => performAction('Restore Recruiter', { path: `/recruiters/admin/${profileId}/restore` })} style={{ cursor: 'pointer' }}>
+                Restore Recruiter
+              </button>
+            )}
+          </footer>
+        )}
+      </div>
+
+      {pending && (
+        <ActionDialog
+          action={pending}
+          onClose={() => setPending(null)}
+          onDone={() => {
+            onActionDone();
+            query.refetch();
+            historyQuery.refetch();
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+export function AdminCompanyVerificationPage() {
+  const [sp, setSp] = useSearchParams();
+  const search = sp.get('search') ?? '';
+  const status = sp.get('status') ?? '';
+  const startDate = sp.get('startDate') ?? '';
+  const endDate = sp.get('endDate') ?? '';
+  const page = parseInt(sp.get('page') ?? '1', 10);
+
+  const queryParams = {
+    page,
+    limit: 10,
+    ...(search && { search }),
+    ...(status && { status }),
+    ...(startDate && { startDate }),
+    ...(endDate && { endDate }),
+  };
+
+  const query = useQuery({
+    queryKey: ['system-admin', 'company-verification-list', queryParams],
+    queryFn: () => adminApi.list(adminPaths.companies, queryParams),
+  });
+
+  const [selectedCompanyId, setSelectedCompanyId] = useState<string | null>(null);
+  const [pending, setPending] = useState<PendingAction | null>(null);
+
+  const client = useQueryClient();
+  const rows = query.data?.rows ?? [];
+
+  const updateSearchParam = (key: string, value: string) => {
+    const next = new URLSearchParams(sp);
+    if (value) {
+      next.set(key, value);
+    } else {
+      next.delete(key);
+    }
+    if (key !== 'page') {
+      next.set('page', '1');
+    }
+    setSp(next);
+  };
+
+  const handleActionDone = () => {
+    client.invalidateQueries({ queryKey: ['system-admin'] });
+  };
+
+  return (
+    <main className="sys-page">
+      <Header
+        eyebrow="System administration / Verification"
+        title="Company Verification Module"
+        intro="Review employer verification requests, workspace setups, and corporate memberships."
+      />
+
+      <div style={{
+        display: 'flex',
+        alignItems: 'flex-end',
+        gap: '16px',
+        flexWrap: 'wrap',
+        marginBottom: '24px',
+        padding: '16px',
+        background: 'var(--color-bg-alt)',
+        border: '1px solid var(--color-border-default)',
+        borderRadius: '6px',
+        width: '100%'
+      }}>
+        {/* Search Field */}
+        <div style={{ flex: '2 1 240px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+          <span style={{ fontSize: '0.72rem', fontWeight: 600, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.08em', fontFamily: 'var(--font-mono)' }}>Search Company</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', border: '1px solid var(--color-border-default)', background: 'var(--color-surface-primary)', padding: '9px 12px', height: '38px', boxSizing: 'border-box' }}>
+            <Search size={16} style={{ color: 'var(--color-text-secondary)' }} />
+            <input
+              placeholder="Search by company name..."
+              value={search}
+              onChange={(e) => updateSearchParam('search', e.target.value)}
+              style={{ border: 'none', background: 'transparent', outline: 'none', width: '100%', color: 'inherit', font: 'inherit', padding: 0 }}
+            />
+          </div>
+        </div>
+
+        {/* Status Dropdown */}
+        <div style={{ flex: '1 1 150px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+          <span style={{ fontSize: '0.72rem', fontWeight: 600, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.08em', fontFamily: 'var(--font-mono)' }}>Status</span>
+          <select 
+            value={status} 
+            onChange={(e) => updateSearchParam('status', e.target.value)}
+            style={{ border: '1px solid var(--color-border-default)', background: 'var(--color-surface-primary)', padding: '8px 12px', borderRadius: 0, outline: 'none', color: 'inherit', font: 'inherit', height: '38px', boxSizing: 'border-box' }}
+          >
+            <option value="">All Statuses</option>
+            <option value="pending">Pending</option>
+            <option value="verified">Verified</option>
+            <option value="suspended">Suspended</option>
+            <option value="rejected">Rejected</option>
+          </select>
+        </div>
+
+        {/* From Date */}
+        <div style={{ flex: '1 1 140px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+          <span style={{ fontSize: '0.72rem', fontWeight: 600, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.08em', fontFamily: 'var(--font-mono)' }}>From Date</span>
+          <input
+            type="date"
+            value={startDate}
+            onChange={(e) => updateSearchParam('startDate', e.target.value)}
+            style={{ border: '1px solid var(--color-border-default)', background: 'var(--color-surface-primary)', padding: '8px 12px', borderRadius: 0, outline: 'none', color: 'inherit', font: 'inherit', height: '38px', boxSizing: 'border-box' }}
+          />
+        </div>
+
+        {/* To Date */}
+        <div style={{ flex: '1 1 140px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+          <span style={{ fontSize: '0.72rem', fontWeight: 600, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.08em', fontFamily: 'var(--font-mono)' }}>To Date</span>
+          <input
+            type="date"
+            value={endDate}
+            onChange={(e) => updateSearchParam('endDate', e.target.value)}
+            style={{ border: '1px solid var(--color-border-default)', background: 'var(--color-surface-primary)', padding: '8px 12px', borderRadius: 0, outline: 'none', color: 'inherit', font: 'inherit', height: '38px', boxSizing: 'border-box' }}
+          />
+        </div>
+
+        {/* Refresh Button */}
+        <div style={{ display: 'flex', alignItems: 'flex-end' }}>
+          <button 
+            className="sys-button sys-button--quiet" 
+            onClick={() => query.refetch()}
+            style={{ height: '38px', display: 'inline-flex', alignItems: 'center', gap: '8px', border: '1px solid var(--color-border-strong)', background: 'transparent', padding: '0 16px', boxSizing: 'border-box', fontWeight: 600, cursor: 'pointer' }}
+          >
+            <RefreshCw size={15} />
+            Refresh
+          </button>
+        </div>
+      </div>
+
+      {query.isLoading ? (
+        <State kind="loading">Loading company list...</State>
+      ) : query.isError ? (
+        <State kind="error">{errorText(query.error)}</State>
+      ) : rows.length ? (
+        <>
+          <div className="sys-table-wrap">
+            <table className="sys-table">
+              <thead>
+                <tr>
+                  <th>Company Name</th>
+                  <th>Website / Domain</th>
+                  <th>Owner Information</th>
+                  <th>Verification Status</th>
+                  <th>Stats</th>
+                  <th>Registered</th>
+                  <th><span className="sr-only">Actions</span></th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((row: any) => {
+                  const id = recordId(row);
+                  return (
+                    <tr key={id}>
+                      <td data-label="Company Name">
+                        <strong>{row.name || '—'}</strong>
+                        <small style={{ color: 'var(--color-text-muted)' }}>Size: {row.companySize || '—'}</small>
+                      </td>
+                      <td data-label="Website">
+                        <a href={row.website} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--color-action-primary)', textDecoration: 'underline' }}>
+                          {row.website || '—'}
+                        </a>
+                        <small className="sys-mono">{row.officialEmailDomain || '—'}</small>
+                      </td>
+                      <td data-label="Owner">
+                        <strong>{row.owner?.fullName || '—'}</strong>
+                        <small className="sys-mono">{row.owner?.email || '—'}</small>
+                      </td>
+                      <td data-label="Verification">
+                        <Status value={row.verificationStatus} />
+                      </td>
+                      <td data-label="Stats">
+                        <span style={{ display: 'block', fontSize: '0.85rem' }}>Members: {row.memberCount ?? 0}</span>
+                        <span style={{ display: 'block', fontSize: '0.85rem' }}>Jobs: {row.jobCount ?? 0}</span>
+                      </td>
+                      <td data-label="Registered" className="sys-mono" style={{ fontSize: '0.8rem' }}>
+                        {row.createdAt ? new Date(row.createdAt).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }) : '—'}
+                      </td>
+                      <td data-label="Actions">
+                        <div className="sys-row-actions">
+                          <button className="sys-button" onClick={() => setSelectedCompanyId(id)} style={{ cursor: 'pointer' }}>
+                            Inspect <ArrowRight size={14} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+          <Pager page={page} setPage={(p) => updateSearchParam('page', String(p))} meta={query.data?.meta} />
+        </>
+      ) : (
+        <State kind="empty">No companies matching this view.</State>
+      )}
+
+      {selectedCompanyId && (
+        <CompanyVerificationDrawer
+          companyId={selectedCompanyId}
+          onClose={() => setSelectedCompanyId(null)}
+          onActionDone={handleActionDone}
+        />
+      )}
+
+      {pending && (
+        <ActionDialog
+          action={pending}
+          onClose={() => setPending(null)}
+          onDone={handleActionDone}
+        />
+      )}
+    </main>
+  );
+}
+
+function CompanyVerificationDrawer({
+  companyId,
+  onClose,
+  onActionDone,
+}: {
+  companyId: string;
+  onClose: () => void;
+  onActionDone: () => void;
+}) {
+  const path = `${adminPaths.companies}/${companyId}`;
+  const query = useQuery({
+    queryKey: ['system-admin', 'company-verification-detail', companyId],
+    queryFn: () => adminApi.detail(path),
+  });
+  const data = (query.data ?? {}) as any;
+
+  const historyQuery = useQuery({
+    queryKey: ['system-admin', 'company-verification-history', companyId],
+    queryFn: () => adminApi.getVerificationHistory(companyId),
+    enabled: !!companyId,
+  });
+  const historyItems = historyQuery.data?.data?.items || [];
+
+  const [pending, setPending] = useState<PendingAction | null>(null);
+
+  const performAction = (actionName: string, config: { path: string; method?: 'PATCH' | 'POST' | 'DELETE'; reason?: boolean; body?: any }) => {
+    setPending({
+      title: `${actionName}?`,
+      path: config.path,
+      method: config.method || 'PATCH',
+      reason: config.reason,
+      body: config.body,
+    });
+  };
+
+  return (
+    <div className="sys-dialog-backdrop" style={{ zIndex: 9999, display: 'grid', placeItems: 'center', background: 'rgba(0, 0, 0, 0.6)' }}>
+      <div className="sys-dialog" style={{
+        maxWidth: '1000px',
+        width: 'calc(100% - 32px)',
+        maxHeight: 'calc(100vh - 48px)',
+        borderRadius: '8px',
+        zIndex: 10000,
+        display: 'flex',
+        flexDirection: 'column',
+        padding: 0,
+        border: '1px solid var(--color-border-default)',
+        background: 'var(--color-surface-primary)',
+        overflow: 'hidden'
+      }}>
+        <header style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          padding: '20px 24px',
+          borderBottom: '1px solid var(--color-border-default)'
+        }}>
+          <div>
+            <p className="sys-eyebrow">Verification Inspection</p>
+            <h2 style={{ margin: '4px 0 0', fontSize: '1.5rem', fontWeight: 620 }}>Company Details</h2>
+          </div>
+          <button className="sys-button sys-button--quiet" onClick={onClose} style={{ cursor: 'pointer' }}>Close</button>
+        </header>
+
+        <div style={{ flex: 1, overflowY: 'auto', padding: '24px' }}>
+          {query.isLoading ? (
+            <State kind="loading">Loading details...</State>
+          ) : query.isError ? (
+            <State kind="error">{errorText(query.error)}</State>
+          ) : query.data ? (
+            <>
+              <section className="sys-detail" style={{ marginTop: 0 }}>
+                <h3 style={{ fontSize: '1rem', fontWeight: 600, borderBottom: '1px solid var(--color-border-default)', paddingBottom: '8px', margin: '0 0 16px' }}>Company Information</h3>
+                <dl style={{ borderLeft: '1px solid var(--color-border-default)', borderTop: '1px solid var(--color-border-default)' }}>
+                  <div><dt>Company Name</dt><dd>{data.name || '—'}</dd></div>
+                  <div><dt>Website</dt><dd>{data.website ? <a href={data.website} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--color-action-primary)', textDecoration: 'underline' }}>{data.website}</a> : '—'}</dd></div>
+                  <div><dt>Email Domain</dt><dd className="sys-mono">{data.officialEmailDomain || '—'}</dd></div>
+                  <div><dt>Company Size</dt><dd>{data.companySize || '—'}</dd></div>
+                  <div><dt>Industry</dt><dd>{data.industry || '—'}</dd></div>
+                  <div><dt>Description</dt><dd>{data.description || '—'}</dd></div>
+                  <div><dt>Registration Date</dt><dd>{data.createdAt ? new Date(data.createdAt).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' }) : '—'}</dd></div>
+                </dl>
+              </section>
+
+              <section className="sys-detail" style={{ marginTop: '24px' }}>
+                <h3 style={{ fontSize: '1rem', fontWeight: 600, borderBottom: '1px solid var(--color-border-default)', paddingBottom: '8px', margin: '0 0 16px' }}>Owner & Verification Information</h3>
+                <dl style={{ borderLeft: '1px solid var(--color-border-default)', borderTop: '1px solid var(--color-border-default)' }}>
+                  <div><dt>Company Owner</dt><dd>{data.owner?.fullName || '—'} ({data.owner?.email || '—'})</dd></div>
+                  <div><dt>Owner Verification Status</dt><dd><Status value={data.owner?.recruiterVerificationStatus ?? 'none'} /></dd></div>
+                  <div><dt>Verification Status</dt><dd><Status value={data.verificationStatus} /></dd></div>
+                  {data.verificationStatus === 'verified' && (
+                    <>
+                      <div><dt>Verified By</dt><dd>{data.verifiedBy?.fullName || '—'}</dd></div>
+                      <div><dt>Verified Date</dt><dd>{data.verifiedAt ? new Date(data.verifiedAt).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—'}</dd></div>
+                    </>
+                  )}
+                  {data.verificationStatus === 'rejected' && (
+                    <>
+                      <div><dt>Rejected By</dt><dd>{data.rejectedBy?.fullName || '—'}</dd></div>
+                      <div><dt>Rejected Date</dt><dd>{data.rejectedAt ? new Date(data.rejectedAt).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—'}</dd></div>
+                    </>
+                  )}
+                  {data.verificationStatus === 'suspended' && (
+                    <>
+                      <div><dt>Suspended By</dt><dd>{data.suspendedBy?.fullName || '—'}</dd></div>
+                      <div><dt>Suspended Date</dt><dd>{data.suspendedAt ? new Date(data.suspendedAt).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—'}</dd></div>
+                    </>
+                  )}
+                  {data.verificationStatus !== 'verified' && data.verificationStatus !== 'rejected' && data.verificationStatus !== 'suspended' && (
+                    <>
+                      <div><dt>Verified By</dt><dd>—</dd></div>
+                      <div><dt>Verified Date</dt><dd>—</dd></div>
+                    </>
+                  )}
+                </dl>
+              </section>
+
+              <section className="sys-detail" style={{ marginTop: '24px' }}>
+                <h3 style={{ fontSize: '1rem', fontWeight: 600, borderBottom: '1px solid var(--color-border-default)', paddingBottom: '8px', margin: '0 0 16px' }}>Verification History</h3>
+                {historyQuery.isLoading ? (
+                  <p style={{ fontSize: '0.875rem', color: 'var(--color-text-secondary)' }}>Loading history...</p>
+                ) : historyItems.length === 0 ? (
+                  <p style={{ fontSize: '0.875rem', color: 'var(--color-text-secondary)' }}>No verification history found.</p>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', paddingLeft: '8px', borderLeft: '2px solid var(--color-border-default)', margin: '8px 0 0 8px' }}>
+                    {historyItems.map((item: any) => {
+                      const actionLabel = formatActionLabel(item.action);
+                      const statusTransition = `${item.previousStatus} → ${item.newStatus}`;
+                      const dateStr = item.timestamp
+                        ? new Date(item.timestamp).toLocaleDateString(undefined, {
+                            year: 'numeric',
+                            month: 'short',
+                            day: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit',
+                          })
+                        : '—';
+
+                      return (
+                        <div key={item.id} style={{ position: 'relative', paddingLeft: '16px' }}>
+                          <div style={{
+                            position: 'absolute',
+                            left: '-13px',
+                            top: '4px',
+                            width: '8px',
+                            height: '8px',
+                            borderRadius: '50%',
+                            background: item.action.includes('rejected') || item.action.includes('suspended') ? 'var(--color-danger-primary, #ea3838)' : 'var(--color-success-primary, #10b981)',
+                            border: '2px solid var(--color-surface-primary)'
+                          }} />
+                          
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '8px' }}>
+                            <div>
+                              <strong style={{ fontSize: '0.9rem', color: 'var(--color-text-primary)' }}>
+                                {actionLabel}
+                              </strong>
+                              <span style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)', marginLeft: '8px', background: 'var(--color-surface-secondary, #f3f4f6)', padding: '2px 6px', borderRadius: '4px' }}>
+                                {statusTransition}
+                              </span>
+                            </div>
+                            <span style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)' }}>{dateStr}</span>
+                          </div>
+                          
+                          <div style={{ marginTop: '4px', fontSize: '0.85rem', color: 'var(--color-text-secondary)' }}>
+                            <strong>By:</strong> {item.performedBy?.name || '—'}
+                          </div>
+                          
+                          {(item.reason || item.notes) && (
+                            <div style={{
+                              marginTop: '6px',
+                              padding: '8px 12px',
+                              background: 'var(--color-bg-alt, #fafafa)',
+                              border: '1px solid var(--color-border-default)',
+                              borderRadius: '4px',
+                              fontSize: '0.85rem',
+                              color: 'var(--color-text-primary)',
+                              whiteSpace: 'pre-wrap'
+                            }}>
+                              {item.reason ? <strong>Reason: </strong> : null}
+                              {item.reason || item.notes}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </section>
+
+              {data.companyMembers && data.companyMembers.length > 0 && (
+                <section className="sys-detail" style={{ marginTop: '24px' }}>
+                  <h3 style={{ fontSize: '1rem', fontWeight: 600, borderBottom: '1px solid var(--color-border-default)', paddingBottom: '8px', margin: '0 0 16px' }}>Corporate Members</h3>
+                  <ul style={{ padding: 0, margin: 0, listStyle: 'none' }}>
+                    {data.companyMembers.map((member: any) => (
+                      <li key={member._id} style={{ marginBottom: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.9rem', padding: '12px', border: '1px solid var(--color-border-default)', borderRadius: '4px', background: 'var(--color-bg-alt)' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column' }}>
+                          <strong>{member.recruiter?.fullName || 'Recruiter'}</strong>
+                          <span className="sys-mono" style={{ color: 'var(--color-text-secondary)', fontSize: '0.8rem' }}>{member.recruiter?.email || '—'}</span>
+                        </div>
+                        <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+                          <span style={{ fontSize: '0.8rem', background: 'var(--color-surface-secondary)', padding: '2px 8px', borderRadius: '4px' }}>Role: {member.role}</span>
+                          <Status value={member.status} />
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              )}
+            </>
+          ) : (
+            <State kind="empty">No company details found.</State>
+          )}
+        </div>
+
+        {query.data && (
+          <footer style={{
+            padding: '16px 24px',
+            borderTop: '1px solid var(--color-border-default)',
+            background: 'var(--color-bg-alt)',
+            display: 'flex',
+            justifyContent: 'flex-end',
+            gap: '12px',
+            flexWrap: 'wrap'
+          }}>
+            {data.verificationStatus === 'pending' && (
+              <>
+                <button className="sys-button sys-button--success" onClick={() => performAction('Verify Company', { path: `/companies/admin/${companyId}/verify` })} style={{ cursor: 'pointer' }}>
+                  Verify Company
+                </button>
+                <button className="sys-button sys-button--danger" onClick={() => performAction('Reject Company', { path: `/companies/admin/${companyId}/reject`, reason: true })} style={{ cursor: 'pointer' }}>
+                  Reject Company
+                </button>
+              </>
+            )}
+            {data.verificationStatus === 'verified' && (
+              <button className="sys-button sys-button--danger" onClick={() => performAction('Suspend Company', { path: `/companies/admin/${companyId}/suspend`, reason: true })} style={{ cursor: 'pointer' }}>
+                Suspend Company
+              </button>
+            )}
+            {data.verificationStatus === 'suspended' && (
+              <button className="sys-button sys-button--success" onClick={() => performAction('Restore Company', { path: `/companies/admin/${companyId}/verify` })} style={{ cursor: 'pointer' }}>
+                Restore Company
+              </button>
+            )}
+          </footer>
+        )}
+      </div>
+
+      {pending && (
+        <ActionDialog
+          action={pending}
+          onClose={() => setPending(null)}
+          onDone={() => {
+            onActionDone();
+            query.refetch();
+            historyQuery.refetch();
+          }}
+        />
+      )}
+    </div>
   );
 }

@@ -106,6 +106,8 @@ import {
 import { RecruiterAnalyticsPage } from '../features/recruiter-analytics';
 import { RecruiterNotificationsPage } from '../features/recruiter-notifications';
 import { RecruiterActivityTimelinePage } from '../features/recruiter-activity';
+import { RecruiterOnboardingPage } from '../features/recruiter-portal/RecruiterOnboardingPage';
+import { RecruiterVerificationStatusPage } from '../features/recruiter-portal/RecruiterVerificationStatusPage';
 import {
   CandidateApplicationDetailPage,
   CandidateApplicationsPage,
@@ -123,6 +125,8 @@ import {
 import {
   AdminAnalyticsPage,
   AdminApprovalsPage,
+  AdminRecruiterVerificationPage,
+  AdminCompanyVerificationPage,
   AdminCommunicationsPage,
   AdminOperationsPage,
   AdminOverviewPage,
@@ -168,7 +172,7 @@ function Protected({
   requiredRole?: UserRole;
   children: React.ReactNode;
 }) {
-  const { status, user } = useAuth();
+  const { status, user, recruiter } = useAuth();
   const location = useLocation();
   if (status === 'restoring')
     return (
@@ -187,6 +191,36 @@ function Protected({
     );
   if (requiredRole && user.role !== requiredRole)
     return <Navigate to="/unauthorized" replace />;
+
+  if (user.role === 'recruiter') {
+    const vStatus = recruiter?.user?.recruiterVerificationStatus ?? user.recruiterVerificationStatus ?? 'none';
+    const cStatus = recruiter?.company?.verificationStatus ?? 'none';
+    const isOnboardingPage = location.pathname === '/recruiter/onboarding';
+    const isStatusPage = location.pathname === '/recruiter/verification-status';
+
+    const isRejected = vStatus === 'rejected' || cStatus === 'rejected';
+    const isPending = vStatus === 'pending' || cStatus === 'pending';
+    const isBothVerified = vStatus === 'verified' && cStatus === 'verified';
+
+    if (vStatus === 'none' || (isOnboardingPage && !isBothVerified)) {
+      if (!isOnboardingPage) {
+        return <Navigate to="/recruiter/onboarding" replace />;
+      }
+    } else if (isRejected) {
+      if (!isStatusPage && !isOnboardingPage) {
+        return <Navigate to="/recruiter/verification-status" replace />;
+      }
+    } else if (isPending) {
+      if (!isStatusPage) {
+        return <Navigate to="/recruiter/verification-status" replace />;
+      }
+    } else if (isBothVerified) {
+      if (isOnboardingPage || isStatusPage) {
+        return <Navigate to="/org" replace />;
+      }
+    }
+  }
+
   return children;
 }
 function NotificationsDispatcher() {
@@ -257,6 +291,22 @@ export function AppRoutes() {
         <Route path="reset-password" element={<ResetPasswordPage />} />
         <Route path="auth/github/callback" element={<GithubCallbackPage />} />
       </Route>
+      <Route
+        path="recruiter/onboarding"
+        element={
+          <Protected requiredRole="recruiter">
+            <RecruiterOnboardingPage />
+          </Protected>
+        }
+      />
+      <Route
+        path="recruiter/verification-status"
+        element={
+          <Protected requiredRole="recruiter">
+            <RecruiterVerificationStatusPage />
+          </Protected>
+        }
+      />
       <Route
         path="candidate"
         element={
@@ -731,6 +781,8 @@ export function AppRoutes() {
       >
         <Route index element={<AdminOverviewPage />} />
         <Route path="approvals" element={<AdminApprovalsPage />} />
+        <Route path="recruiter-verification" element={<AdminRecruiterVerificationPage />} />
+        <Route path="company-verification" element={<AdminCompanyVerificationPage />} />
         <Route path="claims" element={<AdminClaimsPage />} />
         <Route path="operations" element={<AdminOperationsPage />} />
         <Route path="operations/:type/:id" element={<AdminRecordDetailPage />} />

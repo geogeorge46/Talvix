@@ -105,7 +105,7 @@ export function useJoinRequest() {
 export function useGetJoinRequests() {
   return useQuery({
     queryKey: [...companyKey, 'join-requests'],
-    queryFn: () => apiRequest<{ data: { requests: any[] } }>('/companies/me/join-requests').then(r => r.data.requests),
+    queryFn: () => apiRequest<{ requests: any[] }>('/companies/me/join-requests').then(r => r.requests),
   });
 }
 

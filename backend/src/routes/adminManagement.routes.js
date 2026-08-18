@@ -22,11 +22,13 @@ adminManagementRouter.post('/users/bulk', controller.bulkUsers);
 // Recruiters
 adminManagementRouter.get('/recruiters', controller.getRecruiters);
 adminManagementRouter.get('/recruiters/:recruiterId', controller.getRecruiter);
+adminManagementRouter.get('/recruiters/:recruiterId/verification-history', controller.getRecruiterVerificationHistory);
 adminManagementRouter.delete('/recruiters/:recruiterId/company', controller.removeRecruiter);
 
 // Companies
 adminManagementRouter.get('/companies', controller.getCompanies);
 adminManagementRouter.get('/companies/:companyId', controller.getCompany);
+adminManagementRouter.get('/companies/:companyId/verification-history', controller.getCompanyVerificationHistory);
 adminManagementRouter.post('/companies/merge', controller.merge);
 
 // Jobs

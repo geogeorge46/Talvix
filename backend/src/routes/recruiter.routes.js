@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { USER_ROLES } from '../constants/roles.js';
 import { approveRecruiterAccount, pendingRecruiters, rejectRecruiterAccount, suspendRecruiterAccount, restoreRecruiterAccount } from '../controllers/adminRecruiter.controller.js';
-import { getMyRecruiterProfile, updateMyRecruiterProfile } from '../controllers/recruiter.controller.js';
+import { getMyRecruiterProfile, updateMyRecruiterProfile, submitVerification } from '../controllers/recruiter.controller.js';
 import { authenticate } from '../middleware/auth.js';
 import { authorizeRoles } from '../middleware/authorizeRoles.js';
 import { adminRecruiterActionSchema, pendingRecruiterQuerySchema, recruiterIdParamsSchema, recruiterUpdateSchema } from '../validators/recruiter.validator.js';
@@ -14,4 +14,5 @@ for (const [path, controller] of [['approve', approveRecruiterAccount], ['reject
 }
 recruiterRouter.get('/me', authorizeRoles(USER_ROLES.RECRUITER), getMyRecruiterProfile);
 recruiterRouter.patch('/me', authorizeRoles(USER_ROLES.RECRUITER), validateBody(recruiterUpdateSchema), updateMyRecruiterProfile);
+recruiterRouter.post('/me/submit-verification', authorizeRoles(USER_ROLES.RECRUITER), submitVerification);
 

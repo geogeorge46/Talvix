@@ -8,7 +8,6 @@ import { User } from '../models/User.js';
 import { OnboardingSession } from '../models/OnboardingSession.js';
 import { CandidateProfile } from '../models/CandidateProfile.js';
 import { Company } from '../models/Company.js';
-import { RecruiterProfile } from '../models/RecruiterProfile.js';
 import { RefreshSession } from '../models/RefreshSession.js';
 import { FederatedIdentity } from '../models/FederatedIdentity.js';
 import { createCandidateProfileForUser } from './candidate.service.js';
@@ -374,7 +373,7 @@ const saveGoogleUserAndProfile = async (sessionData, role, onboardingData, dbSes
     googleId: sessionData.googleId,
     avatar: sessionData.avatar,
     emailVerified: true,
-    recruiterVerificationStatus: role === 'recruiter' ? 'pending' : 'none',
+    recruiterVerificationStatus: 'none',
   }], opt);
 
   // Create Google FederatedIdentity

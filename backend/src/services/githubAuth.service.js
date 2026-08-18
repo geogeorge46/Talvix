@@ -4,7 +4,6 @@ import { User } from '../models/User.js';
 import { OnboardingSession } from '../models/OnboardingSession.js';
 import { CandidateProfile } from '../models/CandidateProfile.js';
 import { Company } from '../models/Company.js';
-import { RecruiterProfile } from '../models/RecruiterProfile.js';
 import { FederatedIdentity } from '../models/FederatedIdentity.js';
 import { createSession } from './auth.service.js';
 import { createRecruiterProfileForUser } from './recruiter.service.js';
@@ -189,7 +188,7 @@ const saveGithubUserAndProfile = async (sessionData, role, onboardingData, dbSes
     githubId: sessionData.githubId,
     avatar: sessionData.avatar,
     emailVerified: true,
-    recruiterVerificationStatus: role === 'recruiter' ? 'pending' : 'none',
+    recruiterVerificationStatus: 'none',
   }], opt);
 
   // Create GitHub FederatedIdentity

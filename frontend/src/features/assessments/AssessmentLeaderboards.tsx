@@ -101,22 +101,22 @@ export function AssessmentLeaderboards() {
               <DataTable
                 caption="University summary details"
                 rows={benchmarks.universityPerformance || []}
-                rowKey={(row) => row.name}
+                rowKey={(row: any) => row.name}
                 columns={[
                   {
                     id: 'name',
                     header: 'University',
-                    render: (row) => <span>{row.name}</span>
+                    render: (row: any) => <span>{row.name}</span>
                   },
                   {
                     id: 'averageScore',
                     header: 'Avg Score',
-                    render: (row) => <span>{row.averageScore}%</span>
+                    render: (row: any) => <span>{row.averageScore}%</span>
                   },
                   {
                     id: 'passRate',
                     header: 'Pass Rate',
-                    render: (row) => <span>{row.passRate}%</span>
+                    render: (row: any) => <span>{row.passRate}%</span>
                   }
                 ]}
               />
@@ -130,17 +130,17 @@ export function AssessmentLeaderboards() {
               <DataTable
                 caption="Skill summary details"
                 rows={benchmarks.skillDistribution || []}
-                rowKey={(row) => row.skill}
+                rowKey={(row: any) => row.skill}
                 columns={[
                   {
                     id: 'skill',
                     header: 'Skill Area',
-                    render: (row) => <span>{row.skill}</span>
+                    render: (row: any) => <span>{row.skill}</span>
                   },
                   {
                     id: 'averagePercentage',
                     header: 'Avg Proficiency',
-                    render: (row) => <span>{row.averagePercentage}%</span>
+                    render: (row: any) => <span>{row.averagePercentage}%</span>
                   }
                 ]}
               />

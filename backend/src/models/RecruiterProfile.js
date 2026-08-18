@@ -14,8 +14,16 @@ const recruiterProfileSchema = new mongoose.Schema({
   isCompanyOwner: { type: Boolean, default: false },
   permissions: [{ type: String, enum: RECRUITER_PERMISSIONS }],
   isApproved: { type: Boolean, default: false },
+  rejectionReason: { type: String, default: '' },
   approvedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
   approvedAt: { type: Date, default: null },
+  rejectedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+  rejectedAt: { type: Date, default: null },
+  suspendedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+  suspendedAt: { type: Date, default: null },
+  suspensionReason: { type: String, default: '' },
+  restoredBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+  restoredAt: { type: Date, default: null },
 }, { timestamps: true, versionKey: false });
 
 recruiterProfileSchema.index({ isApproved: 1, createdAt: 1 });

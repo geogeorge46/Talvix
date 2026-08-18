@@ -10,7 +10,9 @@ export const authorizePermissions = (...requiredPermissions) => async (request, 
     if (request.user.role === USER_ROLES.ADMIN) return next();
     
     const profile = await RecruiterProfile.findOne({ user: request.user.id });
-    if (!profile || !profile.isApproved || !profile.company) {
+    const isManagingOwnCompany = requiredPermissions.includes('company.manage') && profile?.company;
+
+    if (!profile || (!profile.isApproved && !isManagingOwnCompany) || !profile.company) {
       throw new AppError('Approved recruiter company access is required', 403);
     }
     
@@ -42,6 +44,7 @@ export const authorizePermissions = (...requiredPermissions) => async (request, 
       profile.permissions.includes(permission) && membership?.permissions.includes(permission));
       
     const requiresVerifiedCompany = requiredPermissions.some((permission) =>
+      permission.startsWith('jobs.') ||
       permission.startsWith('applications.') ||
       permission.startsWith('assessments.') ||
       permission.startsWith('interviews.') ||

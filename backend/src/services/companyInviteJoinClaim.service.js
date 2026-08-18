@@ -225,7 +225,25 @@ export const createJoinRequest = async (userId, companyId, ipAddress = 'Unknown'
 };
 
 export const listJoinRequests = async (companyId) => {
-  return JoinRequest.find({ company: companyId, status: 'pending' }).populate('user', 'fullName email avatar');
+  const requests = await JoinRequest.find({ company: companyId, status: 'pending' })
+    .populate('user', 'fullName email avatar')
+    .lean();
+
+  const userIds = requests.map(r => r.user?._id).filter(Boolean);
+  const profiles = await RecruiterProfile.find({ user: { $in: userIds } }).lean();
+
+  return requests.map(req => {
+    const profile = profiles.find(p => String(p.user) === String(req.user?._id));
+    return {
+      ...req,
+      profile: profile ? {
+        designation: profile.designation,
+        department: profile.department,
+        phone: profile.phone,
+        linkedinUrl: profile.linkedinUrl
+      } : null
+    };
+  });
 };
 
 export const reviewJoinRequest = async (company, requestId, actorId, action, notes = '', ipAddress = 'Unknown', userAgent = 'Unknown') => {

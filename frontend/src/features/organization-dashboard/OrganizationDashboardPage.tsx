@@ -417,49 +417,49 @@ export function OrganizationDashboardPage() {
                 <section className="tvx-dashboard-metrics" aria-label="Hiring metrics" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1rem', marginBottom: '2rem' }}>
                   <MetricCard
                     label="Active jobs"
-                    value={recDash.data?.data?.metrics.activeJobs ?? 0}
+                    value={recDash.data?.metrics.activeJobs ?? 0}
                     icon={<BriefcaseBusiness />}
                     isLoading={recDash.isLoading}
                   />
                   <MetricCard
                     label="Draft jobs"
-                    value={recDash.data?.data?.metrics.draftJobs ?? 0}
+                    value={recDash.data?.metrics.draftJobs ?? 0}
                     icon={<BriefcaseBusiness />}
                     isLoading={recDash.isLoading}
                   />
                   <MetricCard
                     label="Closed jobs"
-                    value={recDash.data?.data?.metrics.closedJobs ?? 0}
+                    value={recDash.data?.metrics.closedJobs ?? 0}
                     icon={<BriefcaseBusiness />}
                     isLoading={recDash.isLoading}
                   />
                   <MetricCard
                     label="Total Applications"
-                    value={recDash.data?.data?.metrics.totalApplications ?? 0}
+                    value={recDash.data?.metrics.totalApplications ?? 0}
                     icon={<Users />}
                     isLoading={recDash.isLoading}
                   />
                   <MetricCard
                     label="Interviews Scheduled"
-                    value={recDash.data?.data?.metrics.interviewsScheduled ?? 0}
+                    value={recDash.data?.metrics.interviewsScheduled ?? 0}
                     icon={<CalendarDays />}
                     isLoading={recDash.isLoading}
                   />
                   <MetricCard
                     label="Offers Sent"
-                    value={recDash.data?.data?.metrics.offersSent ?? 0}
+                    value={recDash.data?.metrics.offersSent ?? 0}
                     icon={<FileText />}
                     isLoading={recDash.isLoading}
                   />
                   <MetricCard
                     label="Candidates Hired"
-                    value={recDash.data?.data?.metrics.candidatesHired ?? 0}
+                    value={recDash.data?.metrics.candidatesHired ?? 0}
                     icon={<Users />}
                     isLoading={recDash.isLoading}
                   />
                   <MetricCard
                     label="Team Members"
-                    value={recDash.data?.data?.metrics.teamMembers ?? 0}
+                    value={recDash.data?.metrics.teamMembers ?? 0}
                     icon={<Users />}
                     isLoading={recDash.isLoading}
                   />
@@ -575,9 +575,9 @@ export function OrganizationDashboardPage() {
                   {widgets.find(w => w.id === 'recentActivity')?.visible && (
                     <div style={{ marginTop: '2rem' }}>
                       <Card heading="Recent Activity" headingLevel={2}>
-                        {recDash.data?.data?.recentActivity?.length ? (
+                        {recDash.data?.recentActivity?.length ? (
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                            {recDash.data.data.recentActivity.map((act: any) => (
+                            {recDash.data.recentActivity.map((act: any) => (
                               <div key={act.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '0.75rem', border: '1px solid var(--color-border-subtle)', borderRadius: '6px' }}>
                                 <div>
                                   <div>{act.description}</div>

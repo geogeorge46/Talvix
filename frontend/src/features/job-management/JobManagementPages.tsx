@@ -14,6 +14,7 @@ import {
   Card,
   Checkbox,
   ConfirmDialog,
+  Dialog,
   DataTable,
   DescriptionList,
   EmptyState,
@@ -218,7 +219,7 @@ export function ManagedJobsPage() {
   const [sp, setSp] = useSearchParams();
   const rawPage = Number(sp.get('page'));
   const page =
-      Number.isFinite(rawPage) && rawPage >= 1 ? Math.floor(rawPage) : 1,
+    Number.isFinite(rawPage) && rawPage >= 1 ? Math.floor(rawPage) : 1,
     q = (sp.get('q') ?? '').trim().slice(0, 100),
     status = jobStatuses.includes((sp.get('status') ?? '') as never)
       ? (sp.get('status') ?? '')
@@ -824,10 +825,23 @@ function validate(d: JobDraft) {
   )
     e.maximumExperience = 'Experience must be between 0 and 60 years.';
   const salaryStarted = d.salaryMinimum !== '' || d.salaryMaximum !== '';
-  if (salaryStarted && (d.salaryMinimum === '' || d.salaryMaximum === ''))
-    e.salaryMinimum = 'Enter both salary bounds.';
-  if (salaryStarted && Number(d.salaryMaximum) < Number(d.salaryMinimum))
-    e.salaryMaximum = 'Maximum salary cannot be lower than minimum salary.';
+  if (salaryStarted) {
+    if (d.salaryMinimum === '' || d.salaryMaximum === '') {
+      e.salaryMinimum = 'Enter both salary bounds.';
+    } else {
+      const minVal = Number(d.salaryMinimum);
+      const maxVal = Number(d.salaryMaximum);
+      if (isNaN(minVal) || minVal < 0) {
+        e.salaryMinimum = 'Minimum salary must be a positive number.';
+      }
+      if (isNaN(maxVal) || maxVal < 0) {
+        e.salaryMaximum = 'Maximum salary must be a positive number.';
+      }
+      if (!e.salaryMinimum && !e.salaryMaximum && maxVal < minVal) {
+        e.salaryMaximum = 'Maximum salary cannot be lower than minimum salary.';
+      }
+    }
+  }
   if (salaryStarted && !/^[A-Z]{3}$/.test(d.salaryCurrency))
     e.salaryCurrency = 'Use a three-letter currency code.';
   if (
@@ -865,6 +879,175 @@ function validate(d: JobDraft) {
   });
   return e;
 }
+function formatApiError(err: any): string {
+  if (err instanceof ApiError) {
+    if (err.fieldErrors && Object.keys(err.fieldErrors).length > 0) {
+      return Object.entries(err.fieldErrors)
+        .map(([field, msg]) => `${field}: ${msg}`)
+        .join('\n');
+    }
+    return err.message;
+  }
+  return err instanceof Error ? err.message : String(err);
+}
+
+interface AIDescriptionEditorProps {
+  jobTitle: string;
+  value: string;
+  onApply: (newDesc: string) => void;
+  onCancel: () => void;
+}
+
+function AIDescriptionEditor({ jobTitle, value, onApply, onCancel }: AIDescriptionEditorProps) {
+  const [desc, setDesc] = useState(value);
+  const [aiGenerating, setAiGenerating] = useState(false);
+  const [aiChecking, setAiChecking] = useState(false);
+  const [safetyCheckResult, setSafetyCheckResult] = useState<{ isSafe: boolean; riskScore: number; issues: string[] } | null>(null);
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', minWidth: '400px', maxWidth: '800px', width: '100%', padding: '4px' }}>
+      <div className="ai-assist-toolbar" style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+        <span style={{ fontSize: '14px', fontWeight: '500', color: 'var(--color-text-secondary)' }}>AI Recruiter Assist:</span>
+        <Button
+          type="button"
+          variant="secondary"
+          disabled={aiGenerating}
+          onClick={async () => {
+            if (!jobTitle.trim()) {
+              alert('Please enter a job title first.');
+              return;
+            }
+            setAiGenerating(true);
+            try {
+              const res = await apiRequest<{ description: string }>('/jobs/ai/generate-description', {
+                method: 'POST',
+                body: { title: jobTitle, keyRequirements: 'Standard tech role requirements.' }
+              });
+              if (res?.description) {
+                setDesc(res.description);
+              }
+            } catch (err) {
+              alert('Failed to generate description:\n' + formatApiError(err));
+            } finally {
+              setAiGenerating(false);
+            }
+          }}
+        >
+          {aiGenerating ? 'Generating...' : 'Generate Description'}
+        </Button>
+
+        <Button
+          type="button"
+          variant="secondary"
+          disabled={aiChecking}
+          onClick={async () => {
+            if (!jobTitle.trim() || !desc.trim()) {
+              alert('Please enter both job title and description first.');
+              return;
+            }
+            setAiChecking(true);
+            try {
+              const res = await apiRequest<{ check: { isSafe: boolean; riskScore: number; issues: string[] } }>('/jobs/ai/safety-check', {
+                method: 'POST',
+                body: { title: jobTitle, description: desc }
+              });
+              if (res?.check) {
+                setSafetyCheckResult(res.check);
+              }
+            } catch (err) {
+              alert('Failed to run safety check:\n' + formatApiError(err));
+            } finally {
+              setAiChecking(false);
+            }
+          }}
+        >
+          {aiChecking ? 'Running safety check...' : 'AI Safety Check'}
+        </Button>
+
+        <Button
+          type="button"
+          variant="quiet"
+          onClick={() => {
+            navigator.clipboard.writeText(desc).then(() => alert('Copied to clipboard!'));
+          }}
+        >
+          Copy All
+        </Button>
+        <Button
+          type="button"
+          variant="quiet"
+          onClick={async () => {
+            try {
+              const text = await navigator.clipboard.readText();
+              setDesc(text);
+            } catch (err) {
+              alert('Failed to paste from clipboard. Please paste manually into the text area.');
+            }
+          }}
+        >
+          Paste
+        </Button>
+      </div>
+
+      {safetyCheckResult && (
+        <div style={{
+          padding: '12px',
+          background: safetyCheckResult.isSafe ? 'rgba(16, 185, 129, 0.05)' : 'rgba(239, 68, 68, 0.05)',
+          borderLeft: `4px solid ${safetyCheckResult.isSafe ? 'rgb(16, 185, 129)' : 'rgb(239, 68, 68)'}`,
+          borderRadius: '4px'
+        }}>
+          <strong>AI Safety Verdict: {safetyCheckResult.isSafe ? '✓ Safe' : '⚠️ Risk Detected'}</strong>
+          <small style={{ display: 'block', color: 'var(--color-text-muted)', marginTop: '2px' }}>Risk Score: {safetyCheckResult.riskScore}/100</small>
+          {safetyCheckResult.issues.length > 0 && (
+            <ul style={{ margin: '8px 0 0', paddingLeft: '20px', fontSize: '13px' }}>
+              {safetyCheckResult.issues.map((issue, idx) => <li key={idx}>{issue}</li>)}
+            </ul>
+          )}
+        </div>
+      )}
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <span style={{ fontSize: '13px', fontWeight: '500', color: 'var(--color-text-secondary)' }}>Job Description Text:</span>
+          <span style={{ fontSize: '12px', color: desc.length > 10000 ? 'var(--color-error)' : 'var(--color-text-muted)' }}>
+            {desc.length.toLocaleString()}/10,000 characters
+          </span>
+        </div>
+        <textarea
+          style={{
+            width: '100%',
+            height: '350px',
+            padding: '12px',
+            fontFamily: 'inherit',
+            fontSize: '14px',
+            lineHeight: '1.5',
+            borderRadius: '6px',
+            border: '1px solid var(--color-border)',
+            background: 'var(--color-bg)',
+            color: 'var(--color-text)',
+            resize: 'vertical'
+          }}
+          maxLength={10000}
+          value={desc}
+          onChange={(e) => setDesc(e.target.value)}
+          placeholder="Type, paste, or generate your job description here..."
+        />
+      </div>
+
+      <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', marginTop: '8px' }}>
+        <Button type="button" variant="secondary" onClick={onCancel}>Cancel</Button>
+        <Button
+          type="button"
+          variant="primary"
+          onClick={() => onApply(desc)}
+        >
+          Apply Description
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 export function JobFormPage({ mode }: { mode: 'create' | 'edit' }) {
   const { jobId = 'new' } = useParams();
   const nav = useNavigate(),
@@ -895,6 +1078,7 @@ export function JobFormPage({ mode }: { mode: 'create' | 'edit' }) {
   const cloneMutation = useCloneJob();
   const blocker = useBlocker(dirty);
   const [createdWithoutRead, setCreatedWithoutRead] = useState(false);
+  const [descriptionEditorOpen, setDescriptionEditorOpen] = useState(false);
   const summary = useRef<HTMLDivElement>(null);
   const submitLock = useRef(false);
   useEffect(() => {
@@ -984,8 +1168,8 @@ export function JobFormPage({ mode }: { mode: 'create' | 'edit' }) {
         Object.keys(f).length
           ? f
           : {
-              form: err instanceof Error ? err.message : 'Could not save job.',
-            },
+            form: err instanceof Error ? err.message : 'Could not save job.',
+          },
       );
       setTimeout(() => summary.current?.focus());
     } finally {
@@ -1058,109 +1242,43 @@ export function JobFormPage({ mode }: { mode: 'create' | 'edit' }) {
             maxLength={150}
             onChange={(e) => set('title', e.target.value)}
           />
-          <div className="ai-assist-toolbar" style={{ display: 'flex', gap: '8px', marginBottom: '16px', alignItems: 'center', flexWrap: 'wrap' }}>
-            <span style={{ fontSize: '14px', fontWeight: '500', color: 'var(--color-text-secondary)' }}>AI Recruiter Assist:</span>
-            <Button
-              type="button"
-              variant="secondary"
-              disabled={aiGenerating}
-              onClick={async () => {
-                if (!d.title.trim()) {
-                  alert('Please enter a job title first.');
-                  return;
-                }
-                setAiGenerating(true);
-                try {
-                  const res = await apiRequest<{ description: string }>('/jobs/ai/generate-description', {
-                    method: 'POST',
-                    body: { title: d.title, keyRequirements: 'Standard tech role requirements.' }
-                  });
-                  if (res?.description) {
-                    set('description', res.description);
-                  }
-                } catch (err) {
-                  alert('Failed to generate description: ' + (err as Error).message);
-                } finally {
-                  setAiGenerating(false);
-                }
-              }}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '12px', marginBottom: '4px' }}>
+            <span style={{ fontSize: '14px', fontWeight: '600', color: 'var(--color-text-secondary)' }}>Job Description</span>
+            <Dialog
+              open={descriptionEditorOpen}
+              onOpenChange={setDescriptionEditorOpen}
+              title="AI Job Description Assistant"
+              trigger={
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="compact"
+                  style={{ display: 'inline-flex', gap: '4px', alignItems: 'center' }}
+                  onClick={() => setDescriptionEditorOpen(true)}
+                >
+                  ✨ AI Assist
+                </Button>
+              }
             >
-              {aiGenerating ? 'Generating...' : 'Generate Description'}
-            </Button>
-
-            <Button
-              type="button"
-              variant="secondary"
-              disabled={aiSuggesting}
-              onClick={async () => {
-                if (!d.title.trim() || !d.description.trim()) {
-                  alert('Please enter both job title and description first.');
-                  return;
-                }
-                setAiSuggesting(true);
-                try {
-                  const res = await apiRequest<{ skills: string[] }>('/jobs/ai/suggest-skills', {
-                    method: 'POST',
-                    body: { title: d.title, description: d.description }
-                  });
-                  if (res?.skills?.length) {
-                    const newSkills = res.skills.map(name => ({
-                      name,
-                      required: true,
-                      minimumProficiency: 'beginner',
-                      minimumYearsOfExperience: '1',
-                      weight: '50'
-                    }));
-                    const existingNames = new Set(d.skills.map(s => s.name.toLowerCase()));
-                    const filteredNew = newSkills.filter(s => !existingNames.has(s.name.toLowerCase()));
-                    set('skills', [...d.skills, ...filteredNew]);
-                  }
-                } catch (err) {
-                  alert('Failed to suggest skills: ' + (err as Error).message);
-                } finally {
-                  setAiSuggesting(false);
-                }
-              }}
-            >
-              {aiSuggesting ? 'Suggesting Skills...' : 'Suggest Skills'}
-            </Button>
-
-            <Button
-              type="button"
-              variant="secondary"
-              disabled={aiChecking}
-              onClick={async () => {
-                if (!d.title.trim() || !d.description.trim()) {
-                  alert('Please enter both job title and description first.');
-                  return;
-                }
-                setAiChecking(true);
-                try {
-                  const res = await apiRequest<{ check: { isSafe: boolean; riskScore: number; issues: string[] } }>('/jobs/ai/safety-check', {
-                    method: 'POST',
-                    body: { title: d.title, description: d.description }
-                  });
-                  if (res?.check) {
-                    setSafetyCheckResult(res.check);
-                  }
-                } catch (err) {
-                  alert('Failed to run safety check: ' + (err as Error).message);
-                } finally {
-                  setAiChecking(false);
-                }
-              }}
-            >
-              {aiChecking ? 'Running safety check...' : 'AI Safety Check'}
-            </Button>
+              <AIDescriptionEditor
+                jobTitle={d.title}
+                value={d.description}
+                onApply={(newDesc) => {
+                  set('description', newDesc);
+                  setDescriptionEditorOpen(false);
+                }}
+                onCancel={() => setDescriptionEditorOpen(false)}
+              />
+            </Dialog>
           </div>
           <TextArea
             id="description"
-            label="Description"
             required
             value={d.description}
             error={errors.description}
             maxLength={10000}
             onChange={(e) => set('description', e.target.value)}
+            hint="Click the 'AI Assist & Large Editor' button above to open the expanded editor."
           />
           <div className="job-form-grid">
             <Select
@@ -1274,15 +1392,22 @@ export function JobFormPage({ mode }: { mode: 'create' | 'edit' }) {
               error={errors.salaryMaximum}
               onChange={(e) => set('salaryMaximum', e.target.value)}
             />
-            <TextField
+            <Select
               id="salaryCurrency"
               label="Currency"
-              maxLength={3}
               value={d.salaryCurrency}
               error={errors.salaryCurrency}
-              onChange={(e) =>
-                set('salaryCurrency', e.target.value.toUpperCase())
-              }
+              options={[
+                { value: 'USD', label: 'USD ($)' },
+                { value: 'EUR', label: 'EUR (€)' },
+                { value: 'GBP', label: 'GBP (£)' },
+                { value: 'INR', label: 'INR (₹)' },
+                { value: 'CAD', label: 'CAD (C$)' },
+                { value: 'AUD', label: 'AUD (A$)' },
+                { value: 'SGD', label: 'SGD (S$)' },
+                { value: 'AED', label: 'AED (د.إ)' }
+              ]}
+              onChange={(e) => set('salaryCurrency', e.target.value)}
             />
             <Select
               label="Salary period"
@@ -1451,24 +1576,62 @@ export function JobFormPage({ mode }: { mode: 'create' | 'edit' }) {
               </div>
             </Card>
           ))}
-          <Button
-            type="button"
-            variant="secondary"
-            onClick={() =>
-              set('skills', [
-                ...d.skills,
-                {
-                  name: '',
-                  required: true,
-                  minimumProficiency: 'beginner',
-                  minimumYearsOfExperience: '0',
-                  weight: '50',
-                },
-              ])
-            }
-          >
-            Add skill
-          </Button>
+          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() =>
+                set('skills', [
+                  ...d.skills,
+                  {
+                    name: '',
+                    required: true,
+                    minimumProficiency: 'beginner',
+                    minimumYearsOfExperience: '0',
+                    weight: '50',
+                  },
+                ])
+              }
+            >
+              Add skill
+            </Button>
+            <Button
+              type="button"
+              variant="secondary"
+              disabled={aiSuggesting}
+              onClick={async () => {
+                if (!d.title.trim() || !d.description.trim()) {
+                  alert('Please enter both job title and description first to suggest skills.');
+                  return;
+                }
+                setAiSuggesting(true);
+                try {
+                  const res = await apiRequest<{ skills: string[] }>('/jobs/ai/suggest-skills', {
+                    method: 'POST',
+                    body: { title: d.title, description: d.description }
+                  });
+                  if (res?.skills?.length) {
+                    const newSkills = res.skills.map(name => ({
+                      name,
+                      required: true,
+                      minimumProficiency: 'beginner',
+                      minimumYearsOfExperience: '1',
+                      weight: '50'
+                    }));
+                    const existingNames = new Set(d.skills.map(s => s.name.toLowerCase()));
+                    const filteredNew = newSkills.filter(s => !existingNames.has(s.name.toLowerCase()));
+                    set('skills', [...d.skills, ...filteredNew]);
+                  }
+                } catch (err) {
+                  alert('Failed to suggest skills:\n' + formatApiError(err));
+                } finally {
+                  setAiSuggesting(false);
+                }
+              }}
+            >
+              {aiSuggesting ? 'Suggesting Skills...' : 'Suggest Skills'}
+            </Button>
+          </div>
         </FormSection>
         <FormSection
           heading="Application questions"

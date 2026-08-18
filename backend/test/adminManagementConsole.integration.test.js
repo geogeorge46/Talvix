@@ -148,6 +148,31 @@ describe('Talvix Enterprise Platform Management Console', () => {
 
     const updatedProfile = await RecruiterProfile.findById(profile.id);
     expect(updatedProfile.company).toBeNull();
+
+    // Verify user suspension/restore synchronization for recruiter
+    await api('patch', `/api/v1/admin/management/users/${rec.user.id}/status`, admin.token)
+      .send({ action: 'suspend' })
+      .expect(200);
+
+    const suspendedRec = await User.findById(rec.user.id).select('+isActive');
+    expect(suspendedRec.blocked).toBe(true);
+    expect(suspendedRec.isActive).toBe(false);
+    expect(suspendedRec.recruiterVerificationStatus).toBe('suspended');
+
+    const suspendedRecProfile = await RecruiterProfile.findById(profile.id);
+    expect(suspendedRecProfile.isApproved).toBe(false);
+
+    await api('patch', `/api/v1/admin/management/users/${rec.user.id}/status`, admin.token)
+      .send({ action: 'restore' })
+      .expect(200);
+
+    const restoredRec = await User.findById(rec.user.id).select('+isActive');
+    expect(restoredRec.blocked).toBe(false);
+    expect(restoredRec.isActive).toBe(true);
+    expect(restoredRec.recruiterVerificationStatus).toBe('verified');
+
+    const restoredRecProfile = await RecruiterProfile.findById(profile.id);
+    expect(restoredRecProfile.isApproved).toBe(true);
   });
 
   it('verifies companies merging action operational consistency', async () => {

@@ -1,16 +1,12 @@
 import { RecruiterDashboardConfig } from '../models/RecruiterDashboardConfig.js';
 
 const DEFAULT_WIDGETS = [
-  { id: 'activeJobs', visible: true, order: 0 },
-  { id: 'draftJobs', visible: true, order: 1 },
-  { id: 'applications', visible: true, order: 2 },
-  { id: 'interviews', visible: true, order: 3 },
-  { id: 'offers', visible: true, order: 4 },
-  { id: 'analytics', visible: true, order: 5 },
-  { id: 'notifications', visible: true, order: 6 },
-  { id: 'teamMembers', visible: true, order: 7 },
-  { id: 'calendar', visible: true, order: 8 },
-  { id: 'recentActivity', visible: true, order: 9 }
+  { id: 'metrics', visible: true, order: 0 },
+  { id: 'pipeline', visible: true, order: 1 },
+  { id: 'workspace', visible: true, order: 2 },
+  { id: 'recentActivity', visible: true, order: 3 },
+  { id: 'quickActions', visible: true, order: 4 },
+  { id: 'insights', visible: true, order: 5 }
 ];
 
 export const getWidgetsConfig = async (request, response, next) => {
@@ -20,7 +16,13 @@ export const getWidgetsConfig = async (request, response, next) => {
       company: request.company._id
     });
 
-    const widgets = config ? config.widgets : DEFAULT_WIDGETS;
+    let widgets = config ? config.widgets : DEFAULT_WIDGETS;
+
+    // Self-healing: if retrieved widgets contain old/legacy IDs, default back to correct widgets
+    const hasCorrectWidgets = widgets.some(w => ['metrics', 'pipeline', 'workspace', 'quickActions', 'insights'].includes(w.id));
+    if (!hasCorrectWidgets) {
+      widgets = DEFAULT_WIDGETS;
+    }
 
     return response.json({
       success: true,

@@ -11,6 +11,7 @@ export interface User {
   updatedAt?: string;
   lastLogin?: string | null;
   providers?: string[];
+  recruiterVerificationStatus?: 'none' | 'pending' | 'verified' | 'rejected';
 }
 export interface CompanySummary {
   _id: string;
@@ -19,12 +20,15 @@ export interface CompanySummary {
   verificationStatus: string;
   isActive: boolean;
   logo?: string | null;
+  rejectionReason?: string;
+  officialEmailDomain?: string;
 }
 export interface RecruiterContext {
   isApproved: boolean;
   isCompanyOwner: boolean;
   permissions: string[];
   company?: CompanySummary | null;
+  user?: User | null;
 }
 export type CapabilityStatus = 'idle' | 'loading' | 'resolved' | 'error';
 export const RECRUITER_PERMISSIONS = [

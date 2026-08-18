@@ -7,6 +7,7 @@ import { CompanyMember } from '../models/CompanyMember.js';
 import { RecruiterProfile } from '../models/RecruiterProfile.js';
 import { User } from '../models/User.js';
 import { AuditLog } from '../models/AuditLog.js';
+import { CompanyVerificationHistory } from '../models/CompanyVerificationHistory.js';
 import { AppError } from '../shared/errors/AppError.js';
 import { buildPagination, createSafeRegex } from '../utils/pagination.js';
 import { generateUniqueSlug } from '../utils/slug.js';
@@ -22,7 +23,7 @@ const buildCompany = async (input, userId, session) => {
     ...input,
     slug,
     owner: userId,
-    verificationStatus: 'pending',
+    verificationStatus: 'none',
     isActive: true,
   }], { session });
 
@@ -48,7 +49,9 @@ const buildCompany = async (input, userId, session) => {
 
 export const createCompany = async (userId, input) => {
   const profile = await RecruiterProfile.findOne({ user: userId });
-  if (!profile?.isApproved) throw new AppError('Recruiter approval is required', 403);
+  const user = await User.findById(userId);
+  const isAllowedOnboarding = user && (user.recruiterVerificationStatus === 'none' || user.recruiterVerificationStatus === 'rejected');
+  if (!profile?.isApproved && !isAllowedOnboarding) throw new AppError('Recruiter approval is required', 403);
   if (profile.company || await Company.exists({ owner: userId, isActive: true })) throw new AppError('Recruiter already belongs to an active company', 409);
 
   if (supportsTransactions()) {
@@ -67,7 +70,7 @@ export const createCompany = async (userId, input) => {
       ...input,
       slug,
       owner: userId,
-      verificationStatus: 'pending',
+      verificationStatus: 'none',
       isActive: true,
     });
 
@@ -117,11 +120,34 @@ export const getRecruiterCompany = async (userId) => {
   return companyJSON;
 };
 
-export const updateCompany = async (company, input) => {
+export const updateCompany = async (company, input, user = null) => {
   const oldValue = company.toJSON();
   const nameChanged = input.name && input.name !== company.name;
   Object.entries(input).forEach(([key, value]) => company.set(key, value));
   if (nameChanged) company.slug = await generateUniqueSlug(input.name, (slug) => Company.exists({ slug, _id: { $ne: company.id } }));
+  
+  if (oldValue.verificationStatus === 'rejected') {
+    company.verificationStatus = 'pending';
+    company.rejectionReason = '';
+    company.verifiedBy = null;
+    company.verifiedAt = null;
+    company.rejectedBy = null;
+    company.rejectedAt = null;
+    company.suspendedBy = null;
+    company.suspendedAt = null;
+    company.suspensionReason = '';
+
+    await CompanyVerificationHistory.create({
+      companyId: company._id,
+      action: 'verification.resubmitted',
+      previousStatus: 'rejected',
+      newStatus: 'pending',
+      performedBy: user?._id || company.owner,
+      performedByName: user?.fullName || 'Recruiter',
+      timestamp: new Date()
+    });
+  }
+
   await company.save();
 
   await AuditLog.create({

@@ -85,7 +85,7 @@ const userSchema = new mongoose.Schema(
     },
     recruiterVerificationStatus: {
       type: String,
-      enum: ['none', 'pending', 'verified', 'rejected'],
+      enum: ['none', 'pending', 'verified', 'rejected', 'suspended'],
       default: 'none',
       required: true,
     },

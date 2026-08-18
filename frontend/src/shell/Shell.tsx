@@ -215,9 +215,21 @@ export const adminNavigation: NavigationItem[] = [
   },
   {
     id: 'approvals',
-    label: 'Approvals',
-    to: '/admin/approvals',
+    label: 'Job Verification',
+    to: '/admin/approvals?queue=jobs',
     icon: <ListChecks />,
+  },
+  {
+    id: 'recruiter-verification',
+    label: 'Recruiter Verification',
+    to: '/admin/recruiter-verification',
+    icon: <Users />,
+  },
+  {
+    id: 'company-verification',
+    label: 'Company Verification',
+    to: '/admin/company-verification',
+    icon: <Building2 />,
   },
   {
     id: 'claims',

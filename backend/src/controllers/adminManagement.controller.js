@@ -145,6 +145,24 @@ export const getCompany = async (req, res, next) => {
   }
 };
 
+export const getCompanyVerificationHistory = async (req, res, next) => {
+  try {
+    const data = await service.getCompanyVerificationHistory(req.params.companyId, req.query);
+    return res.json({ success: true, data });
+  } catch (error) {
+    return next(error);
+  }
+};
+
+export const getRecruiterVerificationHistory = async (req, res, next) => {
+  try {
+    const data = await service.getRecruiterVerificationHistory(req.params.recruiterId, req.query);
+    return res.json({ success: true, data });
+  } catch (error) {
+    return next(error);
+  }
+};
+
 export const merge = async (req, res, next) => {
   try {
     const ip = req.ip || 'Unknown';

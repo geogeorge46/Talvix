@@ -59,7 +59,7 @@ export function FormField({
   children,
 }: {
   id?: string | undefined;
-  label: string;
+  label: ReactNode;
   required?: boolean | undefined;
   optional?: boolean | undefined;
   hint?: ReactNode | undefined;
@@ -93,7 +93,7 @@ export function FormField({
 }
 
 interface FieldBase {
-  label?: string | undefined;
+  label?: ReactNode | undefined;
   hint?: ReactNode | undefined;
   error?: ReactNode | undefined;
   loading?: boolean | undefined;
