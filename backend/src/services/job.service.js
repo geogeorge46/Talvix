@@ -3,6 +3,8 @@ import { Job } from '../models/Job.js';
 import { RecruiterProfile } from '../models/RecruiterProfile.js';
 import { AuditLog } from '../models/AuditLog.js';
 import { AppError } from '../shared/errors/AppError.js';
+import { Application } from '../models/Application.js';
+import { AssessmentAssignment } from '../models/AssessmentAssignment.js';
 import { transitionJob } from '../utils/jobStatus.js';
 import { buildPagination, createSafeRegex } from '../utils/pagination.js';
 import { generateUniqueSlug } from '../utils/slug.js';
@@ -219,3 +221,49 @@ export const assertRecruiterApproved = async (userId) => {
   return profile;
 };
 export { ensureCompanyOperational, ensurePublishable };
+
+export const getCandidateComparison = async (companyId, jobId) => {
+  const job = await Job.findOne({ _id: jobId, company: companyId });
+  if (!job) throw new AppError('Job not found', 404);
+
+  const applications = await Application.find({
+    job: jobId,
+    company: companyId,
+    isArchived: false
+  }).populate('candidate', 'fullName').populate('candidateProfile');
+
+  const applicationIds = applications.map(app => app._id);
+  const assignments = await AssessmentAssignment.find({
+    application: { $in: applicationIds },
+    company: companyId,
+    status: 'completed'
+  }).populate('bestAttempt');
+
+  const assignmentMap = new Map();
+  for (const assignment of assignments) {
+    assignmentMap.set(assignment.application.toString(), assignment);
+  }
+
+  const comparison = applications.map(app => {
+    const assignment = assignmentMap.get(app._id.toString());
+    const attempt = assignment?.bestAttempt;
+
+    const totalMarks = assignment?.assessmentSnapshot?.totalMarks ?? 0;
+    const mcqPercentage = attempt && totalMarks > 0 ? (attempt.evaluation.objectiveScore / totalMarks) * 100 : 0;
+    const codingPercentage = attempt && totalMarks > 0 ? (attempt.evaluation.codingScore / totalMarks) * 100 : 0;
+
+    return {
+      applicationId: app._id,
+      candidateId: app.candidate?._id,
+      candidateName: app.candidate?.fullName ?? 'Candidate',
+      skillMatchScore: app.skillMatch?.score ?? 0,
+      assessmentScore: assignment?.bestPercentage ?? null,
+      mcqScore: attempt ? Math.round(mcqPercentage) : null,
+      codingScore: attempt ? Math.round(codingPercentage) : null,
+      experienceYears: app.candidateProfile?.experienceYears ?? 0,
+      currentStage: app.status
+    };
+  });
+
+  return { comparison };
+};

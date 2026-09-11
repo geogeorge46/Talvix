@@ -167,13 +167,6 @@ export const toCandidateProfile = (value: unknown): CandidateProfile => {
       };
     }),
     resumeDocument: optionalText(v.resumeDocument),
-    resume: v.resume && record(v.resume).url
-      ? {
-          url: text(record(v.resume).url),
-          displayName: optionalText(record(v.resume).displayName || record(v.resume).fileName),
-        }
-      : undefined,
-    profilePhoto: v.profilePhoto && record(v.profilePhoto).url ? { url: text(record(v.profilePhoto).url), publicId: optionalText(record(v.profilePhoto).publicId) } : undefined,
   };
 };
 

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { CalendarDays } from 'lucide-react';
 import { Link, useParams } from 'react-router-dom';
 import {
   Alert,
@@ -77,19 +78,26 @@ function Timeline({ p }: { p: CandidateProcess }) {
 export function CandidateInterviewsPage() {
   const q = useCandidateProcesses();
   return (
-    <div className="iv-page">
-      <PageHeader
-        title="My interviews"
-        description="Review schedules, respond to invitations and prepare for each round."
-        primaryAction={
+    <div className="candidate-page candidate-domain-container">
+      <div className="candidate-hero-banner-mindease">
+        <div className="banner-left-content">
+          <div className="banner-icon-badge theme-indigo">
+            <CalendarDays size={22} />
+          </div>
+          <div className="banner-text-details">
+            <h1 className="banner-title">My Interviews</h1>
+            <p className="banner-subtext">Review schedules, respond to invitations and prepare for each round.</p>
+          </div>
+        </div>
+        <div className="banner-right-actions">
           <Link
-            className="tvx-button tvx-button--secondary"
+            className="banner-action-pill secondary"
             to="/candidate/interviews/availability"
           >
             Edit availability
           </Link>
-        }
-      />
+        </div>
+      </div>
       {q.isLoading ? (
         <LoadingState label="Loading interviews" />
       ) : q.isError ? (

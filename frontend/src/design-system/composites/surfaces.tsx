@@ -45,6 +45,7 @@ export function MetricCard({
   metadata,
   isLoading = false,
   icon,
+  variant = 'default',
 }: {
   label: string;
   value: ReactNode;
@@ -53,10 +54,23 @@ export function MetricCard({
   metadata?: ReactNode;
   isLoading?: boolean;
   icon?: ReactNode;
+  variant?: 'default' | 'dark' | 'ice';
 }) {
+  const cardVariantClass =
+    variant === 'dark'
+      ? 'tvx-card--dark'
+      : variant === 'ice'
+        ? 'tvx-card--ice'
+        : '';
+  const metricVariantClass =
+    variant === 'dark'
+      ? 'tvx-metric--dark'
+      : variant === 'ice'
+        ? 'tvx-metric--ice'
+        : '';
   return (
-    <Card variant="bordered">
-      <div className="tvx-metric">
+    <Card className={cardVariantClass}>
+      <div className={`tvx-metric ${metricVariantClass}`}>
         <span className="tvx-metric__label">{label}</span>
         {icon && <span aria-hidden="true">{icon}</span>}{' '}
         {isLoading ? (

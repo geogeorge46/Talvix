@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { USER_ROLES } from '../constants/roles.js';
 import { approvePendingJob, featureJob, pendingJobs, rejectPendingJob } from '../controllers/adminJob.controller.js';
-import { closeManagedJob, cloneManagedJob, createCompanyJob, deleteManagedJob, managedJob, managedJobs, pauseManagedJob, publicJob, publicJobs, publishManagedJob, resumeManagedJob, submitManagedJob, updateManagedJob, aiGenerateJobDescription, aiSuggestJobSkills, aiJobSafetyCheck } from '../controllers/job.controller.js';
+import { closeManagedJob, cloneManagedJob, createCompanyJob, deleteManagedJob, managedJob, managedJobs, pauseManagedJob, publicJob, publicJobs, publishManagedJob, resumeManagedJob, submitManagedJob, updateManagedJob, aiGenerateJobDescription, aiSuggestJobSkills, aiJobSafetyCheck, candidateComparison } from '../controllers/job.controller.js';
 import { authenticate } from '../middleware/auth.js';
 import { authorizePermissions } from '../middleware/authorizePermissions.js';
 import { authorizeRoles } from '../middleware/authorizeRoles.js';
@@ -25,6 +25,7 @@ jobRouter.post('/ai/suggest-skills', ...recruiterAccess('jobs.create'), validate
 jobRouter.post('/ai/safety-check', ...recruiterAccess('jobs.create'), validateBody(aiSafetyCheckSchema), aiJobSafetyCheck);
 jobRouter.get('/manage', ...recruiterAccess('jobs.update'), validateQuery(jobSearchSchema), managedJobs);
 jobRouter.get('/manage/:jobId', ...recruiterAccess('jobs.update'), validateParams(jobIdParamsSchema), managedJob);
+jobRouter.get('/manage/:jobId/candidate-comparison', ...recruiterAccess('applications.view'), validateParams(jobIdParamsSchema), candidateComparison);
 jobRouter.patch('/manage/:jobId', ...recruiterAccess('jobs.update'), validateParams(jobIdParamsSchema), validateBody(jobUpdateSchema), updateManagedJob);
 jobRouter.delete('/manage/:jobId', ...recruiterAccess('jobs.delete'), validateParams(jobIdParamsSchema), deleteManagedJob);
 jobRouter.post('/manage/:jobId/clone', ...recruiterAccess('jobs.create'), validateParams(jobIdParamsSchema), cloneManagedJob);

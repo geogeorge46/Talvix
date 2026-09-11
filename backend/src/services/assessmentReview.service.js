@@ -6,7 +6,7 @@ import { changeApplicationStatus } from '../utils/applicationStatus.js';
 import { DOMAIN_EVENTS } from '../constants/domainEvents.js';
 import { publishOptionalDomainEvent } from './domainEvent.service.js';
 import { cancelReminders } from './reminderEvent.service.js';
-const companyAttempt = async (company, id) => { const attempt = await AssessmentAttempt.findOne({ _id: id, company }); if (!attempt) throw new AppError('Assessment attempt not found', 404); return attempt; };
+const companyAttempt = async (company, id) => { const attempt = await AssessmentAttempt.findOne({ _id: id, company }).populate('assignment'); if (!attempt) throw new AppError('Assessment attempt not found', 404); return attempt; };
 export const listPendingReviews = (company) => AssessmentAttempt.find({ company, status: 'review-pending' }).sort({ submittedAt: 1 });
 export const getReviewAttempt = (company, id) => companyAttempt(company, id);
 export const scoreQuestion = async (company, id, questionId, input) => { const attempt = await companyAttempt(company, id); if (attempt.status !== 'review-pending') throw new AppError('Attempt is not pending review', 409); const result = attempt.questionResults.find((item) => item.questionId.equals(questionId)); if (!result || !result.requiresManualReview) throw new AppError('Reviewable question not found', 404); if (input.awardedMarks > result.marks) throw new AppError('Awarded marks cannot exceed question marks', 400); result.awardedMarks = input.awardedMarks; result.feedback = input.feedback ?? ''; result.requiresManualReview = false; await attempt.save(); return result; };

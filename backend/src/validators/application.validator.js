@@ -11,7 +11,15 @@ export const applicationJobParamsSchema = z.object({ jobId: objectId }).strict()
 export const noteParamsSchema = z.object({ applicationId: objectId, noteId: objectId }).strict();
 export const withdrawalSchema = z.object({ reason: text(1000).min(1) }).strict();
 export const candidateOfferStatusSchema = z.object({ status: z.enum(['offer-accepted', 'offer-declined']), reason: text(1000).optional() }).strict();
-export const recruiterStatusSchema = z.object({ status: z.enum(APPLICATION_STATUSES), reason: text(2000).optional(), rejectionCategory: z.enum(REJECTION_CATEGORIES).optional() }).strict();
+export const recruiterStatusSchema = z.object({ status: z.enum(APPLICATION_STATUSES), reason: text(2000).optional(), rejectionCategory: z.enum(REJECTION_CATEGORIES).optional() }).strict().superRefine((data, ctx) => {
+  if (data.status === 'rejected' && (!data.reason || !data.reason.trim())) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['reason'],
+      message: 'Reason is required for rejection'
+    });
+  }
+});
 export const adminStatusSchema = z.object({ status: z.enum(APPLICATION_STATUSES), reason: text(2000).min(1) }).strict();
 export const noteSchema = z.object({ note: text(3000).min(1), isPrivate: z.boolean().default(true) }).strict();
 export const noteUpdateSchema = z.object({ note: text(3000).min(1).optional(), isPrivate: z.boolean().optional() }).strict().refine((data) => Object.keys(data).length > 0, 'At least one field is required');

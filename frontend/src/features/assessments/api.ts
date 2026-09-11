@@ -232,3 +232,17 @@ export const useReviewAction = (id: string) => {
       void qc.invalidateQueries({ queryKey: ['assessment-review', id] }),
   });
 };
+export const useGenerateAIAssessment = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (jobDescription: string) =>
+      apiRequest<{ assessment?: unknown }>('/assessments/intelligence/generate', {
+        method: 'POST',
+        body: { jobDescription },
+      }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['assessments'] });
+      void qc.invalidateQueries({ queryKey: ['questions'] });
+    },
+  });
+};

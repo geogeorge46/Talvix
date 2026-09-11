@@ -1,13 +1,47 @@
+@keyframes boxFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 .tvx-card {
   background: var(--color-surface-1);
-  border-radius: var(--radius-lg);
-  padding: var(--space-3);
+  border-radius: var(--radius-xl);
+  padding: 1.5rem;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.02);
+  animation: boxFadeIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
+  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.25s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.tvx-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.06);
 }
 .tvx-card--bordered {
-  border: var(--border-thin) solid var(--color-border-subtle);
+  border: var(--border-thin) solid var(--color-border-default);
 }
 .tvx-card--raised {
   box-shadow: var(--shadow-md);
+}
+.tvx-card--dark {
+  background: var(--ref-nexa-black) !important;
+  color: var(--ref-snow) !important;
+}
+.tvx-card--dark .tvx-metric strong,
+.tvx-card--dark .tvx-metric__label,
+.tvx-card--dark h2,
+.tvx-card--dark h3,
+.tvx-card--dark p,
+.tvx-card--dark small {
+  color: var(--ref-snow) !important;
+}
+.tvx-card--ice {
+  background: var(--ref-nexa-ice) !important;
+  color: var(--ref-nexa-black) !important;
 }
 .tvx-card--interactive:focus-within {
   outline: var(--focus-width) solid var(--color-focus);
@@ -31,17 +65,41 @@
   margin-top: var(--space-2);
 }
 .tvx-metric {
-  display: grid;
-  grid-template-columns: 1fr auto;
-  gap: var(--space-1);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 1.25rem 1.5rem;
+  background: var(--color-surface-1);
+  border-radius: var(--radius-xl);
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.02);
+  position: relative;
+}
+.tvx-metric--dark {
+  background: var(--ref-nexa-black);
+  color: var(--ref-snow);
+}
+.tvx-metric--dark .tvx-metric__label,
+.tvx-metric--dark small,
+.tvx-metric--dark strong {
+  color: var(--ref-snow) !important;
+}
+.tvx-metric--ice {
+  background: var(--ref-nexa-ice);
+  color: var(--ref-nexa-black);
 }
 .tvx-metric strong {
-  grid-column: 1/-1;
-  font-size: var(--text-heading-2);
+  font-size: 2.25rem;
+  font-weight: 800;
+  letter-spacing: -0.04em;
+  color: var(--ref-nexa-black);
+  line-height: 1.1;
 }
 .tvx-metric small,
 .tvx-metric__label {
   color: var(--color-text-muted);
+  font-size: 0.875rem;
+  font-weight: 600;
 }
 .tvx-metric__skeleton {
   grid-column: 1/-1;

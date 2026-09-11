@@ -9,6 +9,7 @@ import {
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { apiRequest } from '../api/client';
+import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import {
   Bell,
   BriefcaseBusiness,
@@ -33,6 +34,8 @@ import {
   ListChecks,
   History as HistoryIcon,
   Cpu,
+  LogOut,
+  User,
 } from 'lucide-react';
 import { Button, Drawer, IconButton, Menu } from '../design-system';
 import { useAuth } from '../auth/AuthProvider';
@@ -311,7 +314,7 @@ export function SideNav({
                   <span aria-hidden>{item.icon}</span>
                   <span>{item.label}</span>
                   {isActive && (
-                    <span className="visually-hidden"> (current)</span>
+                    <span className="sr-only"> (current)</span>
                   )}
                 </>
               )}
@@ -554,24 +557,56 @@ export function NotificationTrigger() {
 }
 export function AccountMenu() {
   const { user, logout } = useAuth();
+  const navigate = useNavigate();
+  const initials = user?.fullName
+    ? user.fullName.split(' ').map((n) => n[0]).join('').toUpperCase().slice(0, 2)
+    : 'U';
+  const roleLabel = user?.role === 'admin'
+    ? 'System Administrator'
+    : user?.role === 'recruiter'
+      ? 'Recruiter'
+      : 'Candidate';
+
   return (
-    <Menu
-      label="Account"
-      trigger={
-        <Button
-          variant="quiet"
-          leadingIcon={<CircleUserRound aria-hidden />}
-          trailingIcon={<ChevronDown />}
-        >
-          {user?.fullName ?? 'Account'}
-        </Button>
-      }
-      items={[
-        { id: 'email', kind: 'label', label: user?.email ?? '' },
-        { id: 'separator', kind: 'separator' },
-        { id: 'logout', label: 'Sign out', onSelect: () => void logout() },
-      ]}
-    />
+    <DropdownMenu.Root>
+      <DropdownMenu.Trigger asChild>
+        <button className="tvx-account-trigger" type="button" aria-label="User profile menu">
+          <div className="tvx-account-avatar">{initials}</div>
+          <span className="tvx-account-name">{user?.fullName ?? 'Account'}</span>
+          <ChevronDown className="tvx-account-chevron" size={14} />
+        </button>
+      </DropdownMenu.Trigger>
+      <DropdownMenu.Portal>
+        <DropdownMenu.Content className="tvx-menu tvx-account-popup" sideOffset={8} align="end">
+          <div className="tvx-account-popup__header">
+            <div className="tvx-account-popup__avatar">{initials}</div>
+            <div className="tvx-account-popup__details">
+              <strong>{user?.fullName ?? 'Talvix Admin'}</strong>
+              <small>{user?.email ?? 'admin@talvix.local'}</small>
+              <span className="tvx-account-popup__badge">
+                <ShieldCheck size={12} />
+                {roleLabel}
+              </span>
+            </div>
+          </div>
+          <DropdownMenu.Separator className="tvx-account-popup__separator" />
+          <DropdownMenu.Item
+            className="tvx-account-popup__item"
+            onSelect={() => navigate(user?.role === 'candidate' ? '/candidate/profile' : user?.role === 'admin' ? '/admin/profile' : '/org/settings')}
+          >
+            <User size={15} />
+            <span>Profile & Settings</span>
+          </DropdownMenu.Item>
+          <DropdownMenu.Item
+            className="tvx-account-popup__item is-destructive"
+            onSelect={() => void logout()}
+          >
+            <LogOut size={15} />
+            <span>Sign out</span>
+          </DropdownMenu.Item>
+        </DropdownMenu.Content>
+      </DropdownMenu.Portal>
+    </DropdownMenu.Root>
   );
 }
 export function TopNav({

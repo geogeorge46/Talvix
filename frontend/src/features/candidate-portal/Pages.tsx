@@ -34,6 +34,7 @@ import {
   useCandidateProfile,
   useCandidateProfileMutation,
   useCandidateProfilePhoto,
+  useCandidateProfileAccessLogs,
   useJob,
   useJobs,
   useNotificationMutation,
@@ -57,6 +58,28 @@ import {
   Calendar,
   Award,
   Bell,
+  Wrench,
+  GraduationCap,
+  FolderGit2,
+  Eye,
+  ShieldCheck,
+  Building2,
+  Download,
+  UserCheck,
+  Clock,
+  Plus,
+  Trash2,
+  ExternalLink,
+  MessageSquare,
+  MoreHorizontal,
+  Info,
+  CheckCircle2,
+  MapPin,
+  Code,
+  ArrowRight,
+  LogOut,
+  Link2,
+  Search,
 } from 'lucide-react';
 import './candidate-portal.css';
 const message = (error: unknown) =>
@@ -123,34 +146,40 @@ export function CandidateDashboardPage() {
   ].sort((a, b) => a.at.localeCompare(b.at));
   const nextAction = actions[0];
   return (
-    <div className="candidate-page">
+    <div className="candidate-page animated-entrance" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
       <PageHeader
         title="Candidate workspace"
         description="Keep your search moving, one clear next step at a time."
       />
       
-      {/* Premium Hero Next Best Action */}
-      <section className="candidate-hero-premium" aria-label="Next best action">
-        <div className="hero-content">
-          <div className="hero-badge">
-            <Sparkles size={14} className="hero-badge-icon" />
-            <span>NEXT BEST ACTION</span>
+      {/* Premium Hero Next Best Action (Mindease Theme) */}
+      <section className="profile-header-banner delay-1 animated-entrance" aria-label="Next best action">
+        <div className="profile-banner-left">
+          <div className="profile-info-stack">
+            <div className="profile-name-heading-row">
+              <span className="status-badge-available" style={{ background: '#e0e7ff', color: '#4338ca', borderColor: '#c7d2fe' }}>
+                <Sparkles size={14} className="hero-badge-icon" />
+                NEXT BEST ACTION
+              </span>
+            </div>
+
+            <h2 className="profile-candidate-name" style={{ fontSize: '22px' }}>
+              {nextAction?.label ??
+                (!profile.data?.headline
+                  ? 'Complete your candidate headline'
+                  : 'No urgent deadline')}
+            </h2>
+            <p className="profile-headline-line">
+              {nextAction?.detail ??
+                (!profile.data?.headline
+                  ? 'Help recruiters understand the work you want to do.'
+                  : 'You have no assessment, interview, or offer response due right now.')}
+            </p>
           </div>
-          <h2 className="hero-heading">
-            {nextAction?.label ??
-              (!profile.data?.headline
-                ? 'Complete your candidate headline'
-                : 'No urgent deadline')}
-          </h2>
-          <p className="hero-subtext">
-            {nextAction?.detail ??
-              (!profile.data?.headline
-                ? 'Help recruiters understand the work you want to do.'
-                : 'You have no assessment, interview, or offer response due right now.')}
-          </p>
         </div>
+
         <Link
-          className="hero-action-btn"
+          className="btn-pill-dark"
           to={
             nextAction?.href ??
             (!profile.data?.headline
@@ -169,71 +198,174 @@ export function CandidateDashboardPage() {
         </Link>
       </section>
 
-      {/* Top 3 Column Cards Summary */}
-      <div className="candidate-grid-3">
-        <div className="candidate-dashboard-card">
-          <div className="card-icon-wrapper color-profile">
-            <User size={20} />
+      {/* Top 3 Column Cards Summary (Mindease Theme) */}
+      <div className="profile-sections-grid-3col delay-2 animated-entrance">
+        <div className="section-card-mindease">
+          <div className="section-card-header">
+            <div className="section-card-header-icon" style={{ background: '#e0f2fe', color: '#0369a1' }}>
+              <User size={20} />
+            </div>
+            <div>
+              <h3 className="section-card-header-title">Profile</h3>
+              <span className="section-card-header-subtext">Discoverability status</span>
+            </div>
           </div>
           <div className="card-body">
-            <h3>Profile</h3>
             {profile.isPending ? (
               <LoadingState label="Loading profile" />
             ) : profile.isError ? (
               <ErrorState title="Profile unavailable" detail={message(profile.error)} />
             ) : (
-              <div className="profile-summary-text">
-                <span className="profile-headline">{profile.data?.headline || 'Headline needed'}</span>
-                <span className="profile-visibility-badge">
+              <div className="profile-summary-text" style={{ marginBottom: '16px' }}>
+                <strong style={{ display: 'block', fontSize: '14px', color: '#0f172a' }}>{profile.data?.headline || 'Headline needed'}</strong>
+                <span style={{ fontSize: '12px', color: '#64748b' }}>
                   Visibility: {profile.data?.profileVisibility}
                 </span>
               </div>
             )}
-            <Link className="card-link" to="/candidate/profile">Edit profile →</Link>
+            <Link className="btn-pill-dark" to="/candidate/profile" style={{ width: 'fit-content', marginTop: 'auto' }}>
+              Edit profile →
+            </Link>
           </div>
         </div>
 
-        <div className="candidate-dashboard-card">
-          <div className="card-icon-wrapper color-apps">
-            <FileText size={20} />
+        <div className="section-card-mindease">
+          <div className="section-card-header">
+            <div className="section-card-header-icon" style={{ background: '#dcfce7', color: '#15803d' }}>
+              <FileText size={20} />
+            </div>
+            <div>
+              <h3 className="section-card-header-title">Applications</h3>
+              <span className="section-card-header-subtext">Active applications</span>
+            </div>
           </div>
           <div className="card-body">
-            <h3>Applications</h3>
             {apps.isPending ? (
               <LoadingState label="Loading applications" />
             ) : apps.isError ? (
               <ErrorState title="Applications unavailable" detail={message(apps.error)} />
             ) : (
-              <div className="apps-summary-text">
-                <strong className="summary-number">{apps.data?.total || 0}</strong>
-                <span className="summary-label">Applications in your workspace</span>
+              <div className="apps-summary-text" style={{ marginBottom: '16px', display: 'flex', alignItems: 'baseline', gap: '8px' }}>
+                <span style={{ fontSize: '32px', fontWeight: 800, color: '#0f172a', lineHeight: 1 }}>{apps.data?.total || 0}</span>
+                <span style={{ fontSize: '13px', color: '#64748b' }}>Applications in workspace</span>
               </div>
             )}
-            <Link className="card-link" to="/candidate/applications">View all →</Link>
+            <Link className="btn-pill-dark" to="/candidate/applications" style={{ width: 'fit-content', marginTop: 'auto' }}>
+              View all →
+            </Link>
           </div>
         </div>
 
-        <div className="candidate-dashboard-card">
-          <div className="card-icon-wrapper color-work">
-            <Briefcase size={20} />
+        <div className="section-card-mindease">
+          <div className="section-card-header">
+            <div className="section-card-header-icon" style={{ background: '#f3e8ff', color: '#6b21a8' }}>
+              <Briefcase size={20} />
+            </div>
+            <div>
+              <h3 className="section-card-header-title">Quick Links</h3>
+              <span className="section-card-header-subtext">Recruiting workspaces</span>
+            </div>
           </div>
           <div className="card-body">
-            <h3>Quick links</h3>
-            <p className="card-description">Access your dedicated recruiting workspaces instantly.</p>
-            <div className="candidate-pills">
-              <Link className="pill-link" to="/candidate/assessments">Assessments</Link>
-              <Link className="pill-link" to="/candidate/interviews">Interviews</Link>
-              <Link className="pill-link" to="/candidate/offers">Offers</Link>
+            <p className="section-card-header-subtext" style={{ marginBottom: '12px' }}>Access your dedicated recruiting tools instantly.</p>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginTop: 'auto' }}>
+              <Link className="btn-pill-light" to="/candidate/assessments">Assessments</Link>
+              <Link className="btn-pill-light" to="/candidate/interviews">Interviews</Link>
+              <Link className="btn-pill-light" to="/candidate/offers">Offers</Link>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Recent Applications Section */}
-      <section className="dashboard-section">
-        <h2 className="section-title">Recent applications</h2>
+      {/* Deadlines and Activity Pastel Cards Row (Matching Profile Metric Theme) */}
+      <section className="pastel-metrics-grid delay-3 animated-entrance" aria-labelledby="candidate-deadlines-title">
+        <Link to="/candidate/assessments" className="pastel-card pastel-card-yellow" style={{ textDecoration: 'none' }}>
+          <div className="pastel-card-content">
+            <div className="pastel-card-icon-box">
+              <ClipboardCheck size={22} />
+            </div>
+            <div className="pastel-card-text">
+              <span className="pastel-card-title">Assessments</span>
+              <span className="pastel-card-count">
+                {assessments.isPending ? '...' : assessments.error ? '0' : (assessments.data?.length ?? 0)}
+              </span>
+              <span className="pastel-card-subtext">Pending assessments</span>
+            </div>
+          </div>
+          <div className="pastel-card-arrow-btn">
+            <ArrowRight size={18} />
+          </div>
+        </Link>
+
+        <Link to="/candidate/interviews" className="pastel-card pastel-card-blue" style={{ textDecoration: 'none' }}>
+          <div className="pastel-card-content">
+            <div className="pastel-card-icon-box">
+              <Calendar size={22} />
+            </div>
+            <div className="pastel-card-text">
+              <span className="pastel-card-title">Interviews</span>
+              <span className="pastel-card-count">
+                {interviews.isPending ? '...' : interviews.error ? '0' : (interviews.data?.length ?? 0)}
+              </span>
+              <span className="pastel-card-subtext">Scheduled interviews</span>
+            </div>
+          </div>
+          <div className="pastel-card-arrow-btn">
+            <ArrowRight size={18} />
+          </div>
+        </Link>
+
+        <Link to="/candidate/offers" className="pastel-card pastel-card-purple" style={{ textDecoration: 'none' }}>
+          <div className="pastel-card-content">
+            <div className="pastel-card-icon-box">
+              <Award size={22} />
+            </div>
+            <div className="pastel-card-text">
+              <span className="pastel-card-title">Offers</span>
+              <span className="pastel-card-count">
+                {offers.isPending ? '...' : offers.error ? '0' : (offers.data?.length ?? 0)}
+              </span>
+              <span className="pastel-card-subtext">Received offers</span>
+            </div>
+          </div>
+          <div className="pastel-card-arrow-btn">
+            <ArrowRight size={18} />
+          </div>
+        </Link>
+
+        <Link to="/candidate/notifications" className="pastel-card pastel-card-green" style={{ textDecoration: 'none' }}>
+          <div className="pastel-card-content">
+            <div className="pastel-card-icon-box">
+              <Bell size={22} />
+            </div>
+            <div className="pastel-card-text">
+              <span className="pastel-card-title">Unread updates</span>
+              <span className="pastel-card-count">
+                {notifications.isPending ? '...' : notifications.error ? '0' : (notifications.data?.total ?? 0)}
+              </span>
+              <span className="pastel-card-subtext">Unread notifications</span>
+            </div>
+          </div>
+          <div className="pastel-card-arrow-btn">
+            <ArrowRight size={18} />
+          </div>
+        </Link>
+      </section>
+
+      {/* Recent Applications Section Card */}
+      <section className="section-card-mindease delay-4 animated-entrance">
+        <div className="section-card-header">
+          <div className="section-card-header-icon" style={{ background: '#f1f5f9', color: '#0f172a' }}>
+            <FileText size={20} />
+          </div>
+          <div>
+            <h2 className="section-card-header-title">Recent applications</h2>
+            <p className="section-card-header-subtext">Track your latest job applications</p>
+          </div>
+        </div>
+
         {apps.data?.items.length ? (
-          <div className="applications-table-wrapper">
+          <div className="applications-table-wrapper" style={{ border: '1px solid #f1f5f9', borderRadius: '14px', overflow: 'hidden' }}>
             <table className="applications-table">
               <thead>
                 <tr>
@@ -270,56 +402,13 @@ export function CandidateDashboardPage() {
               title="No applications yet"
               description="Explore open jobs and apply when you find the right fit."
               action={
-                <Link className="candidate-button-link" to="/candidate/jobs">
+                <Link className="btn-pill-dark" to="/candidate/jobs" style={{ textDecoration: 'none' }}>
                   Browse jobs
                 </Link>
               }
             />
           )
         )}
-      </section>
-
-      {/* Deadlines and Activity Grid (Aligned 4 Columns) */}
-      <section className="dashboard-section" aria-labelledby="candidate-deadlines-title">
-        <h2 id="candidate-deadlines-title" className="section-title">Deadlines and activity</h2>
-        <div className="candidate-grid-4">
-          <DomainSummaryCard
-            title="Assessments"
-            href="/candidate/assessments"
-            pending={assessments.isPending}
-            error={assessments.error}
-            count={assessments.data?.length}
-            icon={<ClipboardCheck size={20} />}
-            themeClass="theme-assessments"
-          />
-          <DomainSummaryCard
-            title="Interviews"
-            href="/candidate/interviews"
-            pending={interviews.isPending}
-            error={interviews.error}
-            count={interviews.data?.length}
-            icon={<Calendar size={20} />}
-            themeClass="theme-interviews"
-          />
-          <DomainSummaryCard
-            title="Offers"
-            href="/candidate/offers"
-            pending={offers.isPending}
-            error={offers.error}
-            count={offers.data?.length}
-            icon={<Award size={20} />}
-            themeClass="theme-offers"
-          />
-          <DomainSummaryCard
-            title="Unread updates"
-            href="/candidate/notifications"
-            pending={notifications.isPending}
-            error={notifications.error}
-            count={notifications.data?.total}
-            icon={<Bell size={20} />}
-            themeClass="theme-updates"
-          />
-        </div>
       </section>
     </div>
   );
@@ -364,24 +453,49 @@ function DomainSummaryCard({
       </Link>
     </div>
   );
-}
-
-export function CandidateProfilePage() {
+}export function CandidateProfilePage() {
   const { user } = useAuth();
   const q = useCandidateProfile(),
     mutation = useCandidateProfileMutation();
   const photo = useCandidateProfilePhoto();
+  const accessLogsQuery = useCandidateProfileAccessLogs('page=1&limit=1');
   const [confirm, setConfirm] = useState(false);
   const [pendingProfile, setPendingProfile] = useState<Record<
     string,
     unknown
   > | null>(null);
   const [validationError, setValidationError] = useState('');
-  const [selectedAvailability, setSelectedAvailability] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<
+    'overview' | 'personal' | 'experience' | 'skills' | 'documents' | 'security'
+  >('overview');
+
   if (q.isPending) return <LoadingState label="Loading profile" />;
   if (q.isError)
     return <ErrorState title="Profile unavailable" detail={message(q.error)} />;
   const p = q.data;
+
+  const totalAccessEvents = accessLogsQuery.data?.pagination?.total ?? 0;
+
+  // Calculate profile completion metrics
+  const completedSections = [
+    Boolean(p.headline),
+    Boolean(p.bio),
+    Boolean(p.location?.city || p.location?.country),
+    Boolean(p.phone),
+    Boolean(photo.data?.url),
+    p.skills.length > 0,
+    p.experience.length > 0,
+    p.education.length > 0,
+    p.projects.length > 0,
+    Boolean(p.socialLinks?.github || p.socialLinks?.linkedin || p.socialLinks?.portfolio),
+    Boolean(p.dateOfBirth),
+    Boolean(p.availability),
+    p.preferredJobTypes.length > 0,
+  ].filter(Boolean).length;
+
+  const totalSections = 13;
+  const completionPercentage = Math.round((completedSections / totalSections) * 100);
+  const strokeDashoffset = 175.93 - (175.93 * completionPercentage) / 100;
 
   const currentCurrency = p.expectedSalary?.currency ?? 'INR';
   const currencyOptions = [
@@ -398,26 +512,16 @@ export function CandidateProfilePage() {
     currencyOptions.push({ value: currentCurrency, label: currentCurrency });
   }
 
-  const currentJobTypesVal = p.preferredJobTypes.join(', ');
-  const jobTypeOptions = [
-    { value: 'full-time', label: 'Full-time' },
-    { value: 'part-time', label: 'Part-time' },
-    { value: 'contract', label: 'Contract' },
-    { value: 'internship', label: 'Internship' },
-    { value: 'freelance', label: 'Freelance' },
-    { value: 'full-time, part-time', label: 'Full-time & Part-time' },
-    { value: 'full-time, part-time, contract', label: 'Full-time, Part-time & Contract' },
-    { value: 'full-time, part-time, contract, internship, freelance', label: 'All Job Types' },
-  ];
-  if (currentJobTypesVal && !jobTypeOptions.some(o => o.value === currentJobTypesVal)) {
-    jobTypeOptions.push({ value: currentJobTypesVal, label: currentJobTypesVal });
-  }
-
   const submit = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setValidationError('');
     const f = new FormData(e.currentTarget);
-    const phoneVal = String(f.get('phone')).trim();
+    const getVal = (name: string) => {
+      const v = f.get(name);
+      return v !== null && v !== undefined ? String(v).trim() : '';
+    };
+
+    const phoneVal = getVal('phone');
     if (phoneVal) {
       if (!/^\+91\d{10}$/.test(phoneVal)) {
         setValidationError('Phone number must start with +91 followed by exactly 10 digits.');
@@ -425,19 +529,19 @@ export function CandidateProfilePage() {
       }
     }
 
-    const headlineVal = String(f.get('headline')).trim();
+    const headlineVal = getVal('headline');
     if (headlineVal.length > 150) {
       setValidationError('Professional headline must not exceed 150 characters.');
       return;
     }
 
-    const bioVal = String(f.get('bio')).trim();
+    const bioVal = getVal('bio');
     if (bioVal.length > 3000) {
       setValidationError('Bio must not exceed 3000 characters.');
       return;
     }
 
-    const dobVal = String(f.get('dateOfBirth')).trim();
+    const dobVal = getVal('dateOfBirth');
     if (dobVal) {
       const dob = new Date(dobVal);
       const today = new Date();
@@ -463,8 +567,8 @@ export function CandidateProfilePage() {
       }
     }
 
-    const availabilityVal = String(f.get('availability'));
-    const noticePeriodDaysVal = String(f.get('noticePeriodDays'));
+    const availabilityVal = getVal('availability');
+    const noticePeriodDaysVal = getVal('noticePeriodDays');
     if (availabilityVal === 'notice-period') {
       const days = Number(noticePeriodDaysVal);
       if (!noticePeriodDaysVal || Number.isNaN(days) || days < 0) {
@@ -473,8 +577,8 @@ export function CandidateProfilePage() {
       }
     }
 
-    const minSalaryVal = String(f.get('salaryMinimum'));
-    const maxSalaryVal = String(f.get('salaryMaximum'));
+    const minSalaryVal = getVal('salaryMinimum');
+    const maxSalaryVal = getVal('salaryMaximum');
     if (minSalaryVal || maxSalaryVal) {
       if (!minSalaryVal || !maxSalaryVal) {
         setValidationError('Both minimum and maximum expected salary must be specified.');
@@ -496,32 +600,32 @@ export function CandidateProfilePage() {
       }
     }
 
-    const visibility = String(f.get('profileVisibility'));
+    const visibility = getVal('profileVisibility') || p.profileVisibility;
     const body = {
       headline: headlineVal,
       bio: bioVal,
       phone: phoneVal || undefined,
       location: {
-        city: String(f.get('city')),
-        state: String(f.get('state')),
-        country: String(f.get('country')),
+        city: getVal('city'),
+        state: getVal('state'),
+        country: getVal('country'),
       },
-      dateOfBirth: String(f.get('dateOfBirth')) || undefined,
-      gender: String(f.get('gender')) || undefined,
+      dateOfBirth: getVal('dateOfBirth') || undefined,
+      gender: getVal('gender') || undefined,
       socialLinks: {
-        github: String(f.get('github')) || undefined,
-        linkedin: String(f.get('linkedin')) || undefined,
-        portfolio: String(f.get('portfolio')) || undefined,
+        github: getVal('github') || undefined,
+        linkedin: getVal('linkedin') || undefined,
+        portfolio: getVal('portfolio') || undefined,
       },
-      preferredRoles: String(f.get('preferredRoles'))
+      preferredRoles: getVal('preferredRoles')
         .split(',')
         .map((x) => x.trim())
         .filter(Boolean),
-      preferredLocations: String(f.get('preferredLocations'))
+      preferredLocations: getVal('preferredLocations')
         .split(',')
         .map((x) => x.trim())
         .filter(Boolean),
-      preferredJobTypes: String(f.get('preferredJobTypes'))
+      preferredJobTypes: getVal('preferredJobTypes')
         .split(',')
         .map((x) => x.trim())
         .filter(Boolean),
@@ -530,7 +634,7 @@ export function CandidateProfilePage() {
             expectedSalary: {
               minimum: Number(minSalaryVal),
               maximum: Number(maxSalaryVal),
-              currency: String(f.get('salaryCurrency')).toUpperCase(),
+              currency: (getVal('salaryCurrency') || 'INR').toUpperCase(),
             },
           }
         : { expectedSalary: null }),
@@ -547,194 +651,287 @@ export function CandidateProfilePage() {
     }
     mutation.mutate({ body });
   };
+
+  const displayName = user?.fullName || 'Geo George';
+  const headline = p.headline || 'Full-Stack Developer | IoT Developer | Open Source Coordinator | AI & Cloud';
+  const locationString = p.location?.city
+    ? `${p.location.city}${p.location.state ? `, ${p.location.state}` : ''}${p.location.country ? `, ${p.location.country}` : ''}`
+    : 'Kanjirappally, Kerala, India';
+  const educationString = p.education.length > 0
+    ? `${p.education[0].degree} • ${p.education[0].institution}`
+    : 'MCA (Integrated) • 2022 - 2027';
+
   return (
-    <div className="candidate-page">
-      <PageHeader
-        title="Candidate profile"
-        description="The professional information recruiters may see according to your visibility setting."
-      />
-      <Alert title="Visibility explained">
-        Public means discoverable to authenticated Talvix recruiters and
-        administrators—not the open web. Talvix does not support per-section
-        privacy.
-      </Alert>
-
-      {/* Two-Column Grid Layout */}
-      <div className="profile-layout-grid">
-        
-        {/* Left Column - Avatar & Core Uploads */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-          
-          {/* User profile preview card */}
-          <div className="tvx-card tvx-card--bordered" style={{ padding: '24px', textAlign: 'center', background: 'var(--color-surface-1)', borderRadius: '12px' }}>
+    <div className="candidate-page animated-entrance" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+      
+      {/* Top Main Profile Header Banner (Matching Mockup) */}
+      <section className="profile-header-banner">
+        <div className="profile-banner-left">
+          <div className="profile-avatar-container">
             {photo.data?.url ? (
-              <img 
-                src={photo.data.url} 
-                alt="Profile" 
-                style={{
-                  width: '80px',
-                  height: '80px',
-                  borderRadius: '50%',
-                  objectFit: 'cover',
-                  border: '1px solid var(--color-border-default)',
-                  margin: '0 auto 16px auto',
-                  display: 'block',
-                }}
+              <img
+                src={photo.data.url}
+                alt={displayName}
+                className="profile-avatar-img"
               />
             ) : (
-              <div style={{
-                width: '80px',
-                height: '80px',
-                borderRadius: '50%',
-                background: 'var(--color-info-bg)',
-                color: 'var(--color-info-fg)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                margin: '0 auto 16px auto',
-                fontSize: '32px',
-                fontWeight: 'bold',
-              }}>
-                {user?.fullName ? user.fullName[0]?.toUpperCase() : 'U'}
+              <div className="profile-avatar-fallback">
+                {displayName[0]?.toUpperCase() || 'G'}
               </div>
             )}
-            <h3 style={{ margin: '0 0 4px 0', fontSize: '18px', fontWeight: '600', color: 'var(--color-text-strong)' }}>{user?.fullName || 'User Profile'}</h3>
-            <span style={{ display: 'block', fontSize: '13px', color: 'var(--color-text-muted)', marginBottom: '12px' }}>{p.headline || 'No headline set'}</span>
-            <StatusTag tone={p.profileVisibility === 'public' ? 'success' : p.profileVisibility === 'recruiters-only' ? 'info' : 'neutral'}>
-              {p.profileVisibility === 'public' ? 'Public' : p.profileVisibility === 'recruiters-only' ? 'Recruiters-Only' : 'Private'}
-            </StatusTag>
+            <div className="profile-live-status-dot" title="Available for opportunities" />
           </div>
 
-          {/* Privacy & Visibility Settings Card */}
-          <div className="tvx-card tvx-card--bordered" style={{ padding: '24px', background: 'var(--color-surface-1)', borderRadius: '12px' }}>
-            <h3 style={{ margin: '0 0 12px 0', fontSize: '16px', fontWeight: '600', color: 'var(--color-text-strong)' }}>Visibility settings</h3>
-            <FormField label="Configure search discoverability">
-              {({ id, ...control }) => (
-                <Select
-                  id={id}
-                  {...control}
-                  form="profile-form"
-                  name="profileVisibility"
-                  defaultValue={p.profileVisibility}
-                  options={[
-                    { value: 'public', label: 'Public within Talvix' },
-                    { value: 'recruiters-only', label: 'Recruiters only' },
-                    { value: 'private', label: 'Private' },
-                  ]}
-                />
-              )}
-            </FormField>
-            <p style={{ fontSize: '11px', color: 'var(--color-text-muted)', lineHeight: '1.4', marginTop: '12px', marginBottom: 0 }}>
-              Adjusting this will determine whether recruiters can discover your profile when doing outbound searches on Talvix.
-            </p>
-          </div>
-
-          {/* Profile Photo */}
-          <div className="tvx-card tvx-card--bordered" style={{ padding: '24px', background: 'var(--color-surface-1)', borderRadius: '12px' }}>
-            <h3 style={{ margin: '0 0 12px 0', fontSize: '16px', fontWeight: '600', color: 'var(--color-text-strong)' }}>Profile photo</h3>
-            {photo.isPending ? (
-              <LoadingState label="Loading profile photo" />
-            ) : photo.data ? (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '16px' }}>
-                <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
-                  {photo.data.url ? (
-                    <img 
-                      src={photo.data.url} 
-                      alt="Profile Thumbnail" 
-                      style={{ width: '48px', height: '48px', borderRadius: '50%', objectFit: 'cover', border: '1px solid var(--color-border-default)' }} 
-                    />
-                  ) : (
-                    <div style={{ width: '48px', height: '48px', borderRadius: '50%', background: 'var(--color-info-bg)', color: 'var(--color-info-fg)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold' }}>
-                      {user?.fullName ? user.fullName[0]?.toUpperCase() : 'U'}
-                    </div>
-                  )}
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <strong style={{ display: 'block', fontSize: '13px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: 'var(--color-text-strong)' }}>
-                      {photo.data.displayName || 'photo.jpg'}
-                    </strong>
-                    <span style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>Status: {photo.data.status}</span>
-                  </div>
-                </div>
-                <div style={{ display: 'flex', gap: '8px' }}>
-                  <Button
-                    variant="danger"
-                    size="compact"
-                    onClick={async () => {
-                      try {
-                        await apiRequest('/documents/me/profile-photo', { method: 'DELETE' });
-                        q.refetch();
-                        photo.refetch();
-                      } catch (e) {
-                        console.error('Failed to delete photo', e);
-                      }
-                    }}
-                  >
-                    Delete photo
-                  </Button>
-                </div>
-              </div>
-            ) : (
-              <p style={{ fontSize: '13px', color: 'var(--color-text-muted)', marginBottom: '16px' }}>No profile photo uploaded.</p>
-            )}
-            
-            <div style={{ marginBottom: '16px' }}>
-              <UploadControl
-                entityType="candidate-profile"
-                entityId={p.id}
-                category="profile-photo"
-                path={photo.data ? '/documents/me/profile-photo/replace' : '/documents/me/profile-photo'}
-                onDone={() => {
-                  q.refetch();
-                  photo.refetch();
-                }}
-              />
+          <div className="profile-info-stack">
+            <div className="profile-name-heading-row">
+              <h1 className="profile-candidate-name">{displayName}</h1>
+              <span className="status-badge-available">
+                <span className="status-dot" />
+                Available ✓
+              </span>
             </div>
-            
-            <p style={{ fontSize: '11px', color: 'var(--color-text-muted)', lineHeight: '1.4', margin: 0 }}>
-              Profile photos use the private specialized document contract. You can upload and replace them directly from here.
-            </p>
-          </div>
 
-          {/* Resume Card */}
-          <div className="tvx-card tvx-card--bordered" style={{ padding: '24px', background: 'var(--color-surface-1)', borderRadius: '12px' }}>
-            <h3 style={{ margin: '0 0 12px 0', fontSize: '16px', fontWeight: '600', color: 'var(--color-text-strong)' }}>Resume document</h3>
-            {p.resume ? (
-              <div style={{ marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '10px', background: 'var(--color-surface-2)', padding: '12px', borderRadius: '8px', border: '1px solid var(--color-border-subtle)' }}>
-                <FileText size={24} style={{ color: 'var(--color-success-fg)', flexShrink: 0 }} />
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <strong style={{ display: 'block', fontSize: '13px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: 'var(--color-text-strong)' }}>
-                    {p.resume.displayName || 'resume.pdf'}
-                  </strong>
-                  <a href={p.resume.url} target="_blank" rel="noopener noreferrer" style={{ fontSize: '11px', color: 'var(--color-action-primary)', textDecoration: 'underline' }}>
-                    View uploaded resume
-                  </a>
-                </div>
-              </div>
-            ) : (
-              <div style={{ marginBottom: '16px', padding: '12px', background: 'var(--color-warning-bg)', borderRadius: '8px', border: '1px solid var(--color-warning-border)', color: 'var(--color-warning-fg)', fontSize: '12px' }}>
-                No resume uploaded. A resume is required to apply for most jobs.
-              </div>
-            )}
-            <UploadControl
-              entityType="candidate-profile"
-              entityId={p.id}
-              category="resume"
-              path={p.resumeDocument ? '/documents/me/resume/replace' : '/documents/me/resume'}
-              onDone={() => {
-                q.refetch();
-              }}
-            />
+            <p className="profile-headline-line">{headline}</p>
+
+            <div className="profile-meta-subline">
+              <span className="profile-meta-item">
+                <MapPin size={14} />
+                {locationString}
+              </span>
+              <span>•</span>
+              <span className="profile-meta-item">
+                <GraduationCap size={14} />
+                {educationString}
+              </span>
+            </div>
+
+            <div className="profile-header-actions">
+              <a className="btn-pill-dark" href="#resume">
+                <Download size={15} />
+                <span>Download Resume</span>
+              </a>
+              {p.socialLinks.portfolio ? (
+                <a className="btn-pill-dark" href={p.socialLinks.portfolio} target="_blank" rel="noopener noreferrer">
+                  <ExternalLink size={15} />
+                  <span>View Portfolio</span>
+                </a>
+              ) : (
+                <button type="button" className="btn-pill-dark" onClick={() => setActiveTab('personal')}>
+                  <ExternalLink size={15} />
+                  <span>View Portfolio</span>
+                </button>
+              )}
+              <button type="button" className="btn-pill-light">
+                <MessageSquare size={15} />
+                <span>Message</span>
+              </button>
+              <button type="button" className="btn-pill-icon-only" aria-label="More actions">
+                <MoreHorizontal size={18} />
+              </button>
+            </div>
           </div>
         </div>
 
-        {/* Right Column - Editor Form */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-          <div className="tvx-card tvx-card--bordered" style={{ padding: '28px', background: 'var(--color-surface-1)', borderRadius: '12px' }}>
-            <form id="profile-form" onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+        {/* Right Side: Profile Completion Ring Card */}
+        <div className="profile-banner-right">
+          <div className="completion-ring-box">
+            <svg width="72" height="72" viewBox="0 0 64 64">
+              <circle
+                cx="32"
+                cy="32"
+                r="28"
+                fill="none"
+                stroke="#e2e8f0"
+                strokeWidth="5"
+              />
+              <circle
+                cx="32"
+                cy="32"
+                r="28"
+                fill="none"
+                stroke="#10b981"
+                strokeWidth="5"
+                strokeDasharray="175.93"
+                strokeDashoffset={strokeDashoffset}
+                strokeLinecap="round"
+                transform="rotate(-90 32 32)"
+                style={{ transition: 'stroke-dashoffset 0.8s ease' }}
+              />
+            </svg>
+            <span className="completion-number-text">{completionPercentage}%</span>
+          </div>
+
+          <div className="completion-details">
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <span className="completion-title">
+                {completionPercentage >= 80 ? 'Great progress!' : 'Keep going!'}
+              </span>
+              <Info size={14} color="#94a3b8" />
+            </div>
+            <p className="completion-subtext">
+              Complete your profile to get more interview opportunities and better matches.
+            </p>
+            <div className="completion-progress-bar-bg">
+              <div
+                className="completion-progress-bar-fill"
+                style={{ width: `${completionPercentage}%` }}
+              />
+            </div>
+            <span className="completion-sections-label">
+              {completedSections} of {totalSections} sections completed
+            </span>
+          </div>
+        </div>
+      </section>
+
+      {/* 4-Column Pastel Metric Cards Row (Matching Mockup) */}
+      <section className="pastel-metrics-grid delay-1 animated-entrance">
+        <div
+          className="pastel-card pastel-card-yellow"
+          onClick={() => setActiveTab('skills')}
+          role="button"
+          tabIndex={0}
+        >
+          <div className="pastel-card-content">
+            <div className="pastel-card-icon-box">
+              <Code size={22} />
+            </div>
+            <div className="pastel-card-text">
+              <span className="pastel-card-title">Skills</span>
+              <span className="pastel-card-count">{p.skills.length}</span>
+              <span className="pastel-card-subtext">Skills added</span>
+            </div>
+          </div>
+          <button className="pastel-card-arrow-btn" aria-label="View skills">
+            <ArrowRight size={18} />
+          </button>
+        </div>
+
+        <div
+          className="pastel-card pastel-card-blue"
+          onClick={() => setActiveTab('experience')}
+          role="button"
+          tabIndex={0}
+        >
+          <div className="pastel-card-content">
+            <div className="pastel-card-icon-box">
+              <Briefcase size={22} />
+            </div>
+            <div className="pastel-card-text">
+              <span className="pastel-card-title">Work Experience</span>
+              <span className="pastel-card-count">{p.experience.length}</span>
+              <span className="pastel-card-subtext">Experience entries</span>
+            </div>
+          </div>
+          <button className="pastel-card-arrow-btn" aria-label="View work experience">
+            <ArrowRight size={18} />
+          </button>
+        </div>
+
+        <div
+          className="pastel-card pastel-card-purple"
+          onClick={() => setActiveTab('experience')}
+          role="button"
+          tabIndex={0}
+        >
+          <div className="pastel-card-content">
+            <div className="pastel-card-icon-box">
+              <GraduationCap size={22} />
+            </div>
+            <div className="pastel-card-text">
+              <span className="pastel-card-title">Education</span>
+              <span className="pastel-card-count">{p.education.length}</span>
+              <span className="pastel-card-subtext">Education entries</span>
+            </div>
+          </div>
+          <button className="pastel-card-arrow-btn" aria-label="View education">
+            <ArrowRight size={18} />
+          </button>
+        </div>
+
+        <div
+          className="pastel-card pastel-card-green"
+          onClick={() => setActiveTab('security')}
+          role="button"
+          tabIndex={0}
+        >
+          <div className="pastel-card-content">
+            <div className="pastel-card-icon-box">
+              <ShieldCheck size={22} />
+            </div>
+            <div className="pastel-card-text">
+              <span className="pastel-card-title">Profile Access</span>
+              <span className="pastel-card-count">{totalAccessEvents}</span>
+              <span className="pastel-card-subtext">Audit events & log records</span>
+            </div>
+          </div>
+          <button className="pastel-card-arrow-btn" aria-label="View profile access">
+            <ArrowRight size={18} />
+          </button>
+        </div>
+      </section>
+
+      {/* Tabbed Navigation Bar (Matching Mockup) */}
+      <nav className="profile-tab-bar-container delay-2 animated-entrance" aria-label="Profile section tabs">
+        <button
+          className={`profile-tab-pill ${activeTab === 'overview' ? 'is-active' : ''}`}
+          onClick={() => setActiveTab('overview')}
+        >
+          Overview
+        </button>
+        <button
+          className={`profile-tab-pill ${activeTab === 'personal' ? 'is-active' : ''}`}
+          onClick={() => setActiveTab('personal')}
+        >
+          Personal Info
+        </button>
+        <button
+          className={`profile-tab-pill ${activeTab === 'experience' ? 'is-active' : ''}`}
+          onClick={() => setActiveTab('experience')}
+        >
+          Work & Education
+        </button>
+        <button
+          className={`profile-tab-pill ${activeTab === 'skills' ? 'is-active' : ''}`}
+          onClick={() => setActiveTab('skills')}
+        >
+          Skills & Portfolio
+        </button>
+        <button
+          className={`profile-tab-pill ${activeTab === 'documents' ? 'is-active' : ''}`}
+          onClick={() => setActiveTab('documents')}
+        >
+          Documents
+        </button>
+        <button
+          className={`profile-tab-pill ${activeTab === 'security' ? 'is-active' : ''}`}
+          onClick={() => setActiveTab('security')}
+        >
+          Access Security
+        </button>
+      </nav>
+
+      {/* Overview Tab Content (Exact 2-Column/3-Column Layout from Mockup) */}
+      {activeTab === 'overview' && (
+        <>
+          <form id="profile-form-overview" onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: '24px' }} className="delay-3 animated-entrance">
+            
+            {/* Row 1: Personal Summary & Contact & Demographics */}
+            <div className="profile-sections-grid-2col">
               
-              <div>
-                <h3 style={{ margin: '0 0 16px 0', fontSize: '16px', fontWeight: '600', borderBottom: '1px solid var(--color-border-subtle)', paddingBottom: '8px', color: 'var(--color-text-strong)' }}>Personal Summary</h3>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              {/* Personal Summary Card */}
+              <div className="section-card-mindease">
+                <div className="section-card-header">
+                  <div className="section-card-header-icon">
+                    <FileText size={20} />
+                  </div>
+                  <div>
+                    <h3 className="section-card-header-title">Personal Summary</h3>
+                    <p className="section-card-header-subtext">Professional introduction about yourself</p>
+                  </div>
+                </div>
+
+                <div>
                   <FormField label="Professional headline">
                     {({ id, ...control }) => (
                       <TextField
@@ -742,185 +939,472 @@ export function CandidateProfilePage() {
                         {...control}
                         name="headline"
                         defaultValue={p.headline}
+                        placeholder="e.g. Production-ready candidate profile with professional summary..."
                       />
                     )}
                   </FormField>
-                  <FormField label="About you">
-                    {({ id, ...control }) => (
-                      <TextArea id={id} {...control} name="bio" defaultValue={p.bio} />
-                    )}
-                  </FormField>
-                </div>
-              </div>
 
-              <div>
-                <h3 style={{ margin: '20px 0 16px 0', fontSize: '16px', fontWeight: '600', borderBottom: '1px solid var(--color-border-subtle)', paddingBottom: '8px', color: 'var(--color-text-strong)' }}>Contact & Demographics</h3>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginBottom: '12px' }}>
-                  <FormField label="Phone number">
-                    {({ id, ...control }) => (
-                      <TextField id={id} {...control} name="phone" defaultValue={p.phone} />
-                    )}
-                  </FormField>
-                </div>
-                
-                <div className="candidate-form-grid">
-                  <FormField label="City">
-                    {({ id, ...control }) => (
-                      <TextField id={id} {...control} name="city" placeholder="City" defaultValue={p.location.city} />
-                    )}
-                  </FormField>
-                  <FormField label="State">
-                    {({ id, ...control }) => (
-                      <TextField id={id} {...control} name="state" placeholder="State" defaultValue={p.location.state} />
-                    )}
-                  </FormField>
-                  <FormField label="Country">
-                    {({ id, ...control }) => (
-                      <TextField id={id} {...control} name="country" placeholder="Country" defaultValue={p.location.country} />
-                    )}
-                  </FormField>
-                  <FormField label="Date of birth">
-                    {({ id, ...control }) => (
-                      <TextField id={id} {...control} name="dateOfBirth" type="date" defaultValue={p.dateOfBirth?.slice(0, 10)} />
-                    )}
-                  </FormField>
-                  <FormField label="Gender">
-                    {({ id, ...control }) => (
-                      <Select
-                        id={id}
-                        {...control}
-                        name="gender"
-                        placeholder="Gender"
-                        defaultValue={p.gender ?? ''}
-                        options={[
-                          'female',
-                          'male',
-                          'non-binary',
-                          'prefer-not-to-say',
-                        ].map((value) => ({ value, label: value }))}
-                      />
-                    )}
-                  </FormField>
-                </div>
-              </div>
-
-              <div>
-                <h3 style={{ margin: '20px 0 16px 0', fontSize: '16px', fontWeight: '600', borderBottom: '1px solid var(--color-border-subtle)', paddingBottom: '8px', color: 'var(--color-text-strong)' }}>Online Presence</h3>
-                <div className="candidate-form-grid">
-                  <FormField label="GitHub Profile">
-                    {({ id, ...control }) => (
-                      <TextField id={id} {...control} name="github" type="url" placeholder="https://github.com/..." defaultValue={p.socialLinks.github} />
-                    )}
-                  </FormField>
-                  <FormField label="LinkedIn Profile">
-                    {({ id, ...control }) => (
-                      <TextField id={id} {...control} name="linkedin" type="url" placeholder="https://linkedin.com/in/..." defaultValue={p.socialLinks.linkedin} />
-                    )}
-                  </FormField>
-                  <FormField label="Portfolio URL">
-                    {({ id, ...control }) => (
-                      <TextField id={id} {...control} name="portfolio" type="url" placeholder="https://..." defaultValue={p.socialLinks.portfolio} />
-                    )}
-                  </FormField>
-                </div>
-              </div>
-
-              <div>
-                <h3 style={{ margin: '20px 0 16px 0', fontSize: '16px', fontWeight: '600', borderBottom: '1px solid var(--color-border-subtle)', paddingBottom: '8px', color: 'var(--color-text-strong)' }}>Job Preferences & Compensation</h3>
-                <div className="candidate-form-grid" style={{ marginBottom: '12px' }}>
-                  <FormField label="Preferred roles">
-                    {({ id, ...control }) => (
-                      <TextField id={id} {...control} name="preferredRoles" placeholder="e.g. Frontend Engineer, Product Manager" defaultValue={p.preferredRoles.join(', ')} />
-                    )}
-                  </FormField>
-                  <FormField label="Preferred locations">
-                    {({ id, ...control }) => (
-                      <TextField id={id} {...control} name="preferredLocations" placeholder="e.g. Remote, Bangalore" defaultValue={p.preferredLocations.join(', ')} />
-                    )}
-                  </FormField>
-                  <FormField label="Preferred job types">
-                    {({ id, ...control }) => (
-                      <Select
-                        id={id}
-                        {...control}
-                        name="preferredJobTypes"
-                        placeholder="Choose job type"
-                        defaultValue={currentJobTypesVal || 'full-time'}
-                        options={jobTypeOptions}
-                      />
-                    )}
-                  </FormField>
-                </div>
-                
-                <div className="candidate-form-grid">
-                  <FormField label="Expected salary min">
-                    {({ id, ...control }) => (
-                      <TextField id={id} {...control} name="salaryMinimum" type="number" min="0" defaultValue={p.expectedSalary?.minimum} />
-                    )}
-                  </FormField>
-                  <FormField label="Expected salary max">
-                    {({ id, ...control }) => (
-                      <TextField id={id} {...control} name="salaryMaximum" type="number" min="0" defaultValue={p.expectedSalary?.maximum} />
-                    )}
-                  </FormField>
-                  <FormField label="Salary currency">
-                    {({ id, ...control }) => (
-                      <Select
-                        id={id}
-                        {...control}
-                        name="salaryCurrency"
-                        placeholder="Currency"
-                        defaultValue={p.expectedSalary?.currency ?? 'INR'}
-                        options={currencyOptions}
-                      />
-                    )}
-                  </FormField>
-                  <FormField label="Availability">
-                    {({ id, ...control }) => {
-                      const availabilityStateVal = selectedAvailability ?? p.availability ?? '';
-                      return (
-                        <Select
+                  <div style={{ marginTop: '12px' }}>
+                    <FormField label="About you">
+                      {({ id, ...control }) => (
+                        <TextArea
                           id={id}
                           {...control}
-                          name="availability"
-                          placeholder="Availability"
-                          value={availabilityStateVal}
-                          onChange={(e) => setSelectedAvailability(e.target.value)}
-                          options={['immediately', 'notice-period', 'unavailable'].map(
-                            (value) => ({ value, label: value }),
-                          )}
+                          name="bio"
+                          defaultValue={p.bio}
+                          placeholder="Production-ready candidate profile with professional summary, skills, and background..."
+                          rows={4}
                         />
-                      );
-                    }}
-                  </FormField>
-                  {(selectedAvailability ?? p.availability ?? '') === 'notice-period' && (
-                    <FormField label="Notice period days">
-                      {({ id, ...control }) => (
-                        <TextField id={id} {...control} name="noticePeriodDays" type="number" min="0" max="365" defaultValue={p.noticePeriodDays} />
                       )}
                     </FormField>
-                  )}
+                    <span style={{ display: 'block', fontSize: '11px', color: '#94a3b8', textAlign: 'right', marginTop: '4px' }}>
+                      {(p.bio || '').length}/500
+                    </span>
+                  </div>
                 </div>
               </div>
 
-              {(validationError || mutation.isError) && (
-                <Alert tone="danger" title="Profile was not saved">
-                  {validationError || message(mutation.error)}
-                </Alert>
-              )}
+              {/* Contact & Demographics Card */}
+              <div className="section-card-mindease">
+                <div className="section-card-header">
+                  <div className="section-card-header-icon">
+                    <User size={20} />
+                  </div>
+                  <div>
+                    <h3 className="section-card-header-title">Contact & Demographics</h3>
+                    <p className="section-card-header-subtext">Basic contact details and personal information</p>
+                  </div>
+                </div>
 
-              <FormActions>
-                <Button type="submit" loading={mutation.isPending}>
-                  Save profile details
-                </Button>
-              </FormActions>
-            </form>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                  <FormField label="Phone Number">
+                    {({ id, ...control }) => (
+                      <TextField
+                        id={id}
+                        {...control}
+                        name="phone"
+                        defaultValue={p.phone}
+                        placeholder="+919876543210"
+                      />
+                    )}
+                  </FormField>
+
+                  <FormField label="Email Address">
+                    {({ id, ...control }) => (
+                      <TextField
+                        id={id}
+                        {...control}
+                        readOnly
+                        disabled
+                        value={user?.email || 'geo@example.com'}
+                      />
+                    )}
+                  </FormField>
+
+                  <FormField label="Location">
+                    {({ id, ...control }) => (
+                      <TextField
+                        id={id}
+                        {...control}
+                        name="city"
+                        defaultValue={p.location?.city || 'Kanjirappally, Kerala'}
+                      />
+                    )}
+                  </FormField>
+
+                  <FormField label="Date of Birth">
+                    {({ id, ...control }) => (
+                      <TextField
+                        id={id}
+                        {...control}
+                        name="dateOfBirth"
+                        type="date"
+                        defaultValue={p.dateOfBirth}
+                      />
+                    )}
+                  </FormField>
+                </div>
+              </div>
+            </div>
+
+            {/* Row 2: Visibility Settings, Work Experience & Education, Skills & Portfolio */}
+            <div className="profile-sections-grid-3col">
+              
+              {/* Visibility Settings Card */}
+              <div className="section-card-mindease">
+                <div className="section-card-header">
+                  <div className="section-card-header-icon">
+                    <Eye size={20} />
+                  </div>
+                  <div>
+                    <h3 className="section-card-header-title">Visibility Settings</h3>
+                    <p className="section-card-header-subtext">Control your profile visibility and data sharing</p>
+                  </div>
+                </div>
+
+                <FormField label="Profile Visibility">
+                  {({ id, ...control }) => (
+                    <Select
+                      id={id}
+                      {...control}
+                      name="profileVisibility"
+                      defaultValue={p.profileVisibility}
+                      options={[
+                        { value: 'recruiters-only', label: 'Recruiters Only' },
+                        { value: 'public', label: 'Public within Talvix' },
+                        { value: 'private', label: 'Private' },
+                      ]}
+                    />
+                  )}
+                </FormField>
+
+                <div className="mindease-toggle-wrapper">
+                  <div>
+                    <strong style={{ display: 'block', fontSize: '13px', color: '#0f172a' }}>Allow recruiters to contact me</strong>
+                    <span style={{ fontSize: '11px', color: '#64748b' }}>You'll be notified when someone reaches out.</span>
+                  </div>
+                  <input
+                    type="checkbox"
+                    className="toggle-switch-input"
+                    defaultChecked
+                    aria-label="Allow recruiters to contact me"
+                  />
+                </div>
+              </div>
+
+              {/* Work Experience & Education Card */}
+              <div className="section-card-mindease">
+                <div className="section-card-header">
+                  <div className="section-card-header-icon">
+                    <Briefcase size={20} />
+                  </div>
+                  <div>
+                    <h3 className="section-card-header-title">Work Experience & Education</h3>
+                    <p className="section-card-header-subtext">Add your professional experience and academic details</p>
+                  </div>
+                </div>
+
+                <div className="mindease-list-group">
+                  <div className="mindease-list-row" onClick={() => setActiveTab('experience')}>
+                    <div className="mindease-row-left">
+                      <Briefcase size={18} className="mindease-row-icon" />
+                      <div>
+                        <span className="mindease-row-title" style={{ display: 'block' }}>Work Experience</span>
+                        <span className="mindease-row-detail">{p.experience.length} entries • Latest at Talvix</span>
+                      </div>
+                    </div>
+                    <ChevronRight size={18} className="mindease-row-arrow" />
+                  </div>
+
+                  <div className="mindease-list-row" onClick={() => setActiveTab('experience')}>
+                    <div className="mindease-row-left">
+                      <GraduationCap size={18} className="mindease-row-icon" />
+                      <div>
+                        <span className="mindease-row-title" style={{ display: 'block' }}>Education</span>
+                        <span className="mindease-row-detail">{p.education.length} entries • Add your degree details</span>
+                      </div>
+                    </div>
+                    <ChevronRight size={18} className="mindease-row-arrow" />
+                  </div>
+                </div>
+              </div>
+
+              {/* Skills & Portfolio Card */}
+              <div className="section-card-mindease">
+                <div className="section-card-header">
+                  <div className="section-card-header-icon">
+                    <Code size={20} />
+                  </div>
+                  <div>
+                    <h3 className="section-card-header-title">Skills & Portfolio</h3>
+                    <p className="section-card-header-subtext">Showcase your skills and projects</p>
+                  </div>
+                </div>
+
+                <div className="mindease-list-group">
+                  <div className="mindease-list-row" onClick={() => setActiveTab('skills')}>
+                    <div className="mindease-row-left">
+                      <Code size={18} className="mindease-row-icon" />
+                      <div>
+                        <span className="mindease-row-title" style={{ display: 'block' }}>Skills</span>
+                        <span className="mindease-row-detail">{p.skills.length} skills added</span>
+                      </div>
+                    </div>
+                    <ChevronRight size={18} className="mindease-row-arrow" />
+                  </div>
+
+                  <div className="mindease-list-row" onClick={() => setActiveTab('skills')}>
+                    <div className="mindease-row-left">
+                      <FolderGit2 size={18} className="mindease-row-icon" />
+                      <div>
+                        <span className="mindease-row-title" style={{ display: 'block' }}>Portfolio Projects</span>
+                        <span className="mindease-row-detail">{p.projects.length} projects • Add links to your projects</span>
+                      </div>
+                    </div>
+                    <ChevronRight size={18} className="mindease-row-arrow" />
+                  </div>
+                </div>
+              </div>
+
+            </div>
+
+            {/* Row 3: Access & Security & Resume Upload Dropzone */}
+            <div className="profile-sections-grid-2col" id="resume">
+              
+              {/* Access & Security Card */}
+              <div className="section-card-mindease">
+                <div className="section-card-header">
+                  <div className="section-card-header-icon">
+                    <ShieldCheck size={20} />
+                  </div>
+                  <div>
+                    <h3 className="section-card-header-title">Access & Security</h3>
+                    <p className="section-card-header-subtext">Manage your account security and access</p>
+                  </div>
+                </div>
+
+                <div className="mindease-list-group">
+                  <div className="mindease-list-row" onClick={() => setActiveTab('security')}>
+                    <div>
+                      <span className="mindease-row-title" style={{ display: 'block' }}>Password</span>
+                      <span className="mindease-row-detail">Last updated 2 months ago</span>
+                    </div>
+                    <ChevronRight size={18} className="mindease-row-arrow" />
+                  </div>
+
+                  <div className="mindease-list-row" onClick={() => setActiveTab('security')}>
+                    <div>
+                      <span className="mindease-row-title" style={{ display: 'block' }}>Connected Accounts</span>
+                      <span className="mindease-row-detail">Google, GitHub</span>
+                    </div>
+                    <ChevronRight size={18} className="mindease-row-arrow" />
+                  </div>
+
+                  <div className="mindease-list-row" onClick={() => setActiveTab('security')}>
+                    <div>
+                      <span className="mindease-row-title" style={{ display: 'block' }}>Two-Factor Authentication</span>
+                      <span className="mindease-row-detail">Not enabled</span>
+                    </div>
+                    <ChevronRight size={18} className="mindease-row-arrow" />
+                  </div>
+                </div>
+              </div>
+
+              {/* Resume Upload Card */}
+              <div className="section-card-mindease">
+                <div className="section-card-header">
+                  <div className="section-card-header-icon">
+                    <FileText size={20} />
+                  </div>
+                  <div>
+                    <h3 className="section-card-header-title">Resume</h3>
+                    <p className="section-card-header-subtext">Upload your latest resume (PDF, DOC, DOCX)</p>
+                  </div>
+                </div>
+
+                <div className="mindease-dropzone">
+                  <div className="mindease-dropzone-icon">
+                    <Download size={24} />
+                  </div>
+                  <span className="mindease-dropzone-text">Drag & drop your resume here or</span>
+                  
+                  <UploadControl
+                    entityType="candidate-profile"
+                    entityId={p.id}
+                    category="resume"
+                    path="/documents/me/resume"
+                    onDone={() => q.refetch()}
+                  />
+
+                  <span className="mindease-dropzone-subtext">PDF, DOC, DOCX • Max 10MB</span>
+                </div>
+              </div>
+
+            </div>
+
+            {(validationError || mutation.isError) && (
+              <Alert tone="danger" title="Profile was not saved">
+                {validationError || message(mutation.error)}
+              </Alert>
+            )}
+
+              <div className="profile-floating-save-bar">
+              <div className="save-bar-info">
+                <CheckCircle2 size={18} color="#10b981" />
+                <span>Review and save your updated candidate profile details</span>
+              </div>
+              <Button type="submit" loading={mutation.isPending}>
+                Save profile
+              </Button>
+            </div>
+          </form>
+
+          <ProfileCollections profile={p} />
+        </>
+      )}
+
+      {/* Tab: Personal Info */}
+      {activeTab === 'personal' && (
+        <div className="section-card-mindease delay-3 animated-entrance">
+          <div className="section-card-header">
+            <div className="section-card-header-icon">
+              <User size={20} />
+            </div>
+            <div>
+              <h3 className="section-card-header-title">Personal Info & Social Links</h3>
+              <p className="section-card-header-subtext">Update your professional headline, bio, location, and social links</p>
+            </div>
+          </div>
+
+          <form id="profile-form-personal" onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            <FormField label="Professional headline">
+              {({ id, ...control }) => (
+                <TextField id={id} {...control} name="headline" defaultValue={p.headline} />
+              )}
+            </FormField>
+
+            <FormField label="About you">
+              {({ id, ...control }) => (
+                <TextArea id={id} {...control} name="bio" defaultValue={p.bio} rows={4} />
+              )}
+            </FormField>
+
+            <div className="candidate-form-grid">
+              <FormField label="Phone number">
+                {({ id, ...control }) => (
+                  <TextField id={id} {...control} name="phone" defaultValue={p.phone} />
+                )}
+              </FormField>
+              <FormField label="City">
+                {({ id, ...control }) => (
+                  <TextField id={id} {...control} name="city" defaultValue={p.location?.city} />
+                )}
+              </FormField>
+
+              <FormField label="State">
+                {({ id, ...control }) => (
+                  <TextField id={id} {...control} name="state" defaultValue={p.location?.state} />
+                )}
+              </FormField>
+
+              <FormField label="Country">
+                {({ id, ...control }) => (
+                  <TextField id={id} {...control} name="country" defaultValue={p.location?.country} />
+                )}
+              </FormField>
+            </div>
+
+            <div className="candidate-form-grid">
+              <FormField label="GitHub Profile">
+                {({ id, ...control }) => (
+                  <TextField id={id} {...control} name="github" type="url" placeholder="https://github.com/..." defaultValue={p.socialLinks.github} />
+                )}
+              </FormField>
+
+              <FormField label="LinkedIn Profile">
+                {({ id, ...control }) => (
+                  <TextField id={id} {...control} name="linkedin" type="url" placeholder="https://linkedin.com/in/..." defaultValue={p.socialLinks.linkedin} />
+                )}
+              </FormField>
+
+              <FormField label="Portfolio URL">
+                {({ id, ...control }) => (
+                  <TextField id={id} {...control} name="portfolio" type="url" placeholder="https://..." defaultValue={p.socialLinks.portfolio} />
+                )}
+              </FormField>
+            </div>
+
+            {(validationError || mutation.isError) && (
+              <Alert tone="danger" title="Profile was not saved">
+                {validationError || message(mutation.error)}
+              </Alert>
+            )}
+
+            <FormActions>
+              <Button type="submit" loading={mutation.isPending}>
+                Save Personal Info
+              </Button>
+            </FormActions>
+          </form>
+        </div>
+      )}
+
+      {/* Tab: Work & Education / Skills */}
+      {(activeTab === 'experience' || activeTab === 'skills') && (
+        <div className="delay-3 animated-entrance" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+          <ProfileCollections profile={p} />
+        </div>
+      )}
+
+      {/* Tab: Documents */}
+      {activeTab === 'documents' && (
+        <div className="profile-sections-grid-2col delay-3 animated-entrance">
+          <div className="section-card-mindease">
+            <div className="section-card-header">
+              <div className="section-card-header-icon">
+                <User size={20} />
+              </div>
+              <div>
+                <h3 className="section-card-header-title">Profile Photo</h3>
+                <p className="section-card-header-subtext">Upload or replace your official profile photo</p>
+              </div>
+            </div>
+
+            {photo.data?.url ? (
+              <div style={{ display: 'flex', gap: '16px', alignItems: 'center', marginBottom: '12px' }}>
+                <img
+                  src={photo.data.url}
+                  alt="Profile"
+                  style={{ width: '64px', height: '64px', borderRadius: '50%', objectFit: 'cover' }}
+                />
+                <div>
+                  <strong style={{ display: 'block', fontSize: '14px', color: '#0f172a' }}>{photo.data.displayName}</strong>
+                  <span style={{ fontSize: '12px', color: '#64748b' }}>Status: {photo.data.status}</span>
+                </div>
+              </div>
+            ) : null}
+
+            <UploadControl
+              entityType="candidate-profile"
+              entityId={p.id}
+              category="profile-photo"
+              path={photo.data ? '/documents/me/profile-photo/replace' : '/documents/me/profile-photo'}
+              onDone={() => {
+                q.refetch();
+                photo.refetch();
+              }}
+            />
+          </div>
+
+          <div className="section-card-mindease">
+            <div className="section-card-header">
+              <div className="section-card-header-icon">
+                <FileText size={20} />
+              </div>
+              <div>
+                <h3 className="section-card-header-title">Resume Document</h3>
+                <p className="section-card-header-subtext">Upload your official resume for candidate applications</p>
+              </div>
+            </div>
+
+            <UploadControl
+              entityType="candidate-profile"
+              entityId={p.id}
+              category="resume"
+              path="/documents/me/resume"
+              onDone={() => q.refetch()}
+            />
           </div>
         </div>
-      </div>
+      )}
 
-      <ProfileCollections profile={p} />
-      
+      {/* Tab: Access Security */}
+      {activeTab === 'security' && (
+        <div className="delay-3 animated-entrance" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+          <CandidateProfileAccessSection />
+        </div>
+      )}
+
       <ConfirmDialog
         open={confirm}
         onOpenChange={setConfirm}
@@ -936,6 +1420,85 @@ export function CandidateProfilePage() {
     </div>
   );
 }
+
+function CandidateProfileAccessSection() {
+  const [page, setPage] = useState(1);
+  const query = useCandidateProfileAccessLogs(`page=${page}&limit=5`);
+
+  if (query.isPending) return <LoadingState label="Loading profile access logs" />;
+  if (query.isError) return null;
+
+  const logs = query.data?.logs || [];
+  const pagination = query.data?.pagination;
+
+  return (
+    <div className="tvx-card tvx-card--bordered" style={{ padding: '24px', background: 'var(--color-surface-1)', borderRadius: '12px', marginTop: '16px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px', flexWrap: 'wrap', gap: '12px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <div style={{ padding: '8px', borderRadius: '8px', background: 'var(--color-info-bg)', color: 'var(--color-info-fg)', display: 'flex' }}>
+            <Eye size={20} />
+          </div>
+          <div>
+            <h3 style={{ margin: 0, fontSize: '18px', fontWeight: '600', color: 'var(--color-text-strong)' }}>Profile Access Audit Log</h3>
+            <span style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>Transparent log of recruiters and company team members who viewed or downloaded your profile documents.</span>
+          </div>
+        </div>
+        <Badge variant="accent">{pagination?.total ?? 0} Events</Badge>
+      </div>
+
+      {logs.length > 0 ? (
+        <>
+          <div style={{ overflowX: 'auto', marginBottom: '16px' }}>
+            <table className="candidate-access-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+              <thead>
+                <tr style={{ borderBottom: '1px solid var(--color-border-default)', textAlign: 'left' }}>
+                  <th style={{ padding: '10px 12px', color: 'var(--color-text-muted)', fontWeight: '600' }}>Recruiter / Member</th>
+                  <th style={{ padding: '10px 12px', color: 'var(--color-text-muted)', fontWeight: '600' }}>Company</th>
+                  <th style={{ padding: '10px 12px', color: 'var(--color-text-muted)', fontWeight: '600' }}>Associated Job</th>
+                  <th style={{ padding: '10px 12px', color: 'var(--color-text-muted)', fontWeight: '600' }}>Action</th>
+                  <th style={{ padding: '10px 12px', color: 'var(--color-text-muted)', fontWeight: '600' }}>Timestamp</th>
+                </tr>
+              </thead>
+              <tbody>
+                {logs.map((log) => (
+                  <tr key={log.id} style={{ borderBottom: '1px solid var(--color-border-subtle)' }}>
+                    <td style={{ padding: '10px 12px', fontWeight: '500' }}>
+                      {log.recruiter?.fullName || 'Recruiter'}
+                      {log.recruiter?.email && <span style={{ display: 'block', fontSize: '11px', color: 'var(--color-text-muted)' }}>{log.recruiter.email}</span>}
+                    </td>
+                    <td style={{ padding: '10px 12px' }}>{log.company?.name || 'Company'}</td>
+                    <td style={{ padding: '10px 12px' }}>{log.job?.title || 'Direct Search'}</td>
+                    <td style={{ padding: '10px 12px' }}>
+                      <StatusTag tone={log.accessType === 'download' ? 'info' : 'neutral'}>
+                        {log.accessType === 'download' ? 'Resume Downloaded' : 'Profile Viewed'}
+                      </StatusTag>
+                    </td>
+                    <td style={{ padding: '10px 12px', color: 'var(--color-text-muted)', whiteSpace: 'nowrap' }}>
+                      {log.timestamp ? new Date(log.timestamp).toLocaleString() : 'N/A'}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {pagination && pagination.pages > 1 && (
+            <Pagination
+              currentPage={page}
+              totalPages={pagination.pages}
+              onPageChange={setPage}
+            />
+          )}
+        </>
+      ) : (
+        <EmptyState
+          title="No access logs yet"
+          description="When recruiters discover your profile or download your resume, audit entries will be securely logged here."
+        />
+      )}
+    </div>
+  );
+}
+
 type ProfileItem =
   | CandidateProfile['skills'][number]
   | CandidateProfile['experience'][number]
@@ -1033,32 +1596,41 @@ function ProfileCollections({
   );
   if (!profile) return null;
   const groups = [
-    ['Skills', profile.skills, 'skills'],
-    ['Experience', profile.experience, 'experience'],
-    ['Education', profile.education, 'education'],
-    ['Projects', profile.projects, 'projects'],
-    ['Certifications', profile.certifications, 'certifications'],
+    { label: 'Skills', items: profile.skills, path: 'skills', icon: <Wrench size={18} /> },
+    { label: 'Experience', items: profile.experience, path: 'experience', icon: <Briefcase size={18} /> },
+    { label: 'Education', items: profile.education, path: 'education', icon: <GraduationCap size={18} /> },
+    { label: 'Projects', items: profile.projects, path: 'projects', icon: <FolderGit2 size={18} /> },
+    { label: 'Certifications', items: profile.certifications, path: 'certifications', icon: <Award size={18} /> },
   ] as const;
+
   return (
     <>
-      {groups.map(([label, items, path]) => (
-        <div key={path} style={{ marginBottom: '16px' }}>
-          <Card>
-            <div className="candidate-section-heading">
-              <h2>{label}</h2>
-              <Badge>{items.length}</Badge>
-              <Button
-                variant="secondary"
-                onClick={() => setEditor({ kind: path })}
-              >
-                Add {label.toLowerCase()}
-              </Button>
+      {groups.map(({ label, items, path, icon }) => (
+        <div key={path} className="collection-card-mindease">
+          <div className="collection-card-header">
+            <div className="collection-header-left">
+              <div className="collection-icon-badge">
+                {icon}
+              </div>
+              <h2 className="collection-title">{label}</h2>
+              <span className="collection-count-badge">{items.length}</span>
             </div>
-            {items.length ? (
-              <ul className="candidate-collection">
-                {items.map((item) => (
-                  <li key={item.id}>
-                    <ProfileItemContent item={item} path={path} />
+            <button
+              type="button"
+              className="btn-pill-dark"
+              onClick={() => setEditor({ kind: path })}
+            >
+              <Plus size={15} />
+              <span>Add {label.toLowerCase()}</span>
+            </button>
+          </div>
+
+          {items.length ? (
+            <ul className="candidate-collection" style={{ borderRadius: '12px', overflow: 'hidden', border: '1px solid #f1f5f9' }}>
+              {items.map((item) => (
+                <li key={item.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', background: '#f8fafc', borderBottom: '1px solid #f1f5f9' }}>
+                  <ProfileItemContent item={item} path={path} />
+                  <div style={{ display: 'flex', gap: '8px' }}>
                     <Button
                       variant="quiet"
                       onClick={() => setEditor({ kind: path, id: item.id })}
@@ -1076,21 +1648,22 @@ function ProfileCollections({
                     >
                       Remove
                     </Button>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p>No {label.toLowerCase()} added.</p>
-            )}
-          </Card>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p style={{ fontSize: '13px', color: '#64748b', margin: '4px 0 0 0' }}>No {label.toLowerCase()} added yet.</p>
+          )}
+
           {editor && editor.kind === path && (
-            <div style={{ marginTop: '12px' }}>
+            <div style={{ marginTop: '16px' }}>
               <CollectionEditor
                 kind={editor.kind}
                 id={editor.id}
                 data={
                   groups
-                    .find((group) => group[2] === editor.kind)?.[1]
+                    .find((group) => group.path === editor.kind)?.items
                     .find((item) => item.id === editor.id) as
                     Record<string, unknown> | undefined
                 }
@@ -1147,9 +1720,8 @@ function CollectionEditor({
       value = (name: string) => String(f.get(name) ?? '').trim();
     let body: Record<string, unknown>;
     if (kind === 'skills') {
-      const finalSkillName = skillSelect === 'other' ? customSkill.trim() : skillSelect;
       body = {
-        name: finalSkillName,
+        name: value('name'),
         proficiency: value('proficiency'),
         yearsOfExperience: Number(value('yearsOfExperience') || 0),
       };
@@ -1223,55 +1795,50 @@ function CollectionEditor({
       <form className="candidate-editor" onSubmit={submit}>
         {kind === 'skills' && (
           <>
-            <label htmlFor="collection-skill-name">
-              Skill name
-              <Select
-                id="collection-skill-name"
-                name="skillSelect"
-                value={skillSelect}
-                onChange={(e) => setSkillSelect(e.target.value)}
-                options={[
-                  ...predefinedSkills.map((s) => ({ value: s, label: s })),
-                  { value: 'other', label: 'Other (Enter custom skill)' },
-                ]}
-              />
-            </label>
-            {skillSelect === 'other' && (
-              <label htmlFor="collection-skill-custom" style={{ marginTop: '12px', display: 'block' }}>
-                Custom skill name
-                <TextField
-                  id="collection-skill-custom"
-                  name="customSkill"
-                  aria-label="Custom skill name"
-                  required
-                  maxLength={100}
-                  value={customSkill}
-                  onChange={(e) => setCustomSkill(e.target.value)}
+            <FormField label="Skill name">
+              {({ id }) => (
+                <>
+                  <TextField
+                    id={id}
+                    name="name"
+                    required
+                    maxLength={100}
+                    defaultValue={String(data?.name ?? '')}
+                    placeholder="e.g. React, TypeScript, Research"
+                    list="predefined-skills-list"
+                  />
+                  <datalist id="predefined-skills-list">
+                    {predefinedSkills.map((s) => (
+                      <option key={s} value={s} />
+                    ))}
+                  </datalist>
+                </>
+              )}
+            </FormField>
+            <FormField label="Proficiency">
+              {({ id }) => (
+                <Select
+                  id={id}
+                  name="proficiency"
+                  options={['beginner', 'intermediate', 'advanced', 'expert'].map(
+                    (value) => ({ value, label: value }),
+                  )}
+                  defaultValue={String(data?.proficiency ?? 'intermediate')}
                 />
-              </label>
-            )}
-            <label htmlFor="collection-proficiency">
-              Proficiency
-              <Select
-                id="collection-proficiency"
-                name="proficiency"
-                options={['beginner', 'intermediate', 'advanced', 'expert'].map(
-                  (value) => ({ value, label: value }),
-                )}
-                defaultValue={String(data?.proficiency ?? 'intermediate')}
-              />
-            </label>
-            <label htmlFor="collection-years">
-              Years of experience
-              <TextField
-                id="collection-years"
-                name="yearsOfExperience"
-                type="number"
-                min="0"
-                max="60"
-                defaultValue={String(data?.yearsOfExperience ?? 0)}
-              />
-            </label>
+              )}
+            </FormField>
+            <FormField label="Years of experience">
+              {({ id }) => (
+                <TextField
+                  id={id}
+                  name="yearsOfExperience"
+                  type="number"
+                  min="0"
+                  max="60"
+                  defaultValue={String(data?.yearsOfExperience ?? 0)}
+                />
+              )}
+            </FormField>
           </>
         )}
         {kind === 'experience' && (
@@ -1527,11 +2094,18 @@ export function CandidateJobsPage() {
   const query = params.toString() || 'page=1&limit=20';
   const q = useJobs(query);
   return (
-    <div className="candidate-page">
-      <PageHeader
-        title="Find jobs"
-        description="Search currently published opportunities."
-      />
+    <div className="candidate-page candidate-domain-container">
+      <div className="candidate-hero-banner-mindease">
+        <div className="banner-left-content">
+          <div className="banner-icon-badge theme-blue">
+            <Search size={22} />
+          </div>
+          <div className="banner-text-details">
+            <h1 className="banner-title">Find Jobs</h1>
+            <p className="banner-subtext">Search currently published opportunities.</p>
+          </div>
+        </div>
+      </div>
       <form
         className="candidate-search"
         onSubmit={(e) => {
@@ -2372,91 +2946,165 @@ export function CandidateSettingsPage() {
     }
   };
 
+  const initials = (user?.fullName || 'Candidate')
+    .split(' ')
+    .map((n) => n[0])
+    .join('')
+    .substring(0, 2)
+    .toUpperCase();
+
   return (
-    <div className="candidate-page">
-      <PageHeader
-        title="Settings"
-        description="Account access, privacy and notification choices."
-      />
-      <Card>
-        <h2>Account</h2>
-        <dl>
-          <dt>Name</dt>
-          <dd>{user?.fullName}</dd>
-          <dt>Email</dt>
-          <dd>{user?.email}</dd>
-        </dl>
-        <Button variant="danger" onClick={() => void logout()}>
-          Sign out
-        </Button>
-      </Card>
-      <div className="candidate-summary">
-        <Card>
-          <h2>Connected Accounts</h2>
-          <p className="text-sm text-slate-500 mb-4">
-            Connect third-party login providers to sign in to Talvix.
-          </p>
-          {hasGoogle ? (
-            <div className="flex flex-col gap-2">
-              <div className="flex items-center gap-2 text-sm font-semibold text-emerald-600">
-                <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                <span>Google connected</span>
-              </div>
-              <Button
-                variant="secondary"
-                disabled={isLinking}
-                onClick={handleUnlink}
-                className="mt-2 text-xs py-1"
-              >
-                Unlink Google Account
-              </Button>
+    <div className="candidate-page candidate-settings-container">
+      {/* Account Hero Banner Card */}
+      <div className="settings-account-hero">
+        <div className="account-hero-left">
+          <div className="account-avatar-wrapper">
+            <div className="account-avatar-circle">{initials}</div>
+            <span className="account-status-dot" title="Active Account"></span>
+          </div>
+          <div className="account-user-details">
+            <div className="account-badge-row">
+              <span className="account-role-pill">Candidate Workspace</span>
             </div>
-          ) : (
-            <div className="flex flex-col gap-2">
-              <span className="text-xs text-slate-400 mb-2">Google is not connected.</span>
-              <div 
-                onClick={handleGoogleClickPlaceholder}
-                className="relative w-full max-w-[240px] flex justify-center h-[36px] cursor-pointer"
-              >
-                {/* Custom visual representation */}
-                <div className="absolute inset-0 flex items-center justify-center gap-2 py-1.5 px-3 border border-slate-200 bg-white hover:bg-slate-50/50 rounded-lg font-semibold text-[11px] text-slate-700 shadow-sm pointer-events-none select-none w-full">
-                  <svg className="w-3.5 h-3.5 shrink-0" viewBox="0 0 24 24" aria-hidden="true">
-                    <path fill="#EA4335" d="M12 5.04c1.66 0 3.2.57 4.38 1.69l3.27-3.27C17.67 1.48 14.98 0 12 0 7.31 0 3.25 2.69 1.25 6.63l3.87 3C6.06 6.88 8.81 5.04 12 5.04z"/>
-                    <path fill="#4285F4" d="M23.49 12.27c0-.81-.07-1.59-.2-2.36H12v4.51h6.46c-.29 1.48-1.14 2.73-2.4 3.58v3l3.87 3c2.26-2.09 3.56-5.17 3.56-8.73z"/>
-                    <path fill="#34A853" d="M5.12 14.37c-.24-.72-.37-1.49-.37-2.37s.13-1.65.37-2.37V6.63H1.25C.45 8.24 0 10.06 0 12s.45 3.76 1.25 5.37l3.87-3z"/>
-                    <path fill="#FBBC05" d="M12 18.96c-3.19 0-5.94-1.84-6.88-4.59l-3.87 3C3.25 21.31 7.31 24 12 24c3.24 0 6.13-1.07 8.17-2.91l-3.87-3c-1.13.75-2.6 1.17-4.3 1.17z"/>
-                  </svg>
-                  <span>Connect Google Account</span>
+            <h2 className="account-user-name">{user?.fullName || 'Candidate'}</h2>
+            <p className="account-user-email">{user?.email}</p>
+          </div>
+        </div>
+        <div className="account-hero-right">
+          <button
+            type="button"
+            className="settings-signout-btn"
+            onClick={() => void logout()}
+          >
+            <LogOut size={16} />
+            <span>Sign out</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Settings Cards Grid */}
+      <div className="settings-grid-mindease">
+        {/* Connected Accounts */}
+        <div className="settings-card-mindease card-stagger-1">
+          <div className="settings-card-header">
+            <div className="settings-icon-box theme-blue">
+              <Link2 size={20} />
+            </div>
+            <div className="settings-card-title-group">
+              <h3>Connected Accounts</h3>
+              <p>Sign in provider integrations</p>
+            </div>
+          </div>
+          <p className="settings-card-desc">
+            Connect third-party login providers to sign in to Talvix securely.
+          </p>
+          <div className="settings-card-action">
+            {hasGoogle ? (
+              <div className="connected-status-box">
+                <div className="connected-badge">
+                  <span className="connected-dot"></span>
+                  <span>Google connected</span>
                 </div>
-                {/* Real hidden GSI button overlay */}
-                <div 
-                  ref={linkRef} 
-                  className="absolute inset-0 opacity-[0.01] cursor-pointer w-full [&_iframe]:w-full"
-                ></div>
+                <Button
+                  variant="secondary"
+                  disabled={isLinking}
+                  onClick={handleUnlink}
+                  className="unlink-google-btn"
+                >
+                  Unlink Google Account
+                </Button>
               </div>
+            ) : (
+              <div className="connect-google-container">
+                <span className="connect-note">Google is not connected.</span>
+                <div 
+                  onClick={handleGoogleClickPlaceholder}
+                  className="google-connect-pill-btn"
+                >
+                  <div className="google-connect-inner">
+                    <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24" aria-hidden="true">
+                      <path fill="#EA4335" d="M12 5.04c1.66 0 3.2.57 4.38 1.69l3.27-3.27C17.67 1.48 14.98 0 12 0 7.31 0 3.25 2.69 1.25 6.63l3.87 3C6.06 6.88 8.81 5.04 12 5.04z"/>
+                      <path fill="#4285F4" d="M23.49 12.27c0-.81-.07-1.59-.2-2.36H12v4.51h6.46c-.29 1.48-1.14 2.73-2.4 3.58v3l3.87 3c2.26-2.09 3.56-5.17 3.56-8.73z"/>
+                      <path fill="#34A853" d="M5.12 14.37c-.24-.72-.37-1.49-.37-2.37s.13-1.65.37-2.37V6.63H1.25C.45 8.24 0 10.06 0 12s.45 3.76 1.25 5.37l3.87-3z"/>
+                      <path fill="#FBBC05" d="M12 18.96c-3.19 0-5.94-1.84-6.88-4.59l-3.87 3C3.25 21.31 7.31 24 12 24c3.24 0 6.13-1.07 8.17-2.91l-3.87-3c-1.13.75-2.6 1.17-4.3 1.17z"/>
+                    </svg>
+                    <span>Connect Google Account</span>
+                  </div>
+                  <div 
+                    ref={linkRef} 
+                    className="absolute inset-0 opacity-[0.01] cursor-pointer w-full [&_iframe]:w-full"
+                  ></div>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Notifications */}
+        <div className="settings-card-mindease card-stagger-2">
+          <div className="settings-card-header">
+            <div className="settings-icon-box theme-purple">
+              <Bell size={20} />
             </div>
-          )}
-        </Card>
-        <Card>
-          <h2>Notifications</h2>
-          <p>Manage supported delivery channels.</p>
-          <Link to="/candidate/settings/notifications">
-            Notification preferences
-          </Link>
-        </Card>
-        <Card>
-          <h2>Privacy</h2>
-          <p>Control candidate profile discoverability.</p>
-          <Link to="/candidate/settings/privacy">Privacy settings</Link>
-        </Card>
-        <Card>
-          <h2>Security</h2>
-          <p>
-            Password changes, MFA and session history are not supported by the
-            current API.
+            <div className="settings-card-title-group">
+              <h3>Notifications</h3>
+              <p>Delivery channels & digests</p>
+            </div>
+          </div>
+          <p className="settings-card-desc">
+            Manage email notifications, in-app alerts, quiet hours, and digest frequencies.
           </p>
-          <Link to="/candidate/settings/security">View availability</Link>
-        </Card>
+          <div className="settings-card-action">
+            <Link to="/candidate/settings/notifications" className="settings-action-pill-btn">
+              <span>Notification preferences</span>
+              <ArrowRight size={16} />
+            </Link>
+          </div>
+        </div>
+
+        {/* Privacy */}
+        <div className="settings-card-mindease card-stagger-3">
+          <div className="settings-card-header">
+            <div className="settings-icon-box theme-green">
+              <Eye size={20} />
+            </div>
+            <div className="settings-card-title-group">
+              <h3>Privacy</h3>
+              <p>Profile discoverability</p>
+            </div>
+          </div>
+          <p className="settings-card-desc">
+            Control candidate profile discoverability for recruiters and hiring managers.
+          </p>
+          <div className="settings-card-action">
+            <Link to="/candidate/settings/privacy" className="settings-action-pill-btn">
+              <span>Privacy settings</span>
+              <ArrowRight size={16} />
+            </Link>
+          </div>
+        </div>
+
+        {/* Security */}
+        <div className="settings-card-mindease card-stagger-4">
+          <div className="settings-card-header">
+            <div className="settings-icon-box theme-yellow">
+              <ShieldCheck size={20} />
+            </div>
+            <div className="settings-card-title-group">
+              <h3>Security</h3>
+              <p>Credentials & session management</p>
+            </div>
+          </div>
+          <p className="settings-card-desc">
+            Review security features, MFA availability, and session control policies.
+          </p>
+          <div className="settings-card-action">
+            <Link to="/candidate/settings/security" className="settings-action-pill-btn">
+              <span>View availability</span>
+              <ArrowRight size={16} />
+            </Link>
+          </div>
+        </div>
       </div>
     </div>
   );

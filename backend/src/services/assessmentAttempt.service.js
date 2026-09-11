@@ -108,7 +108,7 @@ export const saveAnswer = async (candidate, id, input, requestMeta) => {
     throw new AppError('Question not found in attempt', 400);
   }
   if (['single-choice', 'multiple-choice', 'output-prediction'].includes(question.type)) {
-    if (question.options?.length) {
+    if (question.options?.length && input.answer !== undefined && input.answer !== null) {
       const selected = Array.isArray(input.answer) ? input.answer : [input.answer];
       if (selected.some((value) => !question.options.some((option) => option.id === value))) {
         throw new AppError('Answer contains an invalid option', 400);
@@ -116,7 +116,7 @@ export const saveAnswer = async (candidate, id, input, requestMeta) => {
     }
   }
   if (['coding', 'sql', 'debugging'].includes(question.type)) {
-    if (!input.code || !input.language || !question.coding?.languageSupport?.includes(input.language)) {
+    if (input.code === undefined || !input.language || !question.coding?.languageSupport?.includes(input.language)) {
       throw new AppError('Supported language and code are required', 400);
     }
   }
@@ -146,6 +146,7 @@ export const submitAttempt = async (candidate, id, reason = 'candidate-submit', 
     attempt.submittedAt = new Date();
     assignment.status = 'expired';
     await Promise.all([attempt.save(), assignment.save()]);
+    await completeApplication(assignment, candidate);
     return attempt;
   }
   
@@ -168,7 +169,7 @@ export const submitAttempt = async (candidate, id, reason = 'candidate-submit', 
   
   if (!grading.manual) assignment.completedAt = new Date();
   await Promise.all([attempt.save(), assignment.save()]);
-  if (!grading.manual) await completeApplication(assignment, candidate);
+  await completeApplication(assignment, candidate);
   
   broadcastAssessmentActivity(attempt.company, attempt.id, 'submitted', { score: attempt.evaluation?.percentage });
   return attempt;

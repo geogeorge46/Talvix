@@ -74,6 +74,7 @@ describe('Talent Pool API', () => {
       name: 'Talent Labs',
       slug: 'talent-labs',
       owner: recruiter.user._id,
+      verificationStatus: 'verified',
       teamMembers: [{ recruiter: recruiter.user._id, role: 'owner', permissions: ['jobs.update'], status: 'active' }]
     });
 
@@ -157,6 +158,7 @@ describe('Talent Pool API', () => {
       name: 'Sorting Corp',
       slug: 'sorting-corp',
       owner: recruiter.user._id,
+      verificationStatus: 'verified',
       teamMembers: [{ recruiter: recruiter.user._id, role: 'owner', permissions: ['jobs.update'], status: 'active' }]
     });
 

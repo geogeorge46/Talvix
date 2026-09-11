@@ -44,6 +44,7 @@ import {
   ApplicationsPage,
   CandidateDetailPage,
   CandidatesPage,
+  CandidateComparisonPage,
 } from '../features/ats-workspace';
 import {
   AssessmentDetailPage,
@@ -142,6 +143,7 @@ import {
   OfferAnalyticsPage,
   PlatformHealthPage,
   AIConsolePage,
+  AdminProfileSettingsPage,
 } from '../features/system-admin';
 import { ResumeIntelligenceDashboard } from '../features/resume-intelligence/ResumeIntelligenceDashboard';
 import { JobIntelligenceDashboard } from '../features/job-intelligence/JobIntelligenceDashboard';
@@ -494,6 +496,14 @@ export function AppRoutes() {
           element={<UnsupportedOrganizationPage kind="exports" />}
         />
         <Route
+          path="applications/compare"
+          element={
+            <CapabilityRoute anyPermission={['applications.view']}>
+              <CandidateComparisonPage />
+            </CapabilityRoute>
+          }
+        />
+        <Route
           path="applications/:applicationId"
           element={
             <CapabilityRoute anyPermission={['applications.view']}>
@@ -789,6 +799,8 @@ export function AppRoutes() {
         <Route path="communications" element={<AdminCommunicationsPage />} />
         <Route path="analytics" element={<AdminAnalyticsPage />} />
         <Route path="ai-console" element={<AIConsolePage />} />
+        <Route path="profile" element={<AdminProfileSettingsPage />} />
+        <Route path="settings" element={<AdminProfileSettingsPage />} />
         <Route path="analytics/users" element={<UsersAnalyticsPage />} />
         <Route path="analytics/companies" element={<CompaniesAnalyticsPage />} />
         <Route path="analytics/recruiters" element={<RecruitersAnalyticsPage />} />

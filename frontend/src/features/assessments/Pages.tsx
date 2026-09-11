@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { ClipboardCheck } from 'lucide-react';
 import {
   Link,
   useNavigate,
@@ -31,14 +32,18 @@ import {
   useAssessments,
   useAssessmentAction,
   useAssessmentSave,
+  useComposition,
   useAssignment,
   useAssignments,
   useAttempt,
   useResult,
   useReviews,
+  useReview,
+  useReviewAction,
   useSaveAnswer,
   useStart,
   useSubmit,
+  useQuestions,
 } from './api';
 import {
   formatDate,
@@ -65,6 +70,8 @@ function Tabs() {
     <nav className="as-tabs" aria-label="Assessment sections">
       <Link to="/org/assessments">Definitions</Link>
       <Link to="/org/assessments/assignments">Assignments</Link>
+      <Link to="/org/assessments/questions">Question Bank</Link>
+      <Link to="/org/assessments/blueprints">Blueprints</Link>
       <Link to="/org/assessments/reviews">Reviews</Link>
     </nav>
   );
@@ -379,24 +386,54 @@ export function AssessmentFormPage() {
     </form>
   );
 }
-function QuestionList({ a }: { a: Assessment }) {
+function QuestionList({
+  a,
+  manage,
+  onAddClick,
+  onRemove,
+  isRemoving,
+}: {
+  a: Assessment;
+  manage: boolean;
+  onAddClick?: () => void;
+  onRemove?: (questionId: string) => void;
+  isRemoving?: boolean;
+}) {
   return (
     <Card
       heading="Questions"
       headingLevel={2}
       description="Use the explicit controls to review composition. Dragging is never required."
+      actions={
+        manage && a.status === 'draft' && onAddClick ? (
+          <Button variant="secondary" onClick={onAddClick}>
+            Add question from bank
+          </Button>
+        ) : undefined
+      }
     >
       {a.questions.length ? (
-        <ol className="as-questions">
+        <ol className="as-questions" style={{ listStyle: 'none', padding: 0 }}>
           {a.questions.map((q, i) => (
-            <li key={q.id}>
-              <span>{i + 1}</span>
-              <div>
-                <strong>{q.title || q.prompt}</strong>
-                <small>
-                  {label(q.type)} · {q.marks} marks
-                </small>
+            <li key={q.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 0', borderBottom: '1px solid var(--color-border-default)' }}>
+              <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+                <span style={{ fontWeight: 600, color: 'var(--color-text-muted)' }}>{i + 1}</span>
+                <div>
+                  <strong>{q.title || q.prompt}</strong>
+                  <small style={{ display: 'block', color: 'var(--color-text-muted)', marginTop: '2px' }}>
+                    {label(q.type)} · {q.marks} marks
+                  </small>
+                </div>
               </div>
+              {manage && a.status === 'draft' && onRemove && (
+                <Button
+                  variant="danger"
+                  onClick={() => onRemove(q.id)}
+                  disabled={isRemoving}
+                >
+                  Remove
+                </Button>
+              )}
             </li>
           ))}
         </ol>
@@ -409,6 +446,77 @@ function QuestionList({ a }: { a: Assessment }) {
     </Card>
   );
 }
+
+function AddQuestionDialog({
+  open,
+  onOpenChange,
+  onAdd,
+  isAdding,
+  existingIds,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onAdd: (q: Question) => Promise<void>;
+  isAdding: boolean;
+  existingIds: string[];
+}) {
+  const query = useQuestions(open);
+  const questions = (query.data?.items ?? []) as Question[];
+
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={onOpenChange}
+      title="Add question from bank"
+      description="Choose a reusable question from the question bank to add to this assessment composition."
+    >
+      {query.isLoading ? (
+        <LoadingState label="Loading question bank" />
+      ) : query.isError ? (
+        <ErrorState detail={err(query.error)} retry={() => void query.refetch()} />
+      ) : questions.length === 0 ? (
+        <EmptyState
+          title="No reusable questions"
+          description="Create some questions in the Question Bank first."
+        />
+      ) : (
+        <div style={{ maxHeight: '400px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '12px', padding: '4px 0' }}>
+          {questions.map((q) => {
+            const added = existingIds.includes(q.id);
+            return (
+              <div
+                key={q.id}
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  padding: '12px',
+                  border: '1px solid var(--color-border-default)',
+                  borderRadius: '6px',
+                }}
+              >
+                <div>
+                  <strong style={{ display: 'block' }}>{q.title || q.prompt}</strong>
+                  <small style={{ color: 'var(--color-text-muted)' }}>
+                    {label(q.type)} · {q.marks} marks
+                  </small>
+                </div>
+                <Button
+                  variant="secondary"
+                  disabled={added || isAdding}
+                  onClick={() => void onAdd(q)}
+                >
+                  {added ? 'Added' : 'Add to Test'}
+                </Button>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </Dialog>
+  );
+}
+
 export function AssessmentDetailPage() {
   const { assessmentId = '' } = useParams();
   const { recruiter } = useAuth();
@@ -416,6 +524,9 @@ export function AssessmentDetailPage() {
     manage = has(recruiter?.permissions ?? [], 'assessments.manage');
   const q = useAssessment(assessmentId, view && oid.test(assessmentId));
   const action = useAssessmentAction(assessmentId);
+  const composition = useComposition(assessmentId);
+  const [addOpen, setAddOpen] = useState(false);
+
   if (!view)
     return (
       <PermissionState description="The assessments.view permission is required." />
@@ -425,6 +536,24 @@ export function AssessmentDetailPage() {
     return <ErrorState detail={err(q.error)} retry={() => void q.refetch()} />;
   if (!q.data) return null;
   const a = q.data;
+
+  const handleAddQuestion = async (question: Question) => {
+    await composition.mutateAsync({
+      action: 'add',
+      body: { questionId: question.id, marks: question.marks },
+    });
+    setAddOpen(false);
+  };
+
+  const handleRemoveQuestion = async (questionId: string) => {
+    await composition.mutateAsync({
+      action: 'remove',
+      questionId,
+    });
+  };
+
+  const existingIds = a.questions.map((q) => q.id);
+
   return (
     <div className="as-page">
       <PageHeader
@@ -489,8 +618,26 @@ export function AssessmentDetailPage() {
             {a.instructions || 'No instructions provided.'}
           </p>
         </Card>
-        <QuestionList a={a} />
+        <QuestionList
+          a={a}
+          manage={manage}
+          onAddClick={() => setAddOpen(true)}
+          onRemove={handleRemoveQuestion}
+          isRemoving={composition.isPending}
+        />
       </div>
+      {composition.isError && (
+        <Alert tone="danger" title="Question composition failed">
+          {err(composition.error)}
+        </Alert>
+      )}
+      <AddQuestionDialog
+        open={addOpen}
+        onOpenChange={setAddOpen}
+        onAdd={handleAddQuestion}
+        isAdding={composition.isPending}
+        existingIds={existingIds}
+      />
     </div>
   );
 }
@@ -538,16 +685,26 @@ export function AssignmentsPage({
     );
   const rows = (q.data?.items ?? []) as Assignment[];
   return (
-    <div className="as-page">
-      <PageHeader
-        title={candidate ? 'My assessments' : 'Assessment assignments'}
-        description={
-          candidate
-            ? 'Review instructions, deadlines and your assessment progress.'
-            : 'Monitor candidate assignments and result readiness.'
-        }
-        secondaryActions={!candidate ? <Tabs /> : undefined}
-      />
+    <div className={candidate ? "candidate-page candidate-domain-container" : "as-page"}>
+      {candidate ? (
+        <div className="candidate-hero-banner-mindease">
+          <div className="banner-left-content">
+            <div className="banner-icon-badge theme-green">
+              <ClipboardCheck size={22} />
+            </div>
+            <div className="banner-text-details">
+              <h1 className="banner-title">My Assessments</h1>
+              <p className="banner-subtext">Review instructions, deadlines and your assessment progress.</p>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <PageHeader
+          title="Assessment assignments"
+          description="Monitor candidate assignments and result readiness."
+          secondaryActions={<Tabs />}
+        />
+      )}
       <Select
         label="Status filter"
         value={p.get('status') || ''}
@@ -646,7 +803,7 @@ export function CandidateAssignmentPage() {
   const expired = Date.parse(a.expiresAt) <= loadedAt || a.status === 'expired';
   const begin = async () => {
     const x = await start.mutateAsync(a.id);
-    const id = (x.attempt as { _id?: string })?._id;
+    const id = (x.attempt as { id?: string; _id?: string })?.id || (x.attempt as { id?: string; _id?: string })?._id;
     if (id) nav(`/candidate/assessments/${a.id}/attempt/${id}`);
   };
   return (
@@ -876,6 +1033,23 @@ export function AttemptPage() {
         title={a.title}
         eyebrow={`Question ${index + 1} of ${a.questions.length}`}
         description="Manual save is required for each answer."
+        primaryAction={
+          <Button
+            variant="danger"
+            onClick={() => setConfirm(true)}
+            disabled={disabled || submit.isPending}
+          >
+            Finish & Submit
+          </Button>
+        }
+        secondaryActions={
+          <Button
+            variant="secondary"
+            onClick={() => nav('/candidate/assessments')}
+          >
+            Close & Exit
+          </Button>
+        }
       />
       <Timer deadline={a.expiresAt} onExpire={() => setExpired(true)} />
       <div className="as-attempt">
@@ -911,7 +1085,7 @@ export function AttemptPage() {
                   ? `Saved ${formatDate(saved[question.id] ?? '')}`
                   : 'Not saved'}
             </div>
-            <div className="as-actions">
+            <div className="as-actions" style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
               <Button
                 onClick={() => void doSave()}
                 loading={save.isPending}
@@ -924,6 +1098,13 @@ export function AttemptPage() {
                   Next question
                 </Button>
               )}
+              <Button
+                variant="secondary"
+                onClick={() => nav('/candidate/assessments')}
+              >
+                Close & Exit
+              </Button>
+              <div style={{ flexGrow: 1 }} />
               <Button
                 variant="danger"
                 onClick={() => setConfirm(true)}
@@ -977,10 +1158,37 @@ export function ResultPage() {
   if (q.isLoading) return <LoadingState label="Loading released result" />;
   if (q.isError) {
     const status = (q.error as ApiError).status;
+    if (status === 409) {
+      return (
+        <div className="as-page">
+          <PageHeader
+            title="Submission Successful"
+            eyebrow="Assessment completed"
+            description="Your answers have been submitted successfully."
+          />
+          <Card heading="Pending Manual Evaluation" headingLevel={2}>
+            <p>
+              This assessment contains questions that require manual review by the hiring team.
+              Once evaluated, your results will be finalized and updated on your profile.
+            </p>
+            <div style={{ marginTop: '16px' }}>
+              <Link className="tvx-button tvx-button--primary" to="/candidate/assessments">
+                Back to Assessments
+              </Link>
+            </div>
+          </Card>
+        </div>
+      );
+    }
     return status === 403 ? (
       <PermissionState
         title="Result not released"
         description="The hiring organization has not released this result to you."
+        action={
+          <Link className="tvx-button tvx-button--primary" to="/candidate/assessments">
+            Back to Assessments
+          </Link>
+        }
       />
     ) : (
       <ErrorState detail={err(q.error)} retry={() => void q.refetch()} />
@@ -1062,18 +1270,215 @@ export function ReviewsPage() {
     </div>
   );
 }
+function ReviewQuestionCard({
+  q,
+  answer,
+  result,
+  canReview,
+  onSaveScore,
+}: {
+  q: Question;
+  answer: unknown;
+  result?: any;
+  canReview: boolean;
+  onSaveScore: (awardedMarks: number, feedback: string) => Promise<void>;
+}) {
+  const [awardedMarks, setAwardedMarks] = useState(String(result?.awardedMarks ?? ''));
+  const [feedback, setFeedback] = useState(result?.feedback ?? '');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+
+  const handleSave = async () => {
+    try {
+      setSaving(true);
+      setError('');
+      const score = Number(awardedMarks);
+      if (isNaN(score) || score < 0 || score > q.marks) {
+        throw new Error(`Marks must be between 0 and ${q.marks}`);
+      }
+      await onSaveScore(score, feedback);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to save');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Card heading={`${q.title} (${q.marks} marks)`} headingLevel={3}>
+      <div className="space-y-4">
+        <div>
+          <strong>Prompt:</strong>
+          <p className="text-slate-700 mt-1 whitespace-pre-wrap">{q.prompt}</p>
+        </div>
+
+        <div>
+          <strong>Candidate Response:</strong>
+          {q.type === 'coding' ? (
+            <pre className="p-4 bg-slate-950 text-slate-100 rounded mt-1 overflow-x-auto font-mono text-sm">
+              <code>{String(answer || '// No response')}</code>
+            </pre>
+          ) : (
+            <p className="text-slate-800 bg-slate-50 p-3 border border-slate-200 rounded mt-1 whitespace-pre-wrap">
+              {String(answer || 'No response')}
+            </p>
+          )}
+        </div>
+
+        {result && (
+          <div className="p-3 bg-slate-100 border border-slate-200 rounded text-sm space-y-1">
+            <div><strong>Scoring Status:</strong> {result.requiresManualReview ? 'Pending Manual Review' : 'Scored'}</div>
+            <div><strong>Awarded Marks:</strong> {result.awardedMarks} / {result.marks}</div>
+            {result.feedback && <div><strong>Feedback:</strong> {result.feedback}</div>}
+            {result.codingResult && (
+              <div>
+                <strong>Execution Result:</strong>
+                <pre className="mt-1 p-2 bg-slate-800 text-white rounded text-xs overflow-x-auto font-mono">
+                  {JSON.stringify(result.codingResult, null, 2)}
+                </pre>
+              </div>
+            )}
+          </div>
+        )}
+
+        {canReview && result?.requiresManualReview && (
+          <div className="border-t border-slate-200 pt-4 space-y-3">
+            <h4 className="font-semibold text-sm">Grade Response</h4>
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+              <div className="md:col-span-1">
+                <TextField
+                  label={`Awarded Marks (Max ${q.marks})`}
+                  type="number"
+                  min="0"
+                  max={String(q.marks)}
+                  required
+                  value={awardedMarks}
+                  onChange={(e) => setAwardedMarks(e.target.value)}
+                />
+              </div>
+              <div className="md:col-span-2">
+                <TextField
+                  label="Feedback"
+                  value={feedback}
+                  onChange={(e) => setFeedback(e.target.value)}
+                />
+              </div>
+              <div className="md:col-span-1">
+                <Button onClick={handleSave} loading={saving} disabled={!awardedMarks}>
+                  Save Score
+                </Button>
+              </div>
+            </div>
+            {error && <Alert tone="danger" title="Validation Error">{error}</Alert>}
+          </div>
+        )}
+      </div>
+    </Card>
+  );
+}
+
 export function ReviewDetailPage() {
   const { attemptId = '' } = useParams();
+  const { recruiter } = useAuth();
+  const canReview = has(recruiter?.permissions ?? [], 'assessments.review');
+  const query = useReview(attemptId, canReview && Boolean(attemptId));
+  const action = useReviewAction(attemptId);
+  const [completionError, setCompletionError] = useState('');
+
+  if (!canReview) {
+    return (
+      <PermissionState description="The assessments.review permission is required to evaluate candidates." />
+    );
+  }
+
+  if (query.isLoading) return <LoadingState label="Loading candidate submission details" />;
+  if (query.isError) {
+    return (
+      <ErrorState
+        detail={err(query.error)}
+        retry={() => void query.refetch()}
+      />
+    );
+  }
+
+  const attempt = query.data;
+  if (!attempt) return null;
+
+  const handleSaveQuestionScore = async (questionId: string, awardedMarks: number, feedback: string) => {
+    await action.mutateAsync({ questionId, awardedMarks, feedback });
+    await query.refetch();
+  };
+
+  const handleCompleteReview = async () => {
+    try {
+      setCompletionError('');
+      await action.mutateAsync({ complete: true });
+      await query.refetch();
+    } catch (e) {
+      setCompletionError(e instanceof Error ? e.message : 'Could not finalize review');
+    }
+  };
+
+  const pendingQuestions = attempt.questionResults?.filter(q => q.requiresManualReview) ?? [];
+  const evalData = attempt.evaluation;
+
   return (
     <div className="as-page">
       <PageHeader
-        title="Assessment review"
-        description={`Review ${attemptId} using the immutable submitted snapshot.`}
+        title="Assessment Submission Review"
+        eyebrow={attempt.title}
+        description={`Status: ${label(attempt.status)}`}
+        secondaryActions={
+          attempt.status === 'review-pending' && pendingQuestions.length === 0 ? (
+            <Button onClick={handleCompleteReview} loading={action.isPending}>
+              Finalize & Complete Review
+            </Button>
+          ) : undefined
+        }
       />
-      <Alert tone="info" title="Structured review boundary">
-        Question scoring and feedback are sent only through the supported
-        per-question review API. Automated or AI evaluation is not available.
-      </Alert>
+
+      {attempt.status === 'review-pending' && pendingQuestions.length > 0 && (
+        <Alert tone="warning" title="Manual grading required">
+          There are {pendingQuestions.length} subjective or coding questions that require your manual score evaluation.
+        </Alert>
+      )}
+
+      {completionError && <Alert tone="danger" title="Review Finalization Error">{completionError}</Alert>}
+
+      <div className="space-y-6 mt-6">
+        {evalData && (
+          <Card heading="Evaluation Summary" headingLevel={2}>
+            <DescriptionList
+              items={[
+                { term: 'Current Score Percentage', description: `${evalData.percentage}%` },
+                { term: 'Objective/MCQ Score', description: `${evalData.objectiveScore} marks` },
+                { term: 'Subjective/Manual Score', description: `${evalData.subjectiveScore} marks` },
+                { term: 'Coding Score', description: `${evalData.codingScore} marks` },
+                { term: 'Total Score Calculated', description: `${evalData.totalScore} marks` },
+                { term: 'Passing Status', description: evalData.passed ? 'Passed' : 'Failed' },
+              ]}
+            />
+          </Card>
+        )}
+
+        <div className="space-y-4">
+          <h3 className="text-xl font-bold">Responses & Grading</h3>
+          {attempt.questions.map((q) => {
+            const answer = attempt.answers[q.id];
+            const result = attempt.questionResults?.find(r => r.questionId === q.id);
+            return (
+              <ReviewQuestionCard
+                key={q.id}
+                q={q}
+                answer={answer}
+                result={result}
+                canReview={attempt.status === 'review-pending'}
+                onSaveScore={(marks, fb) => handleSaveQuestionScore(q.id, marks, fb)}
+              />
+            );
+          })}
+        </div>
+      </div>
     </div>
   );
 }

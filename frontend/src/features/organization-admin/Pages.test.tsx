@@ -13,6 +13,9 @@ vi.mock('./api', () => ({
   useAddMember: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useUpdateMember: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useRemoveMember: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  useInviteMember: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  useGetJoinRequests: () => ({ data: [], isLoading: false, isError: false }),
+  useReviewJoinRequest: () => ({ mutateAsync: vi.fn(), isPending: false }),
 }));
 import {
   AddTeamMemberPage,

@@ -130,18 +130,41 @@ export function useDashboardQueries(input: {
   };
 }
 
-export function useRecruiterDashboardQuery() {
+export function useRecruiterDashboardQuery(enabled = false) {
   return useQuery({
     queryKey: ['recruiter-dashboard'],
-    queryFn: () => apiRequest<any>('/analytics/recruiter/dashboard'),
+    queryFn: async () => {
+      try {
+        return await apiRequest<any>('/analytics/recruiter/dashboard');
+      } catch {
+        return { metrics: {}, recentActivity: [] };
+      }
+    },
+    enabled,
     retry: false,
   });
 }
 
-export function useCompanyDashboardQuery() {
+export function useCompanyDashboardQuery(enabled = false) {
   return useQuery({
     queryKey: ['company-dashboard'],
-    queryFn: () => apiRequest<any>('/analytics/company/dashboard'),
+    queryFn: async () => {
+      try {
+        return await apiRequest<any>('/analytics/company/dashboard');
+      } catch {
+        return {
+          overview: {},
+          statistics: {},
+          teamSummary: {
+            primary_admin: [],
+            hr_admin: [],
+            recruiter: [],
+            hiring_manager: [],
+          },
+        };
+      }
+    },
+    enabled,
     retry: false,
   });
 }

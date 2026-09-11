@@ -84,6 +84,7 @@ export function useMoveApplication(id: string) {
         qc.invalidateQueries({ queryKey: ['ats-applications'] }),
         qc.invalidateQueries({ queryKey: ['ats-pipeline'] }),
         qc.invalidateQueries({ queryKey: ['ats-application', id] }),
+        qc.invalidateQueries({ queryKey: ['ats-application-timeline', id] }),
       ]);
     },
   });
@@ -230,5 +231,28 @@ export function useDeleteApplicationNote(applicationId: string) {
       qc.invalidateQueries({ queryKey: ['ats-application', applicationId] });
       qc.invalidateQueries({ queryKey: ['ats-application-timeline', applicationId] });
     },
+  });
+}
+
+export interface CandidateComparisonRow {
+  applicationId: string;
+  candidateId: string;
+  candidateName: string;
+  skillMatchScore: number;
+  assessmentScore: number | null;
+  mcqScore: number | null;
+  codingScore: number | null;
+  experienceYears: number;
+  currentStage: string;
+}
+
+export function useCandidateComparison(jobId: string | undefined, enabled = true) {
+  return useQuery({
+    queryKey: ['ats-candidate-comparison', jobId],
+    enabled: enabled && Boolean(jobId),
+    retry: false,
+    queryFn: () =>
+      apiRequest<{ comparison: CandidateComparisonRow[] }>(`/jobs/manage/${jobId}/candidate-comparison`),
+    select: (v) => v.comparison,
   });
 }

@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { Cpu, Activity, ShieldAlert, CheckCircle2, RadioTower, ShieldCheck, Zap } from 'lucide-react';
 import { apiRequest } from '../../api/client';
 import { Button } from '../../design-system';
 
@@ -86,28 +87,28 @@ export function AIConsolePage() {
   const queryClient = useQueryClient();
 
   // Queries
-  const { data: config, isLoading: loadingConfig } = useQuery<AIConfig>({
+  const { data: config } = useQuery<AIConfig>({
     queryKey: ['admin-ai-config'],
     queryFn: () => apiRequest<AIConfig>('/admin/ai/config'),
   });
 
-  const { data: providers, isLoading: loadingProviders } = useQuery<AIProvider[]>({
+  const { data: providers } = useQuery<AIProvider[]>({
     queryKey: ['admin-ai-providers'],
     queryFn: () => apiRequest<AIProvider[]>('/admin/ai/providers'),
   });
 
-  const { data: prompts, isLoading: loadingPrompts } = useQuery<AIPrompt[]>({
+  const { data: prompts } = useQuery<AIPrompt[]>({
     queryKey: ['admin-ai-prompts'],
     queryFn: () => apiRequest<AIPrompt[]>('/admin/ai/prompts'),
   });
 
-  const { data: health, isLoading: loadingHealth } = useQuery<AIHealth>({
+  const { data: health } = useQuery<AIHealth>({
     queryKey: ['admin-ai-health'],
     queryFn: () => apiRequest<AIHealth>('/admin/ai/health'),
     refetchInterval: 15000,
   });
 
-  const { data: logs, isLoading: loadingLogs } = useQuery<AIUsageLog[]>({
+  const { data: logs } = useQuery<AIUsageLog[]>({
     queryKey: ['admin-ai-logs'],
     queryFn: () => apiRequest<AIUsageLog[]>('/admin/ai/logs'),
   });
@@ -212,7 +213,7 @@ export function AIConsolePage() {
       </header>
 
       {/* Tabs */}
-      <nav className="sys-tabs">
+      <nav className="sys-tabs" style={{ marginBottom: '24px' }}>
         <button aria-selected={activeTab === 'overview'} onClick={() => setActiveTab('overview')}>Overview & Health</button>
         <button aria-selected={activeTab === 'providers'} onClick={() => setActiveTab('providers')}>AI Providers</button>
         <button aria-selected={activeTab === 'prompts'} onClick={() => setActiveTab('prompts')}>Prompt Templates</button>
@@ -223,49 +224,50 @@ export function AIConsolePage() {
       {/* Overview & Health Tab */}
       {activeTab === 'overview' && (
         <section style={{ animation: 'sys-in 0.35s ease both' }}>
-          <div className="sys-metrics" style={{ marginTop: '24px' }}>
-            <article className="sys-metric--lead">
-              <span>Primary Engine Status</span>
-              <strong>{config?.primaryProvider.toUpperCase() ?? 'GEMINI'}</strong>
-              <small>Fallbacks: {config?.fallbackProvider?.toUpperCase() ?? 'None'}</small>
+          {/* Overview-style KPI Cards Grid */}
+          <div className="sys-overview-kpi-grid" style={{ marginBottom: '24px' }}>
+            <article className="sys-overview-kpi-card">
+              <div className="sys-overview-kpi-icon-box"><Cpu size={16} /></div>
+              <span className="sys-overview-kpi-label">Primary Engine</span>
+              <strong className="sys-overview-kpi-value" style={{ fontSize: '1.6rem' }}>{config?.primaryProvider.toUpperCase() ?? 'GEMINI'}</strong>
+              <span className="sys-overview-kpi-subtext">Fallback: {config?.fallbackProvider?.toUpperCase() ?? 'None'}</span>
             </article>
-            <article>
-              <span>Platform Health</span>
-              <strong className={health?.databaseState === 'connected' ? 'sys-status--good' : 'sys-status--bad'}>
+
+            <article className="sys-overview-kpi-card">
+              <div className="sys-overview-kpi-icon-box"><Activity size={16} /></div>
+              <span className="sys-overview-kpi-label">Platform Health</span>
+              <strong className="sys-overview-kpi-value" style={{ fontSize: '1.6rem', color: health?.databaseState === 'connected' ? 'var(--color-success-fg)' : 'var(--color-danger-fg)' }}>
                 {health?.databaseState === 'connected' ? 'ACTIVE' : 'OFFLINE'}
               </strong>
-              <small>Database: {health?.databaseState ?? 'Checking...'}</small>
+              <span className="sys-overview-kpi-subtext">Database: {health?.databaseState ?? 'Checking...'}</span>
             </article>
-            <article>
-              <span>Token Caching</span>
-              <strong>{health?.totalCacheSize ?? 0}</strong>
-              <small>Total Cached Responses</small>
+
+            <article className="sys-overview-kpi-card">
+              <div className="sys-overview-kpi-icon-box"><Zap size={16} /></div>
+              <span className="sys-overview-kpi-label">Token Caching</span>
+              <strong className="sys-overview-kpi-value">{health?.totalCacheSize ?? 0}</strong>
+              <span className="sys-overview-kpi-subtext">Cached responses</span>
             </article>
-            <article>
-              <span>Rate Limits (24h)</span>
-              <strong className={security?.rateLimitsTriggered24h ? 'sys-status--warn' : 'sys-status--good'}>
-                {security?.rateLimitsTriggered24h ?? 0}
-              </strong>
-              <small>Throttled Requests</small>
+
+            <article className="sys-overview-kpi-card">
+              <div className="sys-overview-kpi-icon-box"><RadioTower size={16} /></div>
+              <span className="sys-overview-kpi-label">Throttled (24h)</span>
+              <strong className="sys-overview-kpi-value">{security?.rateLimitsTriggered24h ?? 0}</strong>
+              <span className="sys-overview-kpi-subtext">Rate limit triggers</span>
             </article>
-            <article>
-              <span>Injection Blocks (24h)</span>
-              <strong className={security?.potentialPromptInjections24h ? 'sys-status--bad' : 'sys-status--good'}>
-                {security?.potentialPromptInjections24h ?? 0}
-              </strong>
-              <small>Potential Injections Filtered</small>
+
+            <article className="sys-overview-kpi-card">
+              <div className="sys-overview-kpi-icon-box"><ShieldAlert size={16} /></div>
+              <span className="sys-overview-kpi-label">Injections Filtered</span>
+              <strong className="sys-overview-kpi-value">{security?.potentialPromptInjections24h ?? 0}</strong>
+              <span className="sys-overview-kpi-subtext">Prompt injections blocked</span>
             </article>
-            <article>
-              <span>Avg Latency</span>
-              <strong>{health?.recentStats?.averageLatencyMs ?? 0}ms</strong>
-              <small>Across recent calls</small>
-            </article>
-            <article>
-              <span>Error Rate</span>
-              <strong className={health?.recentStats?.errorRatePercent && health.recentStats.errorRatePercent > 5 ? 'sys-status--bad' : 'sys-status--good'}>
-                {health?.recentStats?.errorRatePercent ?? 0}%
-              </strong>
-              <small>Last 60 minutes</small>
+
+            <article className="sys-overview-kpi-card">
+              <div className="sys-overview-kpi-icon-box"><ShieldCheck size={16} /></div>
+              <span className="sys-overview-kpi-label">Average Latency</span>
+              <strong className="sys-overview-kpi-value">{health?.recentStats?.averageLatencyMs ?? 0}ms</strong>
+              <span className="sys-overview-kpi-subtext">Across recent LLM calls</span>
             </article>
           </div>
         </section>

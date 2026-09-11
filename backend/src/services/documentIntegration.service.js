@@ -156,8 +156,14 @@ export const downloadManagedApplicationDocument = async (actor, company, applica
   const app = await Application.findById(applicationId);
   if (!app) throw new AppError('Application not found', 404);
 
-  const document = await scopedDocument({ _id: documentId, company, entityType: 'application', entityId: applicationId, access: { $in: ['company-private', 'candidate-visible'] } });
-  authorizeDocumentAccess({ actor, document, action: 'download', context: { company, recruiter: true } });
+  const document = await scopedDocument({
+    _id: documentId,
+    $or: [
+      { company, entityType: 'application', entityId: applicationId, access: { $in: ['company-private', 'candidate-visible'] } },
+      { _id: app.resumeDocument }
+    ]
+  });
+  authorizeDocumentAccess({ actor, document, action: 'download', context: { company, recruiter: true, application: app } });
 
   if (document.category === 'resume') {
     const compObj = await Company.findById(company);

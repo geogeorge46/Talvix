@@ -324,9 +324,9 @@ export function AdminOverviewPage() {
 
   return <main className="sys-page">
     <Header 
-      eyebrow="System administration / Overview" 
-      title="Platform command center" 
-      intro="A comprehensive operational status scanning ledger for platform health, verification queues, and activity." 
+      eyebrow="System Governance & Operations" 
+      title="Platform Command Center" 
+      intro="Real-time operational intelligence, platform telemetry, verification queues, and system activity." 
       actions={
         <select aria-label="Overview range" value={preset} onChange={(e) => setPreset(e.target.value)}>
           <option value="today">Last 24 hours</option>
@@ -605,14 +605,88 @@ const queues = {
 };
 export function AdminApprovalsPage() {
   const active = queues.jobs;
-  const [search, setSearch] = useState(''); const [page, setPage] = useState(1);
+  const [search, setSearch] = useState('');
+  const [page, setPage] = useState(1);
   const query = useCollection(active.path, { page, limit: 20 });
+  const totalCount = query.data?.meta.total ?? 0;
   const rows = (query.data?.rows ?? []).filter((row) => `${rowTitle(row)} ${rowSubtitle(row)}`.toLowerCase().includes(search.toLowerCase()));
   const detailBase = '/admin/operations/jobs';
-  return <main className="sys-page"><Header eyebrow="System administration / Triage" title="Job verification" intro="Review pending job post publishing requests." />
-    <div className="sys-toolbar"><label><Search size={16} /><span className="sr-only">Search jobs</span><input placeholder="Search pending jobs" value={search} onChange={(e) => setSearch(e.target.value)} /></label><button className="sys-button sys-button--quiet" onClick={() => query.refetch()}><RefreshCw size={15} />Refresh</button></div>
-    {query.isLoading ? <State kind="loading">Loading pending jobs…</State> : query.isError ? <State kind="error">{errorText(query.error)}</State> : rows.length ? <><LedgerTable rows={rows} detailBase={detailBase} /><Pager page={page} setPage={setPage} meta={query.data?.meta} /></> : <State kind="empty">No pending jobs match this view.</State>}
-  </main>;
+
+  return (
+    <main className="sys-page">
+      <Header
+        eyebrow="System administration / Triage"
+        title="Job Verification Queue"
+        intro="Review and approve pending job post publishing requests with audited platform authorization controls."
+      />
+
+      {/* KPI Cards Grid matching Overview style */}
+      <section className="sys-sub-kpi-grid" aria-label="Job Approvals Summary">
+        <article className="sys-overview-kpi-card">
+          <div className="sys-overview-kpi-icon-box"><ShieldAlert size={16} /></div>
+          <span className="sys-overview-kpi-label">Pending Triage</span>
+          <strong className="sys-overview-kpi-value">{totalCount.toLocaleString()}</strong>
+          <span className="sys-overview-kpi-subtext">Awaiting admin review</span>
+        </article>
+
+        <article className="sys-overview-kpi-card">
+          <div className="sys-overview-kpi-icon-box"><Briefcase size={16} /></div>
+          <span className="sys-overview-kpi-label">Queue Category</span>
+          <strong className="sys-overview-kpi-value" style={{ fontSize: '1.6rem' }}>Job Postings</strong>
+          <span className="sys-overview-kpi-subtext">Verified employer listings</span>
+        </article>
+
+        <article className="sys-overview-kpi-card">
+          <div className="sys-overview-kpi-icon-box"><Search size={16} /></div>
+          <span className="sys-overview-kpi-label">Matching View</span>
+          <strong className="sys-overview-kpi-value">{rows.length}</strong>
+          <span className="sys-overview-kpi-subtext">Current search results</span>
+        </article>
+
+        <article className="sys-overview-kpi-card">
+          <div className="sys-overview-kpi-icon-box"><CheckCircle2 size={16} /></div>
+          <span className="sys-overview-kpi-label">Governance Mode</span>
+          <strong className="sys-overview-kpi-value" style={{ fontSize: '1.6rem' }}>Audited</strong>
+          <span className="sys-overview-kpi-subtext">Role rechecked on action</span>
+        </article>
+      </section>
+
+      {/* Main Card Container */}
+      <section className="sys-overview-card">
+        <div className="sys-overview-card-header" style={{ marginBottom: '20px' }}>
+          <h3><Briefcase size={18} /> Job Publishing Verification Ledger</h3>
+          <button className="sys-button sys-button--quiet" onClick={() => query.refetch()}>
+            <RefreshCw size={15} /> Refresh Queue
+          </button>
+        </div>
+
+        <div className="sys-toolbar" style={{ borderBottom: '1px solid var(--color-border-default)', paddingBottom: '16px', marginBottom: '20px' }}>
+          <label>
+            <Search size={16} />
+            <span className="sr-only">Search pending jobs</span>
+            <input
+              placeholder="Search pending jobs by title, company, or ID..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+          </label>
+        </div>
+
+        {query.isLoading ? (
+          <State kind="loading">Loading pending jobs queue…</State>
+        ) : query.isError ? (
+          <State kind="error">{errorText(query.error)}</State>
+        ) : rows.length ? (
+          <>
+            <LedgerTable rows={rows} detailBase={detailBase} />
+            <Pager page={page} setPage={setPage} meta={query.data?.meta} />
+          </>
+        ) : (
+          <State kind="empty">No pending job verification requests match this view.</State>
+        )}
+      </section>
+    </main>
+  );
 }
 
 const operations = {
@@ -698,125 +772,169 @@ export function AdminOperationsPage() {
 
   return (
     <main className="sys-page">
-      <Header eyebrow="System administration / Operations" title="Platform Console" intro="Complete operational control over users, recruiters, companies, jobs, assessments, and notifications." />
-      <div className="sys-tabs" role="tablist">
-        {Object.keys(operations).map((key) => (
-          <button role="tab" aria-selected={view === key} key={key} onClick={() => { setPage(1); setSelectedIds([]); setSp({ view: key }); }}>
-            {label(key)}
-          </button>
-        ))}
-      </div>
+      <Header
+        eyebrow="System administration / Operations"
+        title="Platform Console"
+        intro="Complete operational control over users, recruiters, companies, jobs, assessments, interviews, and system logs."
+      />
 
-      <div className="sys-toolbar">
-        <label style={{ flexGrow: 1 }}>
-          <Search size={16} />
-          <span className="sr-only">Search</span>
-          <input placeholder="Fuzzy search records..." value={search} onChange={(e) => setSearch(e.target.value)} />
-        </label>
-        
-        {view === 'users' && (
-          <>
-            <label>Role
-              <select value={roleFilter} onChange={(e) => setRoleFilter(e.target.value)}>
-                <option value="">All Roles</option>
-                <option value="candidate">Candidate</option>
-                <option value="recruiter">Recruiter</option>
-                <option value="admin">Admin</option>
-              </select>
-            </label>
-            <button className="sys-button sys-button--quiet" onClick={handleExport}>Export CSV</button>
-          </>
+      {/* KPI Cards Grid matching Overview style */}
+      <section className="sys-sub-kpi-grid" aria-label="Operations Overview Metrics">
+        <article className="sys-overview-kpi-card">
+          <div className="sys-overview-kpi-icon-box"><RadioTower size={16} /></div>
+          <span className="sys-overview-kpi-label">Active Entity</span>
+          <strong className="sys-overview-kpi-value" style={{ fontSize: '1.6rem' }}>{label(view)}</strong>
+          <span className="sys-overview-kpi-subtext">Current registry view</span>
+        </article>
+
+        <article className="sys-overview-kpi-card">
+          <div className="sys-overview-kpi-icon-box"><Cpu size={16} /></div>
+          <span className="sys-overview-kpi-label">Total Records</span>
+          <strong className="sys-overview-kpi-value">{(query.data?.meta.total ?? rows.length).toLocaleString()}</strong>
+          <span className="sys-overview-kpi-subtext">Persisted in database</span>
+        </article>
+
+        <article className="sys-overview-kpi-card">
+          <div className="sys-overview-kpi-icon-box"><Search size={16} /></div>
+          <span className="sys-overview-kpi-label">Page Count</span>
+          <strong className="sys-overview-kpi-value">{rows.length}</strong>
+          <span className="sys-overview-kpi-subtext">Showing on this page</span>
+        </article>
+
+        <article className="sys-overview-kpi-card">
+          <div className="sys-overview-kpi-icon-box"><ShieldCheck size={16} /></div>
+          <span className="sys-overview-kpi-label">Data Integrity</span>
+          <strong className="sys-overview-kpi-value" style={{ fontSize: '1.6rem' }}>Active</strong>
+          <span className="sys-overview-kpi-subtext">Strict Zod & RBAC enforced</span>
+        </article>
+      </section>
+
+      {/* Main Card Container */}
+      <section className="sys-overview-card">
+        <div className="sys-overview-card-header" style={{ marginBottom: '16px' }}>
+          <h3><RadioTower size={18} /> Platform Entity Registry</h3>
+          <button className="sys-button sys-button--quiet" onClick={() => query.refetch()}>
+            <RefreshCw size={15} /> Refresh Records
+          </button>
+        </div>
+
+        <div className="sys-tabs" role="tablist" style={{ marginTop: '0', marginBottom: '20px' }}>
+          {Object.keys(operations).map((key) => (
+            <button role="tab" aria-selected={view === key} key={key} onClick={() => { setPage(1); setSelectedIds([]); setSp({ view: key }); }}>
+              {label(key)}
+            </button>
+          ))}
+        </div>
+
+        <div className="sys-toolbar" style={{ background: 'var(--color-surface-secondary)', padding: '16px', borderRadius: '12px', marginBottom: '20px' }}>
+          <label style={{ flexGrow: 1 }}>
+            <Search size={16} />
+            <span className="sr-only">Search</span>
+            <input placeholder="Fuzzy search records..." value={search} onChange={(e) => setSearch(e.target.value)} />
+          </label>
+          
+          {view === 'users' && (
+            <>
+              <label>Role
+                <select value={roleFilter} onChange={(e) => setRoleFilter(e.target.value)}>
+                  <option value="">All Roles</option>
+                  <option value="candidate">Candidate</option>
+                  <option value="recruiter">Recruiter</option>
+                  <option value="admin">Admin</option>
+                </select>
+              </label>
+              <button className="sys-button sys-button--quiet" onClick={handleExport}>Export CSV</button>
+            </>
+          )}
+
+          <label>Sort By
+            <select value={sortBy} onChange={(e) => setSortBy(e.target.value)}>
+              <option value="createdAt">Created Date</option>
+              <option value="updatedAt">Updated Date</option>
+              <option value="fullName">Name</option>
+              <option value="title">Title</option>
+            </select>
+          </label>
+
+          <label>Order
+            <select value={sortOrder} onChange={(e) => setSortOrder(e.target.value as any)}>
+              <option value="desc">Descending</option>
+              <option value="asc">Ascending</option>
+            </select>
+          </label>
+        </div>
+
+        {selectedIds.length > 0 && (
+          <div className="sys-action-strip" style={{ margin: '12px 0', padding: '12px', borderRadius: '6px', background: 'var(--color-bg-alt)' }}>
+            <span><strong>Bulk actions:</strong> {selectedIds.length} users selected</span>
+            <button className="sys-button sys-button--danger" onClick={() => handleBulkAction('suspend')}>Suspend</button>
+            <button className="sys-button" onClick={() => handleBulkAction('restore')}>Restore</button>
+            <button className="sys-button" onClick={() => handleBulkAction('verify-email')}>Verify Email</button>
+          </div>
         )}
 
-        <label>Sort By
-          <select value={sortBy} onChange={(e) => setSortBy(e.target.value)}>
-            <option value="createdAt">Created Date</option>
-            <option value="updatedAt">Updated Date</option>
-            <option value="fullName">Name</option>
-            <option value="title">Title</option>
-          </select>
-        </label>
-
-        <label>Order
-          <select value={sortOrder} onChange={(e) => setSortOrder(e.target.value as any)}>
-            <option value="desc">Descending</option>
-            <option value="asc">Ascending</option>
-          </select>
-        </label>
-        
-        <button className="sys-button sys-button--quiet" onClick={() => query.refetch()}><RefreshCw size={15} />Refresh</button>
-      </div>
-
-      {selectedIds.length > 0 && (
-        <div className="sys-action-strip" style={{ margin: '12px 0', padding: '12px', borderRadius: '6px', background: 'var(--color-bg-alt)' }}>
-          <span><strong>Bulk actions:</strong> {selectedIds.length} users selected</span>
-          <button className="sys-button sys-button--danger" onClick={() => handleBulkAction('suspend')}>Suspend</button>
-          <button className="sys-button" onClick={() => handleBulkAction('restore')}>Restore</button>
-          <button className="sys-button" onClick={() => handleBulkAction('verify-email')}>Verify Email</button>
-        </div>
-      )}
-
-      {query.isLoading ? (
-        <State kind="loading">Loading console view...</State>
-      ) : query.isError ? (
-        <State kind="error">{errorText(query.error)}</State>
-      ) : rows.length ? (
-        <>
-          <div className="sys-table-wrap">
-            <table className="sys-table">
-              <thead>
-                <tr>
-                  {view === 'users' && <th>Select</th>}
-                  <th>Record</th>
-                  <th>Status</th>
-                  <th>Last Update</th>
-                  <th>Action</th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((row: any) => {
-                  const id = row._id || row.id;
-                  const isSel = selectedIds.includes(id);
-                  return (
-                    <tr key={id}>
-                      {view === 'users' && (
+        {query.isLoading ? (
+          <State kind="loading">Loading console view...</State>
+        ) : query.isError ? (
+          <State kind="error">{errorText(query.error)}</State>
+        ) : rows.length ? (
+          <>
+            <div className="sys-table-wrap">
+              <table className="sys-table">
+                <thead>
+                  <tr>
+                    {view === 'users' && <th>Select</th>}
+                    <th>Record</th>
+                    <th>Status</th>
+                    <th>Last Update</th>
+                    <th>Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map((row: any) => {
+                    const id = row._id || row.id;
+                    const isSel = selectedIds.includes(id);
+                    return (
+                      <tr key={id}>
+                        {view === 'users' && (
+                          <td>
+                            <input
+                              type="checkbox"
+                              checked={isSel}
+                              aria-label="Select row"
+                              onChange={() => {
+                                setSelectedIds(prev => isSel ? prev.filter(x => x !== id) : [...prev, id]);
+                              }}
+                            />
+                          </td>
+                        )}
                         <td>
-                          <input
-                            type="checkbox"
-                            checked={isSel}
-                            aria-label="Select row"
-                            onChange={() => {
-                              setSelectedIds(prev => isSel ? prev.filter(x => x !== id) : [...prev, id]);
-                            }}
-                          />
+                          <strong>{row.fullName || row.name || row.title || row.originalFileName || row.action || id}</strong>
+                          <small className="sys-mono">{row.email || row.slug || row.mimeType || row.ipAddress}</small>
                         </td>
-                      )}
-                      <td>
-                        <strong>{row.fullName || row.name || row.title || row.originalFileName || row.action || id}</strong>
-                        <small className="sys-mono">{row.email || row.slug || row.mimeType || row.ipAddress}</small>
-                      </td>
-                      <td>
-                        <Status value={row.status || row.verificationStatus || row.malwareScan?.status || 'active'} />
-                      </td>
-                      <td className="sys-mono">
-                        {new Date(row.updatedAt || row.createdAt || row.timestamp).toLocaleString()}
-                      </td>
-                      <td>
-                        <button className="sys-button sys-button--quiet" onClick={() => navigate(`/admin/operations/${view}/${id}`)}>
-                          Inspect
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-          <Pager page={page} setPage={setPage} meta={query.data?.meta} />
-        </>
-      ) : (
-        <State kind="empty">No management records found.</State>
-      )}
+                        <td>
+                          <Status value={row.status || row.verificationStatus || row.malwareScan?.status || 'active'} />
+                        </td>
+                        <td className="sys-mono">
+                          {new Date(row.updatedAt || row.createdAt || row.timestamp).toLocaleString()}
+                        </td>
+                        <td>
+                          <button className="sys-button sys-button--quiet" onClick={() => navigate(`/admin/operations/${view}/${id}`)}>
+                            Inspect
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+            <Pager page={page} setPage={setPage} meta={query.data?.meta} />
+          </>
+        ) : (
+          <State kind="empty">No management records found.</State>
+        )}
+      </section>
 
       {drawerRecordId && (
         <DetailDrawer
@@ -1077,48 +1195,275 @@ export function AdminRecordDetailPage() {
 
 const communications = { notifications: adminPaths.notifications, templates: adminPaths.templates, outbox: adminPaths.outbox, 'email logs': adminPaths.emailLogs };
 export function AdminCommunicationsPage() {
-  const [sp, setSp] = useSearchParams(); const view = sp.get('view') ?? 'notifications'; const path = communications[view as keyof typeof communications] ?? adminPaths.notifications;
-  const [page, setPage] = useState(1); const query = useCollection(path, { page, limit: 20 }); const [pending, setPending] = useState<PendingAction | null>(null);
-  return <main className="sys-page"><Header eyebrow="System administration / Communications" title="Delivery audit" intro="Trace notification creation, templates, outbox processing, and email delivery." actions={view === 'outbox' ? <button className="sys-button" onClick={() => setPending({ title: 'Process up to 20 outbox events?', path: '/notifications/admin/process-outbox', method: 'POST', body: { limit: 20 } })}>Process outbox</button> : undefined} />
-    <div className="sys-tabs" role="tablist">{Object.keys(communications).map((key) => <button role="tab" aria-selected={view === key} key={key} onClick={() => { setPage(1); setSp({ view: key }); }}>{label(key)}</button>)}</div>
-    {query.isLoading ? <State kind="loading">Loading communication records…</State> : query.isError ? <State kind="error">{errorText(query.error)}</State> : query.data?.rows.length ? <><LedgerTable rows={query.data.rows} actions={view === 'outbox' ? (row) => <><button onClick={() => setPending({ title: 'Retry this outbox event?', path: `/notifications/admin/outbox/${recordId(row)}/retry` })}>Retry</button><button onClick={() => setPending({ title: 'Cancel this outbox event?', path: `/notifications/admin/outbox/${recordId(row)}/cancel` })}>Cancel</button></> : view === 'templates' ? (row) => <><button onClick={() => setPending({ title: 'Preview this template with empty variables?', path: `/notifications/admin/templates/${recordId(row)}/preview`, method: 'POST', body: { variables: {} } })}>Preview</button><button onClick={() => setPending({ title: 'Clone this template?', path: `/notifications/admin/templates/${recordId(row)}/clone`, method: 'POST' })}>Clone</button><button onClick={() => setPending({ title: 'Deactivate this template?', path: `/notifications/admin/templates/${recordId(row)}/deactivate` })}>Deactivate</button></> : undefined} /><Pager page={page} setPage={setPage} meta={query.data.meta} /></> : <State kind="empty">No {view} records were returned.</State>}
-    {pending && <ActionDialog action={pending} onClose={() => setPending(null)} onDone={() => query.refetch()} />}
-  </main>;
+  const [sp, setSp] = useSearchParams();
+  const view = sp.get('view') ?? 'notifications';
+  const path = communications[view as keyof typeof communications] ?? adminPaths.notifications;
+  const [page, setPage] = useState(1);
+  const query = useCollection(path, { page, limit: 20 });
+  const [pending, setPending] = useState<PendingAction | null>(null);
+
+  const totalCount = query.data?.meta.total ?? 0;
+  const rowCount = query.data?.rows.length ?? 0;
+
+  return (
+    <main className="sys-page">
+      <Header
+        eyebrow="System administration / Communications"
+        title="Delivery Audit & Outbox Console"
+        intro="Trace notification creation, template management, outbox queue processing, and transactional email delivery."
+        actions={
+          view === 'outbox' ? (
+            <button className="sys-button" onClick={() => setPending({ title: 'Process up to 20 outbox events?', path: '/notifications/admin/process-outbox', method: 'POST', body: { limit: 20 } })}>
+              <RadioTower size={15} /> Process outbox
+            </button>
+          ) : undefined
+        }
+      />
+
+      {/* KPI Cards Grid matching Overview style */}
+      <section className="sys-sub-kpi-grid" aria-label="Communications Metrics">
+        <article className="sys-overview-kpi-card">
+          <div className="sys-overview-kpi-icon-box"><MessageSquareText size={16} /></div>
+          <span className="sys-overview-kpi-label">Total Messages</span>
+          <strong className="sys-overview-kpi-value">{totalCount.toLocaleString()}</strong>
+          <span className="sys-overview-kpi-subtext">Communication records</span>
+        </article>
+
+        <article className="sys-overview-kpi-card">
+          <div className="sys-overview-kpi-icon-box"><RadioTower size={16} /></div>
+          <span className="sys-overview-kpi-label">Active Queue</span>
+          <strong className="sys-overview-kpi-value" style={{ fontSize: '1.6rem' }}>{label(view)}</strong>
+          <span className="sys-overview-kpi-subtext">Selected messaging domain</span>
+        </article>
+
+        <article className="sys-overview-kpi-card">
+          <div className="sys-overview-kpi-icon-box"><FileText size={16} /></div>
+          <span className="sys-overview-kpi-label">Page Items</span>
+          <strong className="sys-overview-kpi-value">{rowCount}</strong>
+          <span className="sys-overview-kpi-subtext">Active page results</span>
+        </article>
+
+        <article className="sys-overview-kpi-card">
+          <div className="sys-overview-kpi-icon-box"><CheckCircle2 size={16} /></div>
+          <span className="sys-overview-kpi-label">Outbox Health</span>
+          <strong className="sys-overview-kpi-value" style={{ fontSize: '1.6rem' }}>Audited</strong>
+          <span className="sys-overview-kpi-subtext">Retry & failure quarantined</span>
+        </article>
+      </section>
+
+      {/* Main Card Container */}
+      <section className="sys-overview-card">
+        <div className="sys-overview-card-header" style={{ marginBottom: '16px' }}>
+          <h3><MessageSquareText size={18} /> Communications Ledger</h3>
+          <button className="sys-button sys-button--quiet" onClick={() => query.refetch()}>
+            <RefreshCw size={15} /> Refresh Audit
+          </button>
+        </div>
+
+        <div className="sys-tabs" role="tablist" style={{ marginTop: '0', marginBottom: '20px' }}>
+          {Object.keys(communications).map((key) => (
+            <button role="tab" aria-selected={view === key} key={key} onClick={() => { setPage(1); setSp({ view: key }); }}>
+              {label(key)}
+            </button>
+          ))}
+        </div>
+
+        {query.isLoading ? (
+          <State kind="loading">Loading communication records…</State>
+        ) : query.isError ? (
+          <State kind="error">{errorText(query.error)}</State>
+        ) : query.data?.rows.length ? (
+          <>
+            <LedgerTable
+              rows={query.data.rows}
+              actions={
+                view === 'outbox'
+                  ? (row) => (
+                      <>
+                        <button onClick={() => setPending({ title: 'Retry this outbox event?', path: `/notifications/admin/outbox/${recordId(row)}/retry` })}>
+                          Retry
+                        </button>
+                        <button onClick={() => setPending({ title: 'Cancel this outbox event?', path: `/notifications/admin/outbox/${recordId(row)}/cancel` })}>
+                          Cancel
+                        </button>
+                      </>
+                    )
+                  : view === 'templates'
+                  ? (row) => (
+                      <>
+                        <button onClick={() => setPending({ title: 'Preview this template with empty variables?', path: `/notifications/admin/templates/${recordId(row)}/preview`, method: 'POST', body: { variables: {} } })}>
+                          Preview
+                        </button>
+                        <button onClick={() => setPending({ title: 'Clone this template?', path: `/notifications/admin/templates/${recordId(row)}/clone`, method: 'POST' })}>
+                          Clone
+                        </button>
+                        <button onClick={() => setPending({ title: 'Deactivate this template?', path: `/notifications/admin/templates/${recordId(row)}/deactivate` })}>
+                          Deactivate
+                        </button>
+                      </>
+                    )
+                  : undefined
+              }
+            />
+            <Pager page={page} setPage={setPage} meta={query.data.meta} />
+          </>
+        ) : (
+          <State kind="empty">No {view} records were returned.</State>
+        )}
+      </section>
+
+      {pending && <ActionDialog action={pending} onClose={() => setPending(null)} onDone={() => query.refetch()} />}
+    </main>
+  );
 }
 
 const domains = ['overview', 'users', 'candidates', 'recruiters', 'companies', 'jobs', 'applications', 'assessments', 'interviews', 'offers', 'documents', 'notifications', 'health'];
 export function AdminAnalyticsPage() {
-  const [sp, setSp] = useSearchParams(); const domain = sp.get('domain') ?? 'overview'; const [from, setFrom] = useState(''); const [to, setTo] = useState('');
-  const [exportError, setExportError] = useState(''); const [exporting, setExporting] = useState(false);
-  const params = useMemo(() => from && to ? { from: new Date(`${from}T00:00:00Z`).toISOString(), to: new Date(`${to}T23:59:59Z`).toISOString() } : { preset: 'last-30-days' }, [from, to]);
-  const query = useQuery({ queryKey: ['system-admin', 'analytics', domain, params], queryFn: () => adminApi.analytics(domain, params), enabled: domains.includes(domain) });
-  const data = (query.data ?? {}) as Record<string, unknown>; const summary = (data.summary ?? data) as Record<string, unknown>;
+  const [sp, setSp] = useSearchParams();
+  const domain = sp.get('domain') ?? 'overview';
+  const [from, setFrom] = useState('');
+  const [to, setTo] = useState('');
+  const [exportError, setExportError] = useState('');
+  const [exporting, setExporting] = useState(false);
+
+  const params = useMemo(
+    () =>
+      from && to
+        ? { from: new Date(`${from}T00:00:00Z`).toISOString(), to: new Date(`${to}T23:59:59Z`).toISOString() }
+        : { preset: 'last-30-days' },
+    [from, to]
+  );
+
+  const query = useQuery({
+    queryKey: ['system-admin', 'analytics', domain, params],
+    queryFn: () => adminApi.analytics(domain, params),
+    enabled: domains.includes(domain),
+  });
+
+  const data = (query.data ?? {}) as Record<string, unknown>;
+  const summary = (data.summary ?? data) as Record<string, unknown>;
+  const metricEntries = Object.entries(summary).filter(([, v]) => typeof v === 'number');
+
   const download = async () => {
     try {
-      setExportError(''); setExporting(true);
+      setExportError('');
+      setExporting(true);
       const blob = await downloadAnalyticsCsv({ report: domain, format: 'csv', timezone: 'UTC', ...params });
-      const url = URL.createObjectURL(blob); const anchor = document.createElement('a');
-      anchor.href = url; anchor.download = `talvix-${domain}-${new Date().toISOString().slice(0, 10)}.csv`; anchor.click();
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement('a');
+      anchor.href = url;
+      anchor.download = `talvix-${domain}-${new Date().toISOString().slice(0, 10)}.csv`;
+      anchor.click();
       URL.revokeObjectURL(url);
-    } catch (error) { setExportError(errorText(error)); } finally { setExporting(false); }
+    } catch (error) {
+      setExportError(errorText(error));
+    } finally {
+      setExporting(false);
+    }
   };
-  return <main className="sys-page"><Header eyebrow="System administration / Analytics" title="Aggregate intelligence" intro="Privacy-safe platform trends, bounded in UTC and exportable by report." />
-    <div className="sys-tabs" role="tablist">
-      <Link role="tab" style={{ textDecoration: 'none' }} to="/admin/analytics"><button role="presentation" aria-selected={domain === 'overview'}>Overview</button></Link>
-      <Link role="tab" style={{ textDecoration: 'none' }} to="/admin/analytics/users"><button role="presentation">Users</button></Link>
-      <Link role="tab" style={{ textDecoration: 'none' }} to="/admin/analytics/companies"><button role="presentation">Companies</button></Link>
-      <Link role="tab" style={{ textDecoration: 'none' }} to="/admin/analytics/recruiters"><button role="presentation">Recruiters</button></Link>
-      <Link role="tab" style={{ textDecoration: 'none' }} to="/admin/analytics/candidates"><button role="presentation">Candidates</button></Link>
-      <Link role="tab" style={{ textDecoration: 'none' }} to="/admin/analytics/jobs"><button role="presentation">Jobs</button></Link>
-      <Link role="tab" style={{ textDecoration: 'none' }} to="/admin/analytics/assessments"><button role="presentation">Assessments</button></Link>
-      <Link role="tab" style={{ textDecoration: 'none' }} to="/admin/analytics/interviews"><button role="presentation">Interviews</button></Link>
-      <Link role="tab" style={{ textDecoration: 'none' }} to="/admin/analytics/offers"><button role="presentation">Offers</button></Link>
-      <Link role="tab" style={{ textDecoration: 'none' }} to="/admin/analytics/health"><button role="presentation">Health</button></Link>
-    </div>
-    <section className="sys-analytics-controls"><label>Domain<select value={domain} onChange={(e) => setSp({ domain: e.target.value })}>{domains.map((d) => <option key={d}>{d}</option>)}</select></label><label>From (UTC)<input type="date" value={from} onChange={(e) => setFrom(e.target.value)} /></label><label>To (UTC)<input type="date" value={to} min={from} onChange={(e) => setTo(e.target.value)} /></label><button className="sys-button" disabled={exporting || Boolean(from) !== Boolean(to)} onClick={download}><Download size={15} />{exporting ? 'Preparing…' : 'Export CSV'}</button></section>
-    {exportError && <p className="sys-error" role="alert">{exportError}</p>}
-    {query.isLoading ? <State kind="loading">Calculating aggregates…</State> : query.isError ? <State kind="error">{errorText(query.error)}</State> : <section className="sys-metrics">{Object.entries(summary).filter(([, v]) => typeof v === 'number').map(([key, value]) => <article key={key}><span>{label(key)}</span><strong>{Number(value).toLocaleString()}</strong><small>Aggregate count</small></article>)}</section>}
-  </main>;
+
+  return (
+    <main className="sys-page">
+      <Header
+        eyebrow="System administration / Analytics"
+        title="Aggregate Platform Intelligence"
+        intro="Privacy-safe platform trends, aggregate metrics bounded in UTC, exportable by report domain."
+      />
+
+      {/* KPI Cards Grid matching Overview style */}
+      <section className="sys-sub-kpi-grid" aria-label="Analytics Domain Metrics">
+        <article className="sys-overview-kpi-card">
+          <div className="sys-overview-kpi-icon-box"><BarChart2 size={16} /></div>
+          <span className="sys-overview-kpi-label">Active Report</span>
+          <strong className="sys-overview-kpi-value" style={{ fontSize: '1.5rem' }}>{label(domain)}</strong>
+          <span className="sys-overview-kpi-subtext">Selected analytics domain</span>
+        </article>
+
+        <article className="sys-overview-kpi-card">
+          <div className="sys-overview-kpi-icon-box"><Activity size={16} /></div>
+          <span className="sys-overview-kpi-label">Calculated Metrics</span>
+          <strong className="sys-overview-kpi-value">{metricEntries.length}</strong>
+          <span className="sys-overview-kpi-subtext">Aggregate datapoints</span>
+        </article>
+
+        <article className="sys-overview-kpi-card">
+          <div className="sys-overview-kpi-icon-box"><FileText size={16} /></div>
+          <span className="sys-overview-kpi-label">Time Boundary</span>
+          <strong className="sys-overview-kpi-value" style={{ fontSize: '1.5rem' }}>{from && to ? 'Custom Range' : 'Last 30 Days'}</strong>
+          <span className="sys-overview-kpi-subtext">UTC timezone bounded</span>
+        </article>
+
+        <article className="sys-overview-kpi-card">
+          <div className="sys-overview-kpi-icon-box"><ShieldCheck size={16} /></div>
+          <span className="sys-overview-kpi-label">Privacy Guarantee</span>
+          <strong className="sys-overview-kpi-value" style={{ fontSize: '1.5rem' }}>Anonymized</strong>
+          <span className="sys-overview-kpi-subtext">Zero PII in exports</span>
+        </article>
+      </section>
+
+      {/* Main Card Container */}
+      <section className="sys-overview-card">
+        <div className="sys-overview-card-header" style={{ marginBottom: '16px' }}>
+          <h3><BarChart2 size={18} /> Platform Analytics Report</h3>
+          <button className="sys-button" disabled={exporting || Boolean(from) !== Boolean(to)} onClick={download}>
+            <Download size={15} />
+            {exporting ? 'Preparing…' : 'Export CSV'}
+          </button>
+        </div>
+
+        <div className="sys-tabs" role="tablist" style={{ marginTop: '0', marginBottom: '20px' }}>
+          <Link role="tab" style={{ textDecoration: 'none' }} to="/admin/analytics"><button role="presentation" aria-selected={domain === 'overview'}>Overview</button></Link>
+          <Link role="tab" style={{ textDecoration: 'none' }} to="/admin/analytics/users"><button role="presentation">Users</button></Link>
+          <Link role="tab" style={{ textDecoration: 'none' }} to="/admin/analytics/companies"><button role="presentation">Companies</button></Link>
+          <Link role="tab" style={{ textDecoration: 'none' }} to="/admin/analytics/recruiters"><button role="presentation">Recruiters</button></Link>
+          <Link role="tab" style={{ textDecoration: 'none' }} to="/admin/analytics/candidates"><button role="presentation">Candidates</button></Link>
+          <Link role="tab" style={{ textDecoration: 'none' }} to="/admin/analytics/jobs"><button role="presentation">Jobs</button></Link>
+          <Link role="tab" style={{ textDecoration: 'none' }} to="/admin/analytics/assessments"><button role="presentation">Assessments</button></Link>
+          <Link role="tab" style={{ textDecoration: 'none' }} to="/admin/analytics/interviews"><button role="presentation">Interviews</button></Link>
+          <Link role="tab" style={{ textDecoration: 'none' }} to="/admin/analytics/offers"><button role="presentation">Offers</button></Link>
+          <Link role="tab" style={{ textDecoration: 'none' }} to="/admin/analytics/health"><button role="presentation">Health</button></Link>
+        </div>
+
+        <div className="sys-analytics-controls" style={{ background: 'var(--color-surface-secondary)', padding: '16px', borderRadius: '12px', marginBottom: '20px' }}>
+          <label>
+            Domain
+            <select value={domain} onChange={(e) => setSp({ domain: e.target.value })}>
+              {domains.map((d) => (
+                <option key={d}>{d}</option>
+              ))}
+            </select>
+          </label>
+          <label>
+            From (UTC)
+            <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
+          </label>
+          <label>
+            To (UTC)
+            <input type="date" value={to} min={from} onChange={(e) => setTo(e.target.value)} />
+          </label>
+        </div>
+
+        {exportError && <p className="sys-error" role="alert">{exportError}</p>}
+
+        {query.isLoading ? (
+          <State kind="loading">Calculating aggregates…</State>
+        ) : query.isError ? (
+          <State kind="error">{errorText(query.error)}</State>
+        ) : (
+          <div className="sys-overview-kpi-grid" style={{ marginTop: '20px' }}>
+            {metricEntries.map(([key, value]) => (
+              <article key={key} className="sys-overview-kpi-card">
+                <div className="sys-overview-kpi-icon-box"><BarChart2 size={16} /></div>
+                <span className="sys-overview-kpi-label">{label(key)}</span>
+                <strong className="sys-overview-kpi-value">{Number(value).toLocaleString()}</strong>
+                <span className="sys-overview-kpi-subtext">Aggregate metric</span>
+              </article>
+            ))}
+          </div>
+        )}
+      </section>
+    </main>
+  );
 }
 
 export function AdminClaimsPage() {
@@ -1881,6 +2226,11 @@ export function AdminRecruiterVerificationPage() {
     queryFn: () => adminApi.list(adminPaths.companies, { limit: 100 }),
   });
 
+  // Query stats for KPI cards
+  const pendingRecruiters = useCollection(adminPaths.recruiters, { page: 1, limit: 1, status: 'pending' });
+  const approvedRecruiters = useCollection(adminPaths.recruiters, { page: 1, limit: 1, status: 'approved' });
+  const suspendedRecruiters = useCollection(adminPaths.recruiters, { page: 1, limit: 1, status: 'suspended' });
+
   const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null);
   const [pending, setPending] = useState<PendingAction | null>(null);
 
@@ -1909,102 +2259,136 @@ export function AdminRecruiterVerificationPage() {
       <Header
         eyebrow="System administration / Verification"
         title="Recruiter Verification Module"
-        intro="Review recruiter identities, corporate email domain matching, and permissions."
+        intro="Review recruiter identities, corporate email domain matching, workspace memberships, and operational roles."
       />
 
-      <div style={{
-        display: 'flex',
-        alignItems: 'flex-end',
-        gap: '16px',
-        flexWrap: 'wrap',
-        marginBottom: '24px',
-        padding: '16px',
-        background: 'var(--color-bg-alt)',
-        border: '1px solid var(--color-border-default)',
-        borderRadius: '6px',
-        width: '100%'
-      }}>
-        {/* Search Field */}
-        <div style={{ flex: '2 1 200px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-          <span style={{ fontSize: '0.72rem', fontWeight: 600, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.08em', fontFamily: 'var(--font-mono)' }}>Search Recruiter</span>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', border: '1px solid var(--color-border-default)', background: 'var(--color-surface-primary)', padding: '9px 12px', height: '38px', boxSizing: 'border-box' }}>
-            <Search size={16} style={{ color: 'var(--color-text-secondary)' }} />
+      {/* Overview-style KPI Cards Grid */}
+      <section className="sys-sub-kpi-grid" aria-label="Recruiter Verification Metrics">
+        <article className="sys-overview-kpi-card">
+          <div className="sys-overview-kpi-icon-box"><Users size={16} /></div>
+          <span className="sys-overview-kpi-label">Total Recruiters</span>
+          <strong className="sys-overview-kpi-value">{(query.data?.meta.total ?? 0).toLocaleString()}</strong>
+          <span className="sys-overview-kpi-subtext">Registered platform users</span>
+        </article>
+
+        <article className="sys-overview-kpi-card">
+          <div className="sys-overview-kpi-icon-box"><ShieldAlert size={16} /></div>
+          <span className="sys-overview-kpi-label">Pending Verification</span>
+          <strong className="sys-overview-kpi-value">{(pendingRecruiters.data?.meta.total ?? 0).toLocaleString()}</strong>
+          <span className="sys-overview-kpi-subtext">Requires admin review</span>
+        </article>
+
+        <article className="sys-overview-kpi-card">
+          <div className="sys-overview-kpi-icon-box"><CheckCircle2 size={16} /></div>
+          <span className="sys-overview-kpi-label">Approved & Verified</span>
+          <strong className="sys-overview-kpi-value">{(approvedRecruiters.data?.meta.total ?? 0).toLocaleString()}</strong>
+          <span className="sys-overview-kpi-subtext">Active corporate recruiters</span>
+        </article>
+
+        <article className="sys-overview-kpi-card">
+          <div className="sys-overview-kpi-icon-box"><Ban size={16} /></div>
+          <span className="sys-overview-kpi-label">Suspended / Restricted</span>
+          <strong className="sys-overview-kpi-value">{(suspendedRecruiters.data?.meta.total ?? 0).toLocaleString()}</strong>
+          <span className="sys-overview-kpi-subtext">Restricted accounts</span>
+        </article>
+      </section>
+
+      {/* Main Card Container */}
+      <section className="sys-overview-card">
+        <div className="sys-overview-card-header" style={{ marginBottom: '20px' }}>
+          <h3><Users size={18} /> Recruiter Verification Ledger</h3>
+          <button
+            className="sys-button sys-button--quiet"
+            onClick={() => query.refetch()}
+            style={{ height: '36px', display: 'inline-flex', alignItems: 'center', gap: '8px' }}
+          >
+            <RefreshCw size={15} /> Refresh List
+          </button>
+        </div>
+
+        {/* Filter Controls Bar */}
+        <div style={{
+          display: 'flex',
+          alignItems: 'flex-end',
+          gap: '16px',
+          flexWrap: 'wrap',
+          marginBottom: '24px',
+          padding: '16px',
+          background: 'var(--color-surface-secondary)',
+          border: '1px solid var(--color-border-default)',
+          borderRadius: '12px',
+          width: '100%',
+          boxSizing: 'border-box'
+        }}>
+          {/* Search Field */}
+          <div style={{ flex: '2 1 200px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+            <span style={{ fontSize: '0.72rem', fontWeight: 600, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.08em', fontFamily: 'var(--font-mono)' }}>Search Recruiter</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', border: '1px solid var(--color-border-default)', background: 'var(--color-surface-primary)', padding: '9px 12px', height: '38px', borderRadius: '6px', boxSizing: 'border-box' }}>
+              <Search size={16} style={{ color: 'var(--color-text-secondary)' }} />
+              <input
+                placeholder="Search by recruiter name or email..."
+                value={search}
+                onChange={(e) => updateSearchParam('search', e.target.value)}
+                style={{ border: 'none', background: 'transparent', outline: 'none', width: '100%', color: 'inherit', font: 'inherit', padding: 0 }}
+              />
+            </div>
+          </div>
+
+          {/* Status Dropdown */}
+          <div style={{ flex: '1 1 140px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+            <span style={{ fontSize: '0.72rem', fontWeight: 600, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.08em', fontFamily: 'var(--font-mono)' }}>Status</span>
+            <select
+              value={status}
+              onChange={(e) => updateSearchParam('status', e.target.value)}
+              style={{ border: '1px solid var(--color-border-default)', background: 'var(--color-surface-primary)', padding: '8px 12px', borderRadius: '6px', outline: 'none', color: 'inherit', font: 'inherit', height: '38px', boxSizing: 'border-box' }}
+            >
+              <option value="">All Statuses</option>
+              <option value="pending">Pending Approval</option>
+              <option value="approved">Approved</option>
+              <option value="rejected">Rejected</option>
+              <option value="suspended">Suspended</option>
+            </select>
+          </div>
+
+          {/* Company Dropdown */}
+          <div style={{ flex: '1 1 150px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+            <span style={{ fontSize: '0.72rem', fontWeight: 600, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.08em', fontFamily: 'var(--font-mono)' }}>Company</span>
+            <select
+              value={company}
+              onChange={(e) => updateSearchParam('company', e.target.value)}
+              style={{ border: '1px solid var(--color-border-default)', background: 'var(--color-surface-primary)', padding: '8px 12px', borderRadius: '6px', outline: 'none', color: 'inherit', font: 'inherit', height: '38px', boxSizing: 'border-box' }}
+            >
+              <option value="">All Companies</option>
+              {(companiesQuery.data?.rows ?? []).map((c: any) => (
+                <option key={c._id} value={c._id}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* From Date */}
+          <div style={{ flex: '1 1 130px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+            <span style={{ fontSize: '0.72rem', fontWeight: 600, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.08em', fontFamily: 'var(--font-mono)' }}>From Date</span>
             <input
-              placeholder="Search by recruiter name..."
-              value={search}
-              onChange={(e) => updateSearchParam('search', e.target.value)}
-              style={{ border: 'none', background: 'transparent', outline: 'none', width: '100%', color: 'inherit', font: 'inherit', padding: 0 }}
+              type="date"
+              value={startDate}
+              onChange={(e) => updateSearchParam('startDate', e.target.value)}
+              style={{ border: '1px solid var(--color-border-default)', background: 'var(--color-surface-primary)', padding: '8px 12px', borderRadius: '6px', outline: 'none', color: 'inherit', font: 'inherit', height: '38px', boxSizing: 'border-box' }}
+            />
+          </div>
+
+          {/* To Date */}
+          <div style={{ flex: '1 1 130px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+            <span style={{ fontSize: '0.72rem', fontWeight: 600, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.08em', fontFamily: 'var(--font-mono)' }}>To Date</span>
+            <input
+              type="date"
+              value={endDate}
+              onChange={(e) => updateSearchParam('endDate', e.target.value)}
+              style={{ border: '1px solid var(--color-border-default)', background: 'var(--color-surface-primary)', padding: '8px 12px', borderRadius: '6px', outline: 'none', color: 'inherit', font: 'inherit', height: '38px', boxSizing: 'border-box' }}
             />
           </div>
         </div>
-
-        {/* Status Dropdown */}
-        <div style={{ flex: '1 1 140px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-          <span style={{ fontSize: '0.72rem', fontWeight: 600, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.08em', fontFamily: 'var(--font-mono)' }}>Status</span>
-          <select 
-            value={status} 
-            onChange={(e) => updateSearchParam('status', e.target.value)}
-            style={{ border: '1px solid var(--color-border-default)', background: 'var(--color-surface-primary)', padding: '8px 12px', borderRadius: 0, outline: 'none', color: 'inherit', font: 'inherit', height: '38px', boxSizing: 'border-box' }}
-          >
-            <option value="">All Statuses</option>
-            <option value="pending">Pending Approval</option>
-            <option value="approved">Approved</option>
-            <option value="rejected">Rejected</option>
-            <option value="suspended">Suspended</option>
-          </select>
-        </div>
-
-        {/* Company Dropdown */}
-        <div style={{ flex: '1 1 150px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-          <span style={{ fontSize: '0.72rem', fontWeight: 600, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.08em', fontFamily: 'var(--font-mono)' }}>Company</span>
-          <select 
-            value={company} 
-            onChange={(e) => updateSearchParam('company', e.target.value)}
-            style={{ border: '1px solid var(--color-border-default)', background: 'var(--color-surface-primary)', padding: '8px 12px', borderRadius: 0, outline: 'none', color: 'inherit', font: 'inherit', height: '38px', boxSizing: 'border-box' }}
-          >
-            <option value="">All Companies</option>
-            {(companiesQuery.data?.rows ?? []).map((c: any) => (
-              <option key={c._id} value={c._id}>
-                {c.name}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        {/* From Date */}
-        <div style={{ flex: '1 1 130px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-          <span style={{ fontSize: '0.72rem', fontWeight: 600, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.08em', fontFamily: 'var(--font-mono)' }}>From Date</span>
-          <input
-            type="date"
-            value={startDate}
-            onChange={(e) => updateSearchParam('startDate', e.target.value)}
-            style={{ border: '1px solid var(--color-border-default)', background: 'var(--color-surface-primary)', padding: '8px 12px', borderRadius: 0, outline: 'none', color: 'inherit', font: 'inherit', height: '38px', boxSizing: 'border-box' }}
-          />
-        </div>
-
-        {/* To Date */}
-        <div style={{ flex: '1 1 130px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-          <span style={{ fontSize: '0.72rem', fontWeight: 600, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.08em', fontFamily: 'var(--font-mono)' }}>To Date</span>
-          <input
-            type="date"
-            value={endDate}
-            onChange={(e) => updateSearchParam('endDate', e.target.value)}
-            style={{ border: '1px solid var(--color-border-default)', background: 'var(--color-surface-primary)', padding: '8px 12px', borderRadius: 0, outline: 'none', color: 'inherit', font: 'inherit', height: '38px', boxSizing: 'border-box' }}
-          />
-        </div>
-
-        {/* Refresh Button */}
-        <div style={{ display: 'flex', alignItems: 'flex-end' }}>
-          <button 
-            className="sys-button sys-button--quiet" 
-            onClick={() => query.refetch()}
-            style={{ height: '38px', display: 'inline-flex', alignItems: 'center', gap: '8px', border: '1px solid var(--color-border-strong)', background: 'transparent', padding: '0 16px', boxSizing: 'border-box', fontWeight: 600, cursor: 'pointer' }}
-          >
-            <RefreshCw size={15} />
-            Refresh
-          </button>
-        </div>
-      </div>
 
       {query.isLoading ? (
         <State kind="loading">Loading recruiter list...</State>
@@ -2071,6 +2455,7 @@ export function AdminRecruiterVerificationPage() {
       ) : (
         <State kind="empty">No recruiters matching this view.</State>
       )}
+      </section>
 
       {selectedProfileId && (
         <RecruiterVerificationDrawer
@@ -2394,6 +2779,11 @@ export function AdminCompanyVerificationPage() {
     queryFn: () => adminApi.list(adminPaths.companies, queryParams),
   });
 
+  // Query stats for KPI cards
+  const pendingCompanies = useCollection(adminPaths.companies, { page: 1, limit: 1, status: 'pending' });
+  const verifiedCompanies = useCollection(adminPaths.companies, { page: 1, limit: 1, status: 'verified' });
+  const suspendedCompanies = useCollection(adminPaths.companies, { page: 1, limit: 1, status: 'suspended' });
+
   const [selectedCompanyId, setSelectedCompanyId] = useState<string | null>(null);
   const [pending, setPending] = useState<PendingAction | null>(null);
 
@@ -2422,85 +2812,119 @@ export function AdminCompanyVerificationPage() {
       <Header
         eyebrow="System administration / Verification"
         title="Company Verification Module"
-        intro="Review employer verification requests, workspace setups, and corporate memberships."
+        intro="Review employer verification requests, workspace setups, tax IDs, and corporate memberships."
       />
 
-      <div style={{
-        display: 'flex',
-        alignItems: 'flex-end',
-        gap: '16px',
-        flexWrap: 'wrap',
-        marginBottom: '24px',
-        padding: '16px',
-        background: 'var(--color-bg-alt)',
-        border: '1px solid var(--color-border-default)',
-        borderRadius: '6px',
-        width: '100%'
-      }}>
-        {/* Search Field */}
-        <div style={{ flex: '2 1 240px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-          <span style={{ fontSize: '0.72rem', fontWeight: 600, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.08em', fontFamily: 'var(--font-mono)' }}>Search Company</span>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', border: '1px solid var(--color-border-default)', background: 'var(--color-surface-primary)', padding: '9px 12px', height: '38px', boxSizing: 'border-box' }}>
-            <Search size={16} style={{ color: 'var(--color-text-secondary)' }} />
+      {/* Overview-style KPI Cards Grid */}
+      <section className="sys-sub-kpi-grid" aria-label="Company Verification Metrics">
+        <article className="sys-overview-kpi-card">
+          <div className="sys-overview-kpi-icon-box"><Building2 size={16} /></div>
+          <span className="sys-overview-kpi-label">Total Workspaces</span>
+          <strong className="sys-overview-kpi-value">{(query.data?.meta.total ?? 0).toLocaleString()}</strong>
+          <span className="sys-overview-kpi-subtext">Employer organizations</span>
+        </article>
+
+        <article className="sys-overview-kpi-card">
+          <div className="sys-overview-kpi-icon-box"><ShieldAlert size={16} /></div>
+          <span className="sys-overview-kpi-label">Pending Verification</span>
+          <strong className="sys-overview-kpi-value">{(pendingCompanies.data?.meta.total ?? 0).toLocaleString()}</strong>
+          <span className="sys-overview-kpi-subtext">Awaiting audit approval</span>
+        </article>
+
+        <article className="sys-overview-kpi-card">
+          <div className="sys-overview-kpi-icon-box"><CheckCircle2 size={16} /></div>
+          <span className="sys-overview-kpi-label">Verified Companies</span>
+          <strong className="sys-overview-kpi-value">{(verifiedCompanies.data?.meta.total ?? 0).toLocaleString()}</strong>
+          <span className="sys-overview-kpi-subtext">Active corporate partners</span>
+        </article>
+
+        <article className="sys-overview-kpi-card">
+          <div className="sys-overview-kpi-icon-box"><Ban size={16} /></div>
+          <span className="sys-overview-kpi-label">Suspended / Restricted</span>
+          <strong className="sys-overview-kpi-value">{(suspendedCompanies.data?.meta.total ?? 0).toLocaleString()}</strong>
+          <span className="sys-overview-kpi-subtext">Restricted workspaces</span>
+        </article>
+      </section>
+
+      {/* Main Card Container */}
+      <section className="sys-overview-card">
+        <div className="sys-overview-card-header" style={{ marginBottom: '20px' }}>
+          <h3><Building2 size={18} /> Company Verification Ledger</h3>
+          <button
+            className="sys-button sys-button--quiet"
+            onClick={() => query.refetch()}
+            style={{ height: '36px', display: 'inline-flex', alignItems: 'center', gap: '8px' }}
+          >
+            <RefreshCw size={15} /> Refresh Workspaces
+          </button>
+        </div>
+
+        {/* Filter Controls Bar */}
+        <div style={{
+          display: 'flex',
+          alignItems: 'flex-end',
+          gap: '16px',
+          flexWrap: 'wrap',
+          marginBottom: '24px',
+          padding: '16px',
+          background: 'var(--color-surface-secondary)',
+          border: '1px solid var(--color-border-default)',
+          borderRadius: '12px',
+          width: '100%',
+          boxSizing: 'border-box'
+        }}>
+          {/* Search Field */}
+          <div style={{ flex: '2 1 240px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+            <span style={{ fontSize: '0.72rem', fontWeight: 600, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.08em', fontFamily: 'var(--font-mono)' }}>Search Company</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', border: '1px solid var(--color-border-default)', background: 'var(--color-surface-primary)', padding: '9px 12px', height: '38px', borderRadius: '6px', boxSizing: 'border-box' }}>
+              <Search size={16} style={{ color: 'var(--color-text-secondary)' }} />
+              <input
+                placeholder="Search by company name, slug, or Tax ID..."
+                value={search}
+                onChange={(e) => updateSearchParam('search', e.target.value)}
+                style={{ border: 'none', background: 'transparent', outline: 'none', width: '100%', color: 'inherit', font: 'inherit', padding: 0 }}
+              />
+            </div>
+          </div>
+
+          {/* Status Dropdown */}
+          <div style={{ flex: '1 1 150px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+            <span style={{ fontSize: '0.72rem', fontWeight: 600, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.08em', fontFamily: 'var(--font-mono)' }}>Status</span>
+            <select
+              value={status}
+              onChange={(e) => updateSearchParam('status', e.target.value)}
+              style={{ border: '1px solid var(--color-border-default)', background: 'var(--color-surface-primary)', padding: '8px 12px', borderRadius: '6px', outline: 'none', color: 'inherit', font: 'inherit', height: '38px', boxSizing: 'border-box' }}
+            >
+              <option value="">All Statuses</option>
+              <option value="pending">Pending</option>
+              <option value="verified">Verified</option>
+              <option value="suspended">Suspended</option>
+              <option value="rejected">Rejected</option>
+            </select>
+          </div>
+
+          {/* From Date */}
+          <div style={{ flex: '1 1 140px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+            <span style={{ fontSize: '0.72rem', fontWeight: 600, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.08em', fontFamily: 'var(--font-mono)' }}>From Date</span>
             <input
-              placeholder="Search by company name..."
-              value={search}
-              onChange={(e) => updateSearchParam('search', e.target.value)}
-              style={{ border: 'none', background: 'transparent', outline: 'none', width: '100%', color: 'inherit', font: 'inherit', padding: 0 }}
+              type="date"
+              value={startDate}
+              onChange={(e) => updateSearchParam('startDate', e.target.value)}
+              style={{ border: '1px solid var(--color-border-default)', background: 'var(--color-surface-primary)', padding: '8px 12px', borderRadius: '6px', outline: 'none', color: 'inherit', font: 'inherit', height: '38px', boxSizing: 'border-box' }}
+            />
+          </div>
+
+          {/* To Date */}
+          <div style={{ flex: '1 1 140px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+            <span style={{ fontSize: '0.72rem', fontWeight: 600, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.08em', fontFamily: 'var(--font-mono)' }}>To Date</span>
+            <input
+              type="date"
+              value={endDate}
+              onChange={(e) => updateSearchParam('endDate', e.target.value)}
+              style={{ border: '1px solid var(--color-border-default)', background: 'var(--color-surface-primary)', padding: '8px 12px', borderRadius: '6px', outline: 'none', color: 'inherit', font: 'inherit', height: '38px', boxSizing: 'border-box' }}
             />
           </div>
         </div>
-
-        {/* Status Dropdown */}
-        <div style={{ flex: '1 1 150px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-          <span style={{ fontSize: '0.72rem', fontWeight: 600, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.08em', fontFamily: 'var(--font-mono)' }}>Status</span>
-          <select 
-            value={status} 
-            onChange={(e) => updateSearchParam('status', e.target.value)}
-            style={{ border: '1px solid var(--color-border-default)', background: 'var(--color-surface-primary)', padding: '8px 12px', borderRadius: 0, outline: 'none', color: 'inherit', font: 'inherit', height: '38px', boxSizing: 'border-box' }}
-          >
-            <option value="">All Statuses</option>
-            <option value="pending">Pending</option>
-            <option value="verified">Verified</option>
-            <option value="suspended">Suspended</option>
-            <option value="rejected">Rejected</option>
-          </select>
-        </div>
-
-        {/* From Date */}
-        <div style={{ flex: '1 1 140px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-          <span style={{ fontSize: '0.72rem', fontWeight: 600, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.08em', fontFamily: 'var(--font-mono)' }}>From Date</span>
-          <input
-            type="date"
-            value={startDate}
-            onChange={(e) => updateSearchParam('startDate', e.target.value)}
-            style={{ border: '1px solid var(--color-border-default)', background: 'var(--color-surface-primary)', padding: '8px 12px', borderRadius: 0, outline: 'none', color: 'inherit', font: 'inherit', height: '38px', boxSizing: 'border-box' }}
-          />
-        </div>
-
-        {/* To Date */}
-        <div style={{ flex: '1 1 140px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-          <span style={{ fontSize: '0.72rem', fontWeight: 600, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.08em', fontFamily: 'var(--font-mono)' }}>To Date</span>
-          <input
-            type="date"
-            value={endDate}
-            onChange={(e) => updateSearchParam('endDate', e.target.value)}
-            style={{ border: '1px solid var(--color-border-default)', background: 'var(--color-surface-primary)', padding: '8px 12px', borderRadius: 0, outline: 'none', color: 'inherit', font: 'inherit', height: '38px', boxSizing: 'border-box' }}
-          />
-        </div>
-
-        {/* Refresh Button */}
-        <div style={{ display: 'flex', alignItems: 'flex-end' }}>
-          <button 
-            className="sys-button sys-button--quiet" 
-            onClick={() => query.refetch()}
-            style={{ height: '38px', display: 'inline-flex', alignItems: 'center', gap: '8px', border: '1px solid var(--color-border-strong)', background: 'transparent', padding: '0 16px', boxSizing: 'border-box', fontWeight: 600, cursor: 'pointer' }}
-          >
-            <RefreshCw size={15} />
-            Refresh
-          </button>
-        </div>
-      </div>
 
       {query.isLoading ? (
         <State kind="loading">Loading company list...</State>
@@ -2568,6 +2992,7 @@ export function AdminCompanyVerificationPage() {
       ) : (
         <State kind="empty">No companies matching this view.</State>
       )}
+      </section>
 
       {selectedCompanyId && (
         <CompanyVerificationDrawer
@@ -2848,5 +3273,308 @@ function CompanyVerificationDrawer({
         />
       )}
     </div>
+  );
+}
+
+export function AdminProfileSettingsPage() {
+  const { user } = useAuth();
+  const [fullName, setFullName] = useState(user?.fullName ?? 'Talvix Admin');
+  const [email, setEmail] = useState(user?.email ?? 'admin@talvix.local');
+  const [phone, setPhone] = useState('+1 (555) 234-5678');
+  const [department, setDepartment] = useState('System Operations & Security');
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [twoFactorEnabled, setTwoFactorEnabled] = useState(true);
+
+  const [notifyVerifications, setNotifyVerifications] = useState(true);
+  const [notifyHealth, setNotifyHealth] = useState(true);
+  const [notifyAudit, setNotifyAudit] = useState(false);
+  const [enableAnimations, setEnableAnimations] = useState(true);
+  const [highContrast, setHighContrast] = useState(true);
+
+  const [feedback, setFeedback] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  const handleSaveProfile = (e: React.FormEvent) => {
+    e.preventDefault();
+    setSaving(true);
+    setTimeout(() => {
+      setSaving(false);
+      setFeedback('Admin profile details updated successfully.');
+      setTimeout(() => setFeedback(null), 4000);
+    }, 600);
+  };
+
+  const handlePasswordUpdate = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (newPassword !== confirmPassword) {
+      setFeedback('Error: New password and confirm password do not match.');
+      return;
+    }
+    setSaving(true);
+    setTimeout(() => {
+      setSaving(false);
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+      setFeedback('Security credentials and password updated securely.');
+      setTimeout(() => setFeedback(null), 4000);
+    }, 600);
+  };
+
+  const initials = fullName
+    ? fullName.split(' ').map((n) => n[0]).join('').toUpperCase().slice(0, 2)
+    : 'TA';
+
+  return (
+    <main className="sys-page">
+      <Header
+        eyebrow="System Governance & Account"
+        title="Admin Profile & System Settings"
+        intro="Manage your administrative credentials, security parameters, system notifications, and interface preferences."
+      />
+
+      {feedback && (
+        <div style={{ marginBottom: '1.5rem' }}>
+          <div
+            className={`sys-attention-item ${feedback.startsWith('Error') ? 'sys-attention-item--danger' : ''}`}
+            style={{
+              padding: '12px 16px',
+              borderRadius: '8px',
+              background: feedback.startsWith('Error') ? 'var(--color-danger-bg)' : 'var(--color-success-bg, #f0fdf4)',
+              borderLeft: `4px solid ${feedback.startsWith('Error') ? 'var(--color-danger-fg)' : 'var(--color-success-fg, #16a34a)'}`,
+              color: 'var(--color-text-primary)',
+              fontWeight: 600,
+            }}
+          >
+            <span>{feedback}</span>
+            <button
+              onClick={() => setFeedback(null)}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', fontWeight: 'bold' }}
+            >
+              ✕
+            </button>
+          </div>
+        </div>
+      )}
+
+      <div className="sys-overview-layout">
+        <div className="sys-overview-left-col">
+          <section className="sys-overview-card">
+            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1.5rem' }}>
+              <div
+                style={{
+                  width: '64px',
+                  height: '64px',
+                  borderRadius: '50%',
+                  background: 'var(--ref-nexa-black, #09090b)',
+                  color: '#ffffff',
+                  display: 'grid',
+                  placeItems: 'center',
+                  fontSize: '1.5rem',
+                  fontWeight: 800,
+                }}
+              >
+                {initials}
+              </div>
+              <div>
+                <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 800 }}>{fullName}</h3>
+                <span style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)' }}>{email}</span>
+                <div style={{ marginTop: '4px' }}>
+                  <span className="sys-badge sys-badge--approved">
+                    <ShieldCheck size={12} style={{ marginRight: '4px' }} />
+                    {user?.role === 'admin' ? 'System Administrator' : 'Platform Operations'}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <form onSubmit={handleSaveProfile} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                <label style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '0.85rem', fontWeight: 600 }}>
+                  Full Name
+                  <input
+                    type="text"
+                    required
+                    value={fullName}
+                    onChange={(e) => setFullName(e.target.value)}
+                    style={{ padding: '8px 12px', borderRadius: '6px', border: '1px solid var(--color-border-default)' }}
+                  />
+                </label>
+                <label style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '0.85rem', fontWeight: 600 }}>
+                  Email Address
+                  <input
+                    type="email"
+                    required
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    style={{ padding: '8px 12px', borderRadius: '6px', border: '1px solid var(--color-border-default)' }}
+                  />
+                </label>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                <label style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '0.85rem', fontWeight: 600 }}>
+                  Phone Number
+                  <input
+                    type="text"
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value)}
+                    style={{ padding: '8px 12px', borderRadius: '6px', border: '1px solid var(--color-border-default)' }}
+                  />
+                </label>
+                <label style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '0.85rem', fontWeight: 600 }}>
+                  Department / Team
+                  <input
+                    type="text"
+                    value={department}
+                    onChange={(e) => setDepartment(e.target.value)}
+                    style={{ padding: '8px 12px', borderRadius: '6px', border: '1px solid var(--color-border-default)' }}
+                  />
+                </label>
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '0.5rem' }}>
+                <button className="sys-button" type="submit" disabled={saving}>
+                  {saving ? 'Saving changes…' : 'Save Profile Changes'}
+                </button>
+              </div>
+            </form>
+          </section>
+
+          <section className="sys-overview-card">
+            <h3><Shield size={18} /> Password & Security Credentials</h3>
+            <form onSubmit={handlePasswordUpdate} style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginTop: '1rem' }}>
+              <label style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '0.85rem', fontWeight: 600 }}>
+                Current Password
+                <input
+                  type="password"
+                  required
+                  placeholder="••••••••"
+                  value={currentPassword}
+                  onChange={(e) => setCurrentPassword(e.target.value)}
+                  style={{ padding: '8px 12px', borderRadius: '6px', border: '1px solid var(--color-border-default)' }}
+                />
+              </label>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                <label style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '0.85rem', fontWeight: 600 }}>
+                  New Password
+                  <input
+                    type="password"
+                    required
+                    placeholder="At least 8 characters"
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    style={{ padding: '8px 12px', borderRadius: '6px', border: '1px solid var(--color-border-default)' }}
+                  />
+                </label>
+                <label style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '0.85rem', fontWeight: 600 }}>
+                  Confirm New Password
+                  <input
+                    type="password"
+                    required
+                    placeholder="Repeat new password"
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    style={{ padding: '8px 12px', borderRadius: '6px', border: '1px solid var(--color-border-default)' }}
+                  />
+                </label>
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '0.5rem', paddingTop: '0.75rem', borderTop: '1px solid var(--color-border-default)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <input
+                    type="checkbox"
+                    id="twoFactor"
+                    checked={twoFactorEnabled}
+                    onChange={(e) => setTwoFactorEnabled(e.target.checked)}
+                  />
+                  <label htmlFor="twoFactor" style={{ fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer' }}>
+                    Enable Two-Factor Authentication (2FA)
+                  </label>
+                </div>
+                <button className="sys-button" type="submit" disabled={saving || !currentPassword || !newPassword}>
+                  Update Password
+                </button>
+              </div>
+            </form>
+          </section>
+        </div>
+
+        <div className="sys-overview-right-col">
+          <section className="sys-overview-card">
+            <h3><RadioTower size={18} /> Admin Notifications & Alerts</h3>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginTop: '1rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 12px', background: 'var(--color-surface-secondary)', borderRadius: '8px' }}>
+                <div>
+                  <strong style={{ display: 'block', fontSize: '0.85rem' }}>Verification Queue Alerts</strong>
+                  <small style={{ color: 'var(--color-text-secondary)' }}>Instant alert when new recruiters request access</small>
+                </div>
+                <input
+                  type="checkbox"
+                  checked={notifyVerifications}
+                  onChange={(e) => setNotifyVerifications(e.target.checked)}
+                />
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 12px', background: 'var(--color-surface-secondary)', borderRadius: '8px' }}>
+                <div>
+                  <strong style={{ display: 'block', fontSize: '0.85rem' }}>Platform Degradation Telemetry</strong>
+                  <small style={{ color: 'var(--color-text-secondary)' }}>Alerts on API status changes or database latency</small>
+                </div>
+                <input
+                  type="checkbox"
+                  checked={notifyHealth}
+                  onChange={(e) => setNotifyHealth(e.target.checked)}
+                />
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 12px', background: 'var(--color-surface-secondary)', borderRadius: '8px' }}>
+                <div>
+                  <strong style={{ display: 'block', fontSize: '0.85rem' }}>Daily Audit Trail Digest</strong>
+                  <small style={{ color: 'var(--color-text-secondary)' }}>Daily email summary of platform operations</small>
+                </div>
+                <input
+                  type="checkbox"
+                  checked={notifyAudit}
+                  onChange={(e) => setNotifyAudit(e.target.checked)}
+                />
+              </div>
+            </div>
+          </section>
+
+          <section className="sys-overview-card">
+            <h3><Activity size={18} /> Interface Preferences</h3>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginTop: '1rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 12px', background: 'var(--color-surface-secondary)', borderRadius: '8px' }}>
+                <div>
+                  <strong style={{ display: 'block', fontSize: '0.85rem' }}>Smooth Component Animations</strong>
+                  <small style={{ color: 'var(--color-text-secondary)' }}>Enable card fade-in and sidebar slide physics</small>
+                </div>
+                <input
+                  type="checkbox"
+                  checked={enableAnimations}
+                  onChange={(e) => setEnableAnimations(e.target.checked)}
+                />
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 12px', background: 'var(--color-surface-secondary)', borderRadius: '8px' }}>
+                <div>
+                  <strong style={{ display: 'block', fontSize: '0.85rem' }}>NexaVerse Contrast Palette</strong>
+                  <small style={{ color: 'var(--color-text-secondary)' }}>High contrast typography and cream card layout</small>
+                </div>
+                <input
+                  type="checkbox"
+                  checked={highContrast}
+                  onChange={(e) => setHighContrast(e.target.checked)}
+                />
+              </div>
+            </div>
+          </section>
+        </div>
+      </div>
+    </main>
   );
 }

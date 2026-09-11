@@ -87,6 +87,16 @@ export function RecruiterReviewDetailPage() {
           description={`${label(question.type)} · ${question.marks} available marks`}
         >
           <p className="as-preserve">{question.prompt}</p>
+          <div className="p-3 bg-slate-50 border border-slate-200 rounded my-4">
+            <strong>Candidate's Answer:</strong>
+            {question.type === 'coding' ? (
+              <pre className="p-3 bg-slate-900 text-slate-100 rounded mt-2 overflow-x-auto font-mono text-sm">
+                <code>{String(attempt.answers[question.id] || '// No code submitted')}</code>
+              </pre>
+            ) : (
+              <p className="mt-1 whitespace-pre-wrap">{String(attempt.answers[question.id] || 'No response')}</p>
+            )}
+          </div>
           <TextField
             label="Awarded marks"
             type="number"

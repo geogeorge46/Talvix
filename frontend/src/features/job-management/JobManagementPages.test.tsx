@@ -17,6 +17,7 @@ vi.mock('./api', () => ({
   useManagedJobs: (...a: unknown[]) => mocks.managedJobs(...a),
   useManagedJob: (...a: unknown[]) => mocks.managedJob(...a),
   useSaveJob: () => ({ isPending: false, mutateAsync: mocks.save }),
+  useCloneJob: () => ({ isPending: false, mutateAsync: vi.fn() }),
   useJobAction: () => ({
     isPending: false,
     isError: false,

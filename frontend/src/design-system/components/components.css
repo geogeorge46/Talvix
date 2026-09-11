@@ -1,33 +1,39 @@
 .tvx-button {
-  min-height: var(--control-min-size);
+  min-height: 2.5rem;
   min-width: var(--control-min-size);
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: var(--space-1);
-  padding-inline: var(--space-2);
+  padding-inline: 1.25rem;
   border: var(--border-thin) solid transparent;
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-pill);
   font: var(--weight-semibold) var(--text-body-sm)/1 var(--font-sans);
   transition:
     background var(--duration-fast) var(--ease-standard),
-    border-color var(--duration-fast) var(--ease-standard);
+    border-color var(--duration-fast) var(--ease-standard),
+    transform var(--duration-fast) var(--ease-standard);
+  cursor: pointer;
 }
 .tvx-button--primary {
-  background: var(--color-action-primary);
-  color: var(--color-action-text);
+  background: var(--ref-nexa-black);
+  color: var(--ref-snow);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
 }
 .tvx-button--primary:hover {
-  background: var(--color-action-hover);
+  background: var(--ref-steel-800);
+  transform: translateY(-1px);
 }
 .tvx-button--secondary {
   background: var(--color-surface-1);
-  color: var(--color-text-strong);
+  color: var(--ref-nexa-black);
   border-color: var(--color-border-default);
+  box-shadow: var(--shadow-xs);
 }
 .tvx-button--secondary:hover,
 .tvx-button--quiet:hover {
-  background: var(--color-hover);
+  background: var(--color-surface-2);
+  border-color: var(--color-border-strong);
 }
 .tvx-button--quiet {
   background: transparent;
@@ -219,33 +225,38 @@
   display: inline-flex;
   align-items: center;
   gap: var(--space-half);
-  padding: var(--space-half) var(--space-1);
-  border-radius: var(--radius-xl);
-  font-size: var(--text-caption);
-  font-weight: var(--weight-semibold);
+  padding: 0.25rem 0.75rem;
+  border-radius: var(--radius-pill);
+  font-size: 0.75rem;
+  font-weight: var(--weight-bold);
+  letter-spacing: 0.02em;
 }
 .tvx-badge--neutral,
 .tvx-status--neutral {
-  background: var(--color-surface-2);
+  background: var(--ref-nexa-black);
+  color: var(--ref-snow);
 }
 .tvx-badge--accent {
-  background: var(--color-selected);
+  background: var(--color-surface-2);
+  color: var(--ref-nexa-black);
 }
 .tvx-status--success {
-  color: var(--color-success-fg);
-  background: var(--color-success-bg);
+  color: var(--ref-nexa-black);
+  background: var(--ref-steel-100);
+  border: 1px solid var(--ref-steel-300);
 }
 .tvx-status--warning {
-  color: var(--color-warning-fg);
-  background: var(--color-warning-bg);
+  color: var(--ref-nexa-black);
+  background: var(--ref-steel-100);
+  border: 1px solid var(--ref-steel-300);
 }
 .tvx-status--danger {
-  color: var(--color-danger-fg);
-  background: var(--color-danger-bg);
+  color: var(--ref-snow);
+  background: var(--ref-nexa-black);
 }
 .tvx-status--info {
-  color: var(--color-info-fg);
-  background: var(--color-info-bg);
+  color: var(--ref-nexa-black);
+  background: var(--ref-nexa-ice);
 }
 .tvx-status--ai {
   color: var(--color-ai-fg);

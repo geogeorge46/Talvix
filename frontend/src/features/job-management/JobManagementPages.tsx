@@ -1273,6 +1273,7 @@ export function JobFormPage({ mode }: { mode: 'create' | 'edit' }) {
           </div>
           <TextArea
             id="description"
+            label="Description"
             required
             value={d.description}
             error={errors.description}

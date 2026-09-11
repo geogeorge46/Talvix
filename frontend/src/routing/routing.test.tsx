@@ -29,6 +29,7 @@ const recruiter = {
   _id: 'u2',
   fullName: 'Rina Shah',
   role: 'recruiter',
+  recruiterVerificationStatus: 'verified',
 };
 
 describe('routing, auth, and shell integration', () => {

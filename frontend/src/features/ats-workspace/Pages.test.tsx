@@ -32,6 +32,9 @@ vi.mock('./api', () => ({
   useUpdateApplicationNote: () => ({ isPending: false, mutateAsync: vi.fn() }),
   useDeleteApplicationNote: () => ({ isPending: false, mutateAsync: vi.fn() }),
 }));
+vi.mock('../assessments/api', () => ({
+  useAssignments: () => ({ isPending: false, data: { items: [] } }),
+}));
 import {
   ApplicationDetailPage,
   ApplicationsPage,

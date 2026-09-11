@@ -220,3 +220,37 @@ export const useCandidateProfilePhoto = () =>
     },
     retry: false,
   });
+
+export interface CandidateAccessLog {
+  id: string;
+  recruiter?: { _id?: string; fullName?: string; email?: string };
+  company?: { _id?: string; name?: string; logo?: string };
+  job?: { _id?: string; title?: string; slug?: string };
+  accessType: string;
+  timestamp: string;
+}
+
+export const useCandidateProfileAccessLogs = (query = 'page=1&limit=10') =>
+  useQuery({
+    queryKey: ['candidate', 'profile-access', query],
+    queryFn: async () => {
+      const v = rec(await apiRequest<unknown>(`/candidates/me/profile-access?${query}`));
+      const data = rec(v.data);
+      const logs = arr(data, 'logs').map((log) => {
+        const item = rec(log);
+        return {
+          id: String(item.id ?? ''),
+          recruiter: rec(item.recruiter) as { _id?: string; fullName?: string; email?: string },
+          company: rec(item.company) as { _id?: string; name?: string; logo?: string },
+          job: rec(item.job) as { _id?: string; title?: string; slug?: string },
+          accessType: String(item.accessType || 'download'),
+          timestamp: String(item.timestamp || ''),
+        } as CandidateAccessLog;
+      });
+      return {
+        logs,
+        pagination: pagination(data),
+      };
+    },
+  });
+

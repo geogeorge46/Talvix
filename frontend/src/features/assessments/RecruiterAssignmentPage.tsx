@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, Link } from 'react-router-dom';
 import {
   Alert,
   Button,
@@ -104,25 +104,53 @@ export function RecruiterAssignmentPage() {
           </>
         }
       />
-      <Card heading="Assignment details" headingLevel={2}>
-        <DescriptionList
-          items={[
-            { term: 'Candidate', description: assignment.candidateName },
-            { term: 'Status', description: label(assignment.status) },
-            {
-              term: 'Available',
-              description: formatDate(assignment.availableFrom),
-            },
-            { term: 'Deadline', description: formatDate(assignment.expiresAt) },
-            {
-              term: 'Result',
-              description: assignment.resultReleased
-                ? 'Released'
-                : 'Not released',
-            },
-          ]}
-        />
-      </Card>
+      <div className="space-y-6">
+        <Card heading="Assignment details" headingLevel={2}>
+          <DescriptionList
+            items={[
+              { term: 'Candidate', description: assignment.candidateName },
+              { term: 'Status', description: label(assignment.status) },
+              {
+                term: 'Available',
+                description: formatDate(assignment.availableFrom),
+              },
+              { term: 'Deadline', description: formatDate(assignment.expiresAt) },
+              {
+                term: 'Result',
+                description: assignment.resultReleased
+                  ? 'Released'
+                  : 'Not released',
+              },
+            ]}
+          />
+        </Card>
+
+        {assignment.bestAttempt && (
+          <Card heading="Evaluation Results" headingLevel={2}>
+            <DescriptionList
+              items={[
+                { term: 'Overall Score', description: `${assignment.bestPercentage}% (${assignment.passed ? 'Passed' : 'Failed'})` },
+                { term: 'MCQ Score', description: `${assignment.bestAttempt.evaluation?.objectiveScore ?? 0} marks` },
+                { term: 'Coding Score', description: `${assignment.bestAttempt.evaluation?.codingScore ?? 0} marks` },
+                { term: 'Subjective Score', description: `${assignment.bestAttempt.evaluation?.subjectiveScore ?? 0} marks` },
+                { term: 'Total Score', description: `${assignment.bestAttempt.evaluation?.totalScore ?? 0} / ${assignment.totalMarks ?? 100} marks` },
+                { term: 'Attempts Used', description: `${assignment.attemptsUsed ?? 1}` },
+                {
+                  term: 'Submission Details',
+                  description: (
+                    <Link
+                      className="tvx-button tvx-button--secondary mt-2 inline-block"
+                      to={`/org/assessments/reviews/${assignment.bestAttempt._id}`}
+                    >
+                      View detailed responses & manual reviews
+                    </Link>
+                  ),
+                },
+              ]}
+            />
+          </Card>
+        )}
+      </div>
       {action.isError && (
         <Alert
           tone={

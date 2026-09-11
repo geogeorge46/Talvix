@@ -48,6 +48,7 @@ import {
   useAddApplicationNote,
   useUpdateApplicationNote,
   useDeleteApplicationNote,
+  useCandidateComparison,
   CommentItem,
 } from './api';
 import {
@@ -63,6 +64,7 @@ import {
   type CandidateRow,
   type EvidenceItem,
 } from './model';
+import { useAssignments } from '../assessments/api';
 import './ats-workspace.css';
 
 const statusTone = (s: string) =>
@@ -532,6 +534,154 @@ function MoveDialog({
     </Dialog>
   );
 }
+function ShortlistCandidateDialog({
+  row,
+  open,
+  onOpenChange,
+  onAnnounce,
+}: {
+  row: { id: string; candidateName: string; status: ApplicationStatus | 'unknown' };
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  onAnnounce: (v: string) => void;
+}) {
+  const move = useMoveApplication(row.id);
+  const [notice, setNotice] = useState('');
+  const submit = async () => {
+    try {
+      await move.mutateAsync({
+        status: 'shortlisted',
+      });
+      onOpenChange(false);
+      onAnnounce(`Candidate shortlisted successfully.`);
+      setNotice('');
+    } catch (e) {
+      setNotice(errorMessage(e));
+    }
+  };
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={onOpenChange}
+      title="Shortlist Candidate?"
+      description="This candidate will move to the Shortlisted stage."
+      busy={move.isPending}
+      footer={
+        <>
+          <Button
+            variant="secondary"
+            onClick={() => onOpenChange(false)}
+            disabled={move.isPending}
+          >
+            Cancel
+          </Button>
+          <Button
+            onClick={() => void submit()}
+            loading={move.isPending}
+          >
+            Confirm Shortlist
+          </Button>
+        </>
+      }
+    >
+      {notice && (
+        <Alert title="Movement not completed" tone="warning">
+          {notice}
+        </Alert>
+      )}
+    </Dialog>
+  );
+}
+
+function RejectCandidateDialog({
+  row,
+  open,
+  onOpenChange,
+  onAnnounce,
+}: {
+  row: { id: string; candidateName: string; status: ApplicationStatus | 'unknown' };
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  onAnnounce: (v: string) => void;
+}) {
+  const move = useMoveApplication(row.id);
+  const [reason, setReason] = useState('');
+  const [category, setCategory] = useState('skills-mismatch');
+  const [notice, setNotice] = useState('');
+  const submit = async () => {
+    if (!reason.trim()) {
+      setNotice('A rejection reason is required.');
+      return;
+    }
+    try {
+      await move.mutateAsync({
+        status: 'rejected',
+        reason: reason.trim(),
+        rejectionCategory: category,
+      });
+      onOpenChange(false);
+      onAnnounce(`${row.candidateName} rejected successfully.`);
+      setReason('');
+      setNotice('');
+    } catch (e) {
+      setNotice(errorMessage(e));
+    }
+  };
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={onOpenChange}
+      title="Reject Candidate"
+      description={`Are you sure you want to reject ${row.candidateName}?`}
+      busy={move.isPending}
+      footer={
+        <>
+          <Button
+            variant="secondary"
+            onClick={() => onOpenChange(false)}
+            disabled={move.isPending}
+          >
+            Cancel
+          </Button>
+          <Button
+            variant="danger"
+            onClick={() => void submit()}
+            loading={move.isPending}
+            disabled={!reason.trim()}
+          >
+            Reject Candidate
+          </Button>
+        </>
+      }
+    >
+      <div className="ats-dialog-fields">
+        <Select
+          label="Reason Category"
+          value={category}
+          onChange={(e) => setCategory(e.target.value)}
+          options={rejectionCategories.map((x) => ({
+            value: x,
+            label: labelStatus(x),
+          }))}
+        />
+        <TextArea
+          label="Rejection Reason Details"
+          required
+          value={reason}
+          placeholder="Enter details explaining the rejection decision..."
+          error={notice && !reason.trim() ? notice : undefined}
+          onChange={(e) => setReason(e.target.value)}
+        />
+        {notice && !(!reason.trim()) && (
+          <Alert title="Rejection not completed" tone="warning">
+            {notice}
+          </Alert>
+        )}
+      </div>
+    </Dialog>
+  );
+}
+
 function Actions({
   row,
   canManage,
@@ -714,6 +864,14 @@ export function ApplicationsPage() {
         >
           Pipeline board
         </Button>
+        {params.get('jobId') && (
+          <RouterLink
+            className="tvx-button tvx-button--secondary ml-auto"
+            to={`/org/applications/compare?jobId=${params.get('jobId')}`}
+          >
+            Compare Candidates
+          </RouterLink>
+        )}
       </div>
       {query.isError ? (
         <ErrorState
@@ -1200,8 +1358,32 @@ export function ApplicationDetailPage() {
   const { recruiter } = useAuth();
   const canView = Boolean(recruiter?.permissions.includes('applications.view'));
   const q = useApplication(applicationId, Boolean(applicationId) && canView);
+  const assignmentsQuery = useAssignments(`applicationId=${applicationId}&limit=10`, canView && Boolean(applicationId));
   const [notice, setNotice] = useState('');
   const [open, setOpen] = useState(false);
+  const [shortlistOpen, setShortlistOpen] = useState(false);
+  const [rejectOpen, setRejectOpen] = useState(false);
+  const moveDirect = useMoveApplication(applicationId);
+  const assignments = (assignmentsQuery.data?.items ?? []) as any[];
+  const activeAssignment = assignments[0];
+  const handleMoveToReview = async () => {
+    try {
+      await moveDirect.mutateAsync({ status: 'under-review' });
+      setNotice(`Moved to Under Review successfully.`);
+    } catch (e) {
+      setNotice(errorMessage(e));
+    }
+  };
+  const handleDecision = async (status: string, reason = '') => {
+    try {
+      await moveDirect.mutateAsync({ status: status as any, reason });
+      setNotice(`Application moved to ${labelStatus(status)} successfully.`);
+      await q.refetch();
+      await assignmentsQuery.refetch();
+    } catch (e) {
+      setNotice(errorMessage(e));
+    }
+  };
   if (!canView)
     return (
       <PermissionState description="The applications.view permission is required for this application." />
@@ -1238,9 +1420,48 @@ export function ApplicationDetailPage() {
         }
         primaryAction={
           recruiter?.permissions.includes('applications.manage') &&
-          a.status !== 'unknown' &&
-          transitions[a.status].length ? (
-            <Button onClick={() => setOpen(true)}>Move to stage</Button>
+          a.status !== 'unknown' ? (
+            <div style={{ display: 'flex', gap: '8px' }}>
+              {a.status === 'submitted' && (
+                <>
+                  <Button variant="primary" onClick={() => void handleMoveToReview()} loading={moveDirect.isPending}>
+                    Move to Review
+                  </Button>
+                  <Button variant="secondary" onClick={() => setShortlistOpen(true)}>
+                    Shortlist
+                  </Button>
+                  <Button variant="danger" onClick={() => setRejectOpen(true)}>
+                    Reject
+                  </Button>
+                </>
+              )}
+              {a.status === 'under-review' && (
+                <>
+                  <Button variant="primary" onClick={() => setShortlistOpen(true)}>
+                    Shortlist
+                  </Button>
+                  <Button variant="danger" onClick={() => setRejectOpen(true)}>
+                    Reject
+                  </Button>
+                </>
+              )}
+              {a.status === 'shortlisted' && (
+                <>
+                  <RouterLink
+                    className="tvx-button tvx-button--primary"
+                    to={`/org/assessments/assignments/new?applicationId=${applicationId}`}
+                  >
+                    Assign Assessment
+                  </RouterLink>
+                  <Button variant="danger" onClick={() => setRejectOpen(true)}>
+                    Reject
+                  </Button>
+                </>
+              )}
+              {!['submitted', 'under-review', 'shortlisted'].includes(a.status) && transitions[a.status]?.length > 0 && (
+                <Button onClick={() => setOpen(true)}>Move to stage</Button>
+              )}
+            </div>
           ) : undefined
         }
       />
@@ -1254,6 +1475,18 @@ export function ApplicationDetailPage() {
         row={a}
         open={open}
         onOpenChange={setOpen}
+        onAnnounce={setNotice}
+      />
+      <ShortlistCandidateDialog
+        row={a}
+        open={shortlistOpen}
+        onOpenChange={setShortlistOpen}
+        onAnnounce={setNotice}
+      />
+      <RejectCandidateDialog
+        row={a}
+        open={rejectOpen}
+        onOpenChange={setRejectOpen}
         onAnnounce={setNotice}
       />
       <div className="ats-detail-grid">
@@ -1297,6 +1530,105 @@ export function ApplicationDetailPage() {
               </div>
             </div>
           </Card>
+
+          {activeAssignment && (
+            <Card heading="Assessment & Evaluation" headingLevel={2}>
+              <div className="space-y-4">
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '16px', padding: '8px 0' }}>
+                  <div>
+                    <small style={{ color: 'var(--color-text-muted)', display: 'block' }}>Assessment Title</small>
+                    <strong style={{ fontSize: '1.2rem', display: 'block', margin: '4px 0' }}>{activeAssignment.title}</strong>
+                  </div>
+                  <div>
+                    <small style={{ color: 'var(--color-text-muted)', display: 'block' }}>Status</small>
+                    <strong style={{ fontSize: '1.2rem', display: 'block', margin: '4px 0' }}>
+                      <StatusTag>
+                        {activeAssignment.status}
+                      </StatusTag>
+                    </strong>
+                  </div>
+                  {activeAssignment.bestAttempt && (
+                    <>
+                      <div>
+                        <small style={{ color: 'var(--color-text-muted)', display: 'block' }}>Overall Score</small>
+                        <strong style={{ fontSize: '1.2rem', display: 'block', margin: '4px 0' }}>
+                          {activeAssignment.bestPercentage}%
+                        </strong>
+                      </div>
+                      <div>
+                        <small style={{ color: 'var(--color-text-muted)', display: 'block' }}>Result</small>
+                        <strong style={{ fontSize: '1.2rem', display: 'block', margin: '4px 0' }}>
+                          {activeAssignment.passed ? 'Passed' : 'Failed'}
+                        </strong>
+                      </div>
+                    </>
+                  )}
+                </div>
+
+                {activeAssignment.bestAttempt && (
+                  <div className="p-3 bg-slate-50 border border-slate-200 rounded text-sm space-y-2 mt-2">
+                    <h4 className="font-semibold">Attempt Score Details</h4>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '8px' }}>
+                      <div><strong>MCQ Score:</strong> {activeAssignment.bestAttempt.evaluation?.objectiveScore ?? 0} marks</div>
+                      <div><strong>Coding Score:</strong> {activeAssignment.bestAttempt.evaluation?.codingScore ?? 0} marks</div>
+                      <div><strong>Subjective Score:</strong> {activeAssignment.bestAttempt.evaluation?.subjectiveScore ?? 0} marks</div>
+                      <div><strong>Total Score:</strong> {activeAssignment.bestAttempt.evaluation?.totalScore ?? 0} / {activeAssignment.totalMarks ?? 100} marks</div>
+                    </div>
+                    <div className="pt-2 flex gap-4">
+                      <RouterLink
+                        className="tvx-button tvx-button--secondary text-xs"
+                        to={`/org/assessments/assignments/${activeAssignment.id}`}
+                      >
+                        View Assignment Dashboard
+                      </RouterLink>
+                      <RouterLink
+                        className="tvx-button tvx-button--primary text-xs"
+                        to={`/org/assessments/reviews/${activeAssignment.bestAttempt._id}`}
+                      >
+                        View Detailed Answer Review
+                      </RouterLink>
+                    </div>
+                  </div>
+                )}
+
+                {/* Recruiter Post-Assessment Decisions */}
+                {recruiter?.permissions.includes('applications.manage') && a.status === 'assessment-completed' && (
+                  <div className="border-t border-slate-200 pt-4 mt-4 space-y-3">
+                    <h4 className="font-semibold text-sm">Post-Assessment Candidate Triaging</h4>
+                    <div className="flex flex-wrap gap-2">
+                      <Button
+                        variant="primary"
+                        onClick={() => handleDecision('interview-scheduled', 'Post-assessment: Move to interview')}
+                        loading={moveDirect.isPending}
+                      >
+                        Move to Interview
+                      </Button>
+                      <Button
+                        variant="secondary"
+                        onClick={() => handleDecision('shortlisted', 'Post-assessment: Keep candidate shortlisted')}
+                        loading={moveDirect.isPending}
+                      >
+                        Keep Under Review
+                      </Button>
+                      <RouterLink
+                        className="tvx-button tvx-button--secondary"
+                        to={`/org/assessments/assignments/new?applicationId=${applicationId}`}
+                      >
+                        Assign Another Assessment
+                      </RouterLink>
+                      <Button
+                        variant="danger"
+                        onClick={() => setRejectOpen(true)}
+                        loading={moveDirect.isPending}
+                      >
+                        Reject Candidate
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </Card>
+          )}
 
           {/* Submitted Application Metadata and Answers */}
           <Card heading="Submitted Application" headingLevel={2}>
@@ -1393,7 +1725,7 @@ export function ApplicationDetailPage() {
 
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '20px' }}>
               <div>
-                <h4 style={{ fontSize: '0.95rem', fontWeight: 600, borderBottom: '1px solid var(--color-border-default)', paddingBottom: '6px', marginBottom: '10px' }}>Required Skills</h4>
+                <h3 style={{ fontSize: '0.95rem', fontWeight: 600, borderBottom: '1px solid var(--color-border-default)', paddingBottom: '6px', marginBottom: '10px' }}>Required Skills</h3>
                 {a.skillMatchBreakdown.filter(s => s.required).length > 0 ? (
                   <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
                     {a.skillMatchBreakdown.filter(s => s.required).map((s) => {
@@ -1417,7 +1749,7 @@ export function ApplicationDetailPage() {
               </div>
 
               <div>
-                <h4 style={{ fontSize: '0.95rem', fontWeight: 600, borderBottom: '1px solid var(--color-border-default)', paddingBottom: '6px', marginBottom: '10px' }}>Preferred Skills</h4>
+                <h3 style={{ fontSize: '0.95rem', fontWeight: 600, borderBottom: '1px solid var(--color-border-default)', paddingBottom: '6px', marginBottom: '10px' }}>Preferred Skills</h3>
                 {a.skillMatchBreakdown.filter(s => !s.required).length > 0 ? (
                   <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
                     {a.skillMatchBreakdown.filter(s => !s.required).map((s) => {
@@ -1465,7 +1797,7 @@ export function ApplicationDetailPage() {
                   <div key={idx} style={{ borderBottom: idx === a.experience.length - 1 ? 'none' : '1px solid var(--color-border-default)', paddingBottom: '16px', marginBottom: '16px' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                       <div>
-                        <h4 style={{ fontSize: '1.05rem', fontWeight: 600, margin: 0 }}>{exp.title}</h4>
+                        <h3 style={{ fontSize: '1.05rem', fontWeight: 600, margin: 0 }}>{exp.title}</h3>
                         <strong>{exp.company}</strong> {exp.employmentType && <span style={{ color: 'var(--color-text-muted)', fontSize: '0.85rem' }}>({labelStatus(exp.employmentType)})</span>}
                       </div>
                       <div style={{ textAlign: 'right' }}>
@@ -1503,7 +1835,7 @@ export function ApplicationDetailPage() {
                   <div key={idx} style={{ borderBottom: idx === a.education.length - 1 ? 'none' : '1px solid var(--color-border-default)', paddingBottom: '16px', marginBottom: '16px' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                       <div>
-                        <h4 style={{ fontSize: '1.05rem', fontWeight: 600, margin: 0 }}>{edu.degree}</h4>
+                        <h3 style={{ fontSize: '1.05rem', fontWeight: 600, margin: 0 }}>{edu.degree}</h3>
                         <strong>{edu.institution}</strong> {edu.fieldOfStudy && <span style={{ color: 'var(--color-text-muted)' }}>· {edu.fieldOfStudy}</span>}
                       </div>
                       <div style={{ textAlign: 'right' }}>
@@ -1544,7 +1876,7 @@ export function ApplicationDetailPage() {
                     <div key={idx} style={{ borderBottom: idx === a.projects.length - 1 ? 'none' : '1px solid var(--color-border-default)', paddingBottom: '16px', marginBottom: '16px' }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                         <div>
-                          <h4 style={{ fontSize: '1.05rem', fontWeight: 600, margin: 0 }}>{proj.title}</h4>
+                          <h3 style={{ fontSize: '1.05rem', fontWeight: 600, margin: 0 }}>{proj.title}</h3>
                         </div>
                         {proj.source === 'profile' && (
                           <span style={{ fontSize: '0.75rem', color: 'var(--color-warning-strong)', fontWeight: 600 }}>
@@ -1591,7 +1923,7 @@ export function ApplicationDetailPage() {
                     <div key={idx} style={{ borderBottom: idx === a.certifications.length - 1 ? 'none' : '1px solid var(--color-border-default)', paddingBottom: '16px', marginBottom: '16px' }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                         <div>
-                          <h4 style={{ fontSize: '1.05rem', fontWeight: 600, margin: 0 }}>{cert.name}</h4>
+                          <h3 style={{ fontSize: '1.05rem', fontWeight: 600, margin: 0 }}>{cert.name}</h3>
                           <strong>{cert.issuingOrganization}</strong>
                         </div>
                         <div style={{ textAlign: 'right' }}>
@@ -1631,9 +1963,9 @@ export function ApplicationDetailPage() {
             {a.socialLinks ? (
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px' }}>
                 <div>
-                  <h4 style={{ fontSize: '0.9rem', fontWeight: 600, marginBottom: '8px', color: 'var(--color-text-muted)' }}>
+                  <h3 style={{ fontSize: '0.9rem', fontWeight: 600, marginBottom: '8px', color: 'var(--color-text-muted)' }}>
                     GitHub Link {a.socialLinks.source === 'profile' && <span style={{ fontSize: '0.75rem', color: 'var(--color-warning-strong)' }}>(profile fallback)</span>}
-                  </h4>
+                  </h3>
                   {isSafeUrl(a.socialLinks.github) ? (
                     <a href={a.socialLinks.github} target="_blank" rel="noopener noreferrer" style={{ display: 'flex', alignItems: 'center', gap: '8px', textDecoration: 'none', padding: '12px', background: 'var(--color-bg-alt)', border: '1px solid var(--color-border-default)', borderRadius: '4px' }}>
                       <GithubIcon size={18} />
@@ -1646,9 +1978,9 @@ export function ApplicationDetailPage() {
                 </div>
 
                 <div>
-                  <h4 style={{ fontSize: '0.9rem', fontWeight: 600, marginBottom: '8px', color: 'var(--color-text-muted)' }}>
+                  <h3 style={{ fontSize: '0.9rem', fontWeight: 600, marginBottom: '8px', color: 'var(--color-text-muted)' }}>
                     LinkedIn Link {a.socialLinks.source === 'profile' && <span style={{ fontSize: '0.75rem', color: 'var(--color-warning-strong)' }}>(profile fallback)</span>}
-                  </h4>
+                  </h3>
                   {isSafeUrl(a.socialLinks.linkedin) ? (
                     <a href={a.socialLinks.linkedin} target="_blank" rel="noopener noreferrer" style={{ display: 'flex', alignItems: 'center', gap: '8px', textDecoration: 'none', padding: '12px', background: 'var(--color-bg-alt)', border: '1px solid var(--color-border-default)', borderRadius: '4px' }}>
                       <LinkedinIcon size={18} />
@@ -1662,9 +1994,9 @@ export function ApplicationDetailPage() {
 
                 {a.socialLinks.portfolio && (
                   <div style={{ gridColumn: 'span 2' }}>
-                    <h4 style={{ fontSize: '0.9rem', fontWeight: 600, marginBottom: '8px', color: 'var(--color-text-muted)' }}>
+                    <h3 style={{ fontSize: '0.9rem', fontWeight: 600, marginBottom: '8px', color: 'var(--color-text-muted)' }}>
                       Portfolio Link {a.socialLinks.source === 'profile' && <span style={{ fontSize: '0.75rem', color: 'var(--color-warning-strong)' }}>(profile fallback)</span>}
-                    </h4>
+                    </h3>
                     {isSafeUrl(a.socialLinks.portfolio) ? (
                       <a href={a.socialLinks.portfolio} target="_blank" rel="noopener noreferrer" style={{ display: 'flex', alignItems: 'center', gap: '8px', textDecoration: 'none', padding: '12px', background: 'var(--color-bg-alt)', border: '1px solid var(--color-border-default)', borderRadius: '4px' }}>
                         <Globe size={18} />
@@ -1680,11 +2012,11 @@ export function ApplicationDetailPage() {
             ) : (
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
                 <div>
-                  <h4 style={{ fontSize: '0.9rem', fontWeight: 600, marginBottom: '8px', color: 'var(--color-text-muted)' }}>GitHub Link</h4>
+                  <h3 style={{ fontSize: '0.9rem', fontWeight: 600, marginBottom: '8px', color: 'var(--color-text-muted)' }}>GitHub Link</h3>
                   <span style={{ fontSize: '0.9rem', color: 'var(--color-text-muted)' }}>No GitHub profile provided.</span>
                 </div>
                 <div>
-                  <h4 style={{ fontSize: '0.9rem', fontWeight: 600, marginBottom: '8px', color: 'var(--color-text-muted)' }}>LinkedIn Link</h4>
+                  <h3 style={{ fontSize: '0.9rem', fontWeight: 600, marginBottom: '8px', color: 'var(--color-text-muted)' }}>LinkedIn Link</h3>
                   <span style={{ fontSize: '0.9rem', color: 'var(--color-text-muted)' }}>No LinkedIn profile provided.</span>
                 </div>
               </div>
@@ -2207,6 +2539,100 @@ export function CandidateDetailPage() {
           </Card>
         </aside>
       </div>
+    </div>
+  );
+}
+
+export function CandidateComparisonPage() {
+  const [params] = useSearchParams();
+  const jobId = params.get('jobId') || '';
+  const query = useCandidateComparison(jobId, Boolean(jobId));
+
+  const rows = query.data ?? [];
+
+  return (
+    <div className="ats-page">
+      <AtsHeader
+        title="Candidate Comparison Matrix"
+        description="Compare candidate screening scores, experience, and assessment outcomes for this job opening."
+      />
+      {query.isLoading ? (
+        <LoadingState label="Loading candidate comparison" />
+      ) : query.isError ? (
+        <ErrorState
+          detail={query.error instanceof Error ? query.error.message : 'Could not fetch candidate comparisons.'}
+          retry={() => void query.refetch()}
+        />
+      ) : rows.length === 0 ? (
+        <EmptyState
+          title="No candidates to compare"
+          description="There are no active candidate applications for this job vacancy yet."
+        />
+      ) : (
+        <Card heading="Side-by-Side Candidates Comparison" headingLevel={2}>
+          <DataTable
+            rows={rows}
+            rowKey={(r) => r.applicationId}
+            columns={[
+              {
+                id: 'candidateName',
+                header: 'Candidate',
+                render: (r) => (
+                  <RouterLink to={`/org/applications/${r.applicationId}`} className="tvx-link font-semibold text-primary">
+                    {r.candidateName}
+                  </RouterLink>
+                ),
+              },
+              {
+                id: 'skillMatch',
+                header: 'Skill Match Score',
+                render: (r) => `${r.skillMatchScore}%`,
+              },
+              {
+                id: 'experienceYears',
+                header: 'Experience',
+                render: (r) => `${r.experienceYears} Year${r.experienceYears !== 1 ? 's' : ''}`,
+              },
+              {
+                id: 'assessmentScore',
+                header: 'Assessment Percentage',
+                render: (r) => r.assessmentScore !== null ? `${r.assessmentScore}%` : 'N/A',
+              },
+              {
+                id: 'mcqScore',
+                header: 'MCQ Score',
+                render: (r) => r.mcqScore !== null ? `${r.mcqScore}%` : 'N/A',
+              },
+              {
+                id: 'codingScore',
+                header: 'Coding Score',
+                render: (r) => r.codingScore !== null ? `${r.codingScore}%` : 'N/A',
+              },
+              {
+                id: 'currentStage',
+                header: 'Current Stage',
+                render: (r) => (
+                  <StatusTag tone={r.currentStage === 'rejected' ? 'danger' : 'info'}>
+                    {r.currentStage.replaceAll('-', ' ').replace(/\b\w/g, (c) => c.toUpperCase())}
+                  </StatusTag>
+                ),
+              },
+              {
+                id: 'actions',
+                header: 'Action',
+                render: (r) => (
+                  <RouterLink
+                    className="tvx-button tvx-button--secondary text-xs py-1 px-2"
+                    to={`/org/applications/${r.applicationId}`}
+                  >
+                    View Pipeline Details
+                  </RouterLink>
+                ),
+              },
+            ]}
+          />
+        </Card>
+      )}
     </div>
   );
 }

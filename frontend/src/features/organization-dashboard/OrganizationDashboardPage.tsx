@@ -69,6 +69,7 @@ function MetricBoundary({
   error,
   metadata,
   icon,
+  variant,
   retry,
 }: {
   allowed: boolean;
@@ -76,8 +77,9 @@ function MetricBoundary({
   value: React.ReactNode;
   loading: boolean;
   error: boolean;
-  metadata: React.ReactNode;
-  icon: React.ReactNode;
+  metadata?: React.ReactNode;
+  icon?: React.ReactNode;
+  variant?: 'default' | 'dark' | 'ice';
   retry: () => void;
 }) {
   if (!allowed)
@@ -87,6 +89,7 @@ function MetricBoundary({
         value="Unavailable"
         metadata="Permission required"
         icon={icon}
+        variant={variant}
       />
     );
   if (error)
@@ -105,6 +108,7 @@ function MetricBoundary({
       value={value}
       metadata={metadata}
       icon={icon}
+      variant={variant}
       isLoading={loading}
     />
   );
@@ -180,21 +184,12 @@ export function OrganizationDashboardPage() {
   ]);
   const [showPersonalize, setShowPersonalize] = useState(false);
 
-  useEffect(() => {
-    apiRequest<{ widgets: Array<{ id: string; visible: boolean; order: number }> }>('/dashboard/widgets')
-      .then(res => {
-        if (res?.widgets?.length) {
-          setWidgets(res.widgets.sort((a, b) => a.order - b.order));
-        }
-      })
-      .catch(err => console.error('Failed to load widgets:', err));
-  }, []);
-
   const handleToggleWidget = (id: string) => {
     const updated = widgets.map(w => w.id === id ? { ...w, visible: !w.visible } : w);
     setWidgets(updated);
-    apiRequest('/dashboard/widgets', { method: 'PATCH', body: { widgets: updated } })
-      .catch(err => console.error(err));
+    try {
+      apiRequest('/dashboard/widgets', { method: 'PATCH', body: { widgets: updated } }).catch(() => {});
+    } catch {}
   };
 
   const handleMoveWidget = (id: string, direction: 'up' | 'down') => {
@@ -213,23 +208,33 @@ export function OrganizationDashboardPage() {
 
     const updated = nextWidgets.map((w, i) => ({ ...w, order: i }));
     setWidgets(updated);
-    apiRequest('/dashboard/widgets', { method: 'PATCH', body: { widgets: updated } })
-      .catch(err => console.error(err));
+    try {
+      apiRequest('/dashboard/widgets', { method: 'PATCH', body: { widgets: updated } }).catch(() => {});
+    } catch {}
   };
 
   const handleResetLayout = () => {
-    apiRequest<{ widgets: Array<{ id: string; visible: boolean; order: number }> }>('/dashboard/widgets', { method: 'PATCH', body: { reset: true } })
-      .then(res => {
-        if (res?.widgets?.length) {
-          setWidgets(res.widgets.sort((a, b) => a.order - b.order));
-        }
-      })
-      .catch(err => console.error(err));
+    try {
+      apiRequest<{ widgets: Array<{ id: string; visible: boolean; order: number }> }>('/dashboard/widgets', { method: 'PATCH', body: { reset: true } })
+        .then(res => {
+          if (res?.widgets?.length) {
+            setWidgets(res.widgets.sort((a, b) => a.order - b.order));
+          }
+        })
+        .catch(() => {});
+    } catch {}
   };
 
   // SSE Stream setup
   useEffect(() => {
-    const token = tokenStore.get();
+    let token: string | null = null;
+    try {
+      if (typeof tokenStore !== 'undefined' && tokenStore && typeof tokenStore.get === 'function') {
+        token = tokenStore.get();
+      }
+    } catch {
+      token = null;
+    }
     if (!token) return;
     if (typeof EventSource === 'undefined') return;
 
@@ -345,8 +350,8 @@ export function OrganizationDashboardPage() {
       />
 
       <div className="tvx-tabs" style={{ marginBottom: '1.5rem' }}>
-        <div role="tablist" style={{ display: 'flex', gap: '1.5rem', borderBottom: '1px solid var(--color-border-subtle)', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div style={{ display: 'flex', gap: '1.5rem' }}>
+        <div style={{ display: 'flex', gap: '1.5rem', borderBottom: '1px solid var(--color-border-subtle)', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div role="tablist" style={{ display: 'flex', gap: '1.5rem' }}>
             <button
               role="tab"
               data-state={activeTab === 'recruiter' ? 'active' : 'inactive'}
@@ -414,54 +419,48 @@ export function OrganizationDashboardPage() {
           ) : (
             <>
               {widgets.find(w => w.id === 'metrics')?.visible && (
-                <section className="tvx-dashboard-metrics" aria-label="Hiring metrics" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1rem', marginBottom: '2rem' }}>
-                  <MetricCard
+                <section className="tvx-dashboard-metrics" aria-label="Hiring metrics" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1.25rem', marginBottom: '1.75rem' }}>
+                  <MetricBoundary
+                    allowed={can(permissions, owner, 'jobs.update')}
                     label="Active jobs"
-                    value={recDash.data?.metrics.activeJobs ?? 0}
+                    value={queries.jobs.data?.total ?? 0}
+                    loading={queries.jobs.isLoading}
+                    error={queries.jobs.isError}
+                    metadata="Managed roles"
                     icon={<BriefcaseBusiness />}
-                    isLoading={recDash.isLoading}
+                    retry={() => void queries.jobs.refetch()}
                   />
-                  <MetricCard
-                    label="Draft jobs"
-                    value={recDash.data?.metrics.draftJobs ?? 0}
-                    icon={<BriefcaseBusiness />}
-                    isLoading={recDash.isLoading}
-                  />
-                  <MetricCard
-                    label="Closed jobs"
-                    value={recDash.data?.metrics.closedJobs ?? 0}
-                    icon={<BriefcaseBusiness />}
-                    isLoading={recDash.isLoading}
-                  />
-                  <MetricCard
+                  <MetricBoundary
+                    allowed={applicationsAllowed}
                     label="Total Applications"
-                    value={recDash.data?.metrics.totalApplications ?? 0}
+                    value={queries.newApplications.data ?? 0}
+                    loading={queries.newApplications.isLoading}
+                    error={queries.newApplications.isError}
+                    metadata="Across all postings"
                     icon={<Users />}
-                    isLoading={recDash.isLoading}
+                    retry={() => void queries.newApplications.refetch()}
                   />
-                  <MetricCard
+                  <MetricBoundary
+                    allowed={interviewsAllowed}
                     label="Interviews Scheduled"
-                    value={recDash.data?.metrics.interviewsScheduled ?? 0}
+                    value={queries.weekInterviews.data?.length ?? 0}
+                    loading={queries.weekInterviews.isLoading}
+                    error={queries.weekInterviews.isError}
+                    variant="ice"
+                    metadata="Upcoming 7 days"
                     icon={<CalendarDays />}
-                    isLoading={recDash.isLoading}
+                    retry={() => void queries.weekInterviews.refetch()}
                   />
-                  <MetricCard
-                    label="Offers Sent"
-                    value={recDash.data?.metrics.offersSent ?? 0}
+                  <MetricBoundary
+                    allowed={can(permissions, owner, 'offers.view')}
+                    label="Offers pending"
+                    value={queries.offers.data ?? 0}
+                    loading={queries.offers.isLoading}
+                    error={queries.offers.isError}
+                    variant="dark"
+                    metadata="Awaiting decision"
                     icon={<FileText />}
-                    isLoading={recDash.isLoading}
-                  />
-                  <MetricCard
-                    label="Candidates Hired"
-                    value={recDash.data?.metrics.candidatesHired ?? 0}
-                    icon={<Users />}
-                    isLoading={recDash.isLoading}
-                  />
-                  <MetricCard
-                    label="Team Members"
-                    value={recDash.data?.metrics.teamMembers ?? 0}
-                    icon={<Users />}
-                    isLoading={recDash.isLoading}
+                    retry={() => void queries.offers.refetch()}
                   />
                 </section>
               )}
@@ -534,7 +533,7 @@ export function OrganizationDashboardPage() {
                                       onPageChange: (page: number) => update({ page }),
                                     }
                                   : undefined,
-                                emptyState: hasFilters ? (
+                                empty: hasFilters ? (
                                   <FilteredEmptyState
                                     title="No candidates match"
                                     description="Try a broader search or remove a stage filter."
@@ -545,7 +544,7 @@ export function OrganizationDashboardPage() {
                                   />
                                 ) : (
                                   <EmptyState
-                                    title="No applications"
+                                    title="No applications yet"
                                     description="Candidates who apply to your managed jobs appear here."
                                   />
                                 ),
@@ -939,3 +938,4 @@ function formatDateTime(value: string) {
         timeStyle: 'short',
       }).format(date);
 }
+

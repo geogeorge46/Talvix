@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { Award, FileText } from 'lucide-react';
 import {
   Link as RouterLink,
   useNavigate,
@@ -1127,11 +1128,18 @@ export function TemplateDetailPage() {
 export function CandidateOffersPage() {
   const q = useCandidateOffers();
   return (
-    <main>
-      <PageHeader
-        title="My offers"
-        description="Review offer terms and respond before they expire."
-      />
+    <div className="candidate-page candidate-domain-container">
+      <div className="candidate-hero-banner-mindease">
+        <div className="banner-left-content">
+          <div className="banner-icon-badge theme-yellow">
+            <Award size={22} />
+          </div>
+          <div className="banner-text-details">
+            <h1 className="banner-title">My Offers</h1>
+            <p className="banner-subtext">Review offer terms and respond before they expire.</p>
+          </div>
+        </div>
+      </div>
       {q.isLoading ? (
         <LoadingState label="Loading offers" />
       ) : q.isError ? (
@@ -1151,7 +1159,7 @@ export function CandidateOffersPage() {
       <Alert tone="neutral" title="List limitation">
         <p>The candidate offer API currently returns one unpaginated list.</p>
       </Alert>
-    </main>
+    </div>
   );
 }
 export function CandidateOfferDetailPage() {
@@ -1574,11 +1582,18 @@ export function CandidateDocumentsPage() {
     ),
     m = useDocumentMutation();
   return (
-    <main>
-      <PageHeader
-        title="My documents"
-        description="Manage files you own and see verification results."
-      />
+    <div className="candidate-page candidate-documents-compact candidate-domain-container">
+      <div className="candidate-hero-banner-mindease">
+        <div className="banner-left-content">
+          <div className="banner-icon-badge theme-green">
+            <FileText size={22} />
+          </div>
+          <div className="banner-text-details">
+            <h1 className="banner-title">My Documents</h1>
+            <p className="banner-subtext">Manage files you own and see verification results.</p>
+          </div>
+        </div>
+      </div>
       <Toolbar
         label="Document filters"
         start={
@@ -1683,7 +1698,7 @@ export function CandidateDocumentsPage() {
           cannot be deleted from this manager.
         </p>
       </Alert>
-    </main>
+    </div>
   );
 }
 export function CandidateDocumentDetailPage() {

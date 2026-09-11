@@ -57,6 +57,12 @@ export interface Assignment {
   candidateName: string;
   applicationId: string;
   resultReleased: boolean;
+  attemptsUsed?: number;
+  bestPercentage?: number;
+  passed?: boolean;
+  latestAttempt?: any;
+  bestAttempt?: any;
+  totalMarks?: number;
 }
 export interface Attempt {
   id: string;
@@ -68,6 +74,26 @@ export interface Attempt {
   currentQuestion: number;
   questions: Question[];
   answers: Record<string, unknown>;
+  evaluation?: {
+    objectiveScore: number;
+    subjectiveScore: number;
+    codingScore: number;
+    totalScore: number;
+    percentage: number;
+    passed: boolean;
+    reviewedAt?: string;
+    reviewedBy?: string;
+  };
+  questionResults?: Array<{
+    questionId: string;
+    questionType: string;
+    marks: number;
+    awardedMarks: number;
+    isCorrect: boolean;
+    requiresManualReview: boolean;
+    feedback: string;
+    codingResult?: any;
+  }>;
 }
 export const label = (v: string) =>
   v.replaceAll('-', ' ').replace(/\b\w/g, (c) => c.toUpperCase());
@@ -82,7 +108,7 @@ export function toQuestion(v: unknown): Question {
   const x = record(v),
     coding = record(x.coding);
   return {
-    id: text(x._id, text(x.id)),
+    id: text(x.questionId, text(x._id, text(x.id))),
     type: text(x.type, 'short-answer') as QuestionType,
     prompt: text(x.prompt),
     title: text(x.title),
@@ -121,8 +147,20 @@ export function toAssessment(v: unknown): Assessment {
 export function toAssignment(v: unknown): Assignment {
   const x = record(v),
     a = record(x.assessmentSnapshot ?? x.assessment),
-    c = record(x.candidate),
-    attemptId = text(record(x.attempt)._id, text(x.attemptId));
+    c = record(x.candidate);
+  const rawLatestAttempt = x.latestAttempt;
+  const latestAttemptId = typeof rawLatestAttempt === 'string' && rawLatestAttempt
+    ? rawLatestAttempt
+    : (rawLatestAttempt && typeof rawLatestAttempt === 'object')
+      ? text(record(rawLatestAttempt)._id, text(record(rawLatestAttempt).id))
+      : undefined;
+  const rawAttempt = x.attempt;
+  const attemptIdVal = typeof rawAttempt === 'string' && rawAttempt
+    ? rawAttempt
+    : (rawAttempt && typeof rawAttempt === 'object')
+      ? text(record(rawAttempt)._id, text(record(rawAttempt).id))
+      : undefined;
+  const attemptId = text(latestAttemptId, text(attemptIdVal, text(x.attemptId)));
   return {
     id: text(x._id, text(x.id)),
     title: text(a.title, text(x.assessmentTitle, 'Assessment')),
@@ -133,12 +171,18 @@ export function toAssignment(v: unknown): Assignment {
     candidateName: text(c.fullName, text(x.candidateName, 'Candidate')),
     applicationId: text(record(x.application)._id, text(x.applicationId)),
     resultReleased: x.resultReleasedAt != null || x.resultReleased === true,
-  };
+    attemptsUsed: num(x.attemptsUsed),
+    bestPercentage: x.bestPercentage !== undefined ? num(x.bestPercentage) : undefined,
+    passed: typeof x.passed === 'boolean' ? x.passed : undefined,
+    latestAttempt: x.latestAttempt ? record(x.latestAttempt) : undefined,
+    bestAttempt: x.bestAttempt ? record(x.bestAttempt) : undefined,
+    totalMarks: num(a.totalMarks),
+  } as Assignment;
 }
 export function toAttempt(v: unknown): Attempt {
   const x = record(v),
-    snapshot = record(x.assessmentSnapshot),
-    questions = arr(snapshot.questions).map((q) =>
+    snapshot = record(x.assessmentSnapshot ?? record(x.assignment).assessmentSnapshot),
+    questions = arr(x.questions || snapshot.questions).map((q) =>
       toQuestion(record(q).questionSnapshot ?? q),
     );
   const answers: Record<string, unknown> = {};
@@ -146,6 +190,7 @@ export function toAttempt(v: unknown): Attempt {
     const z = record(a);
     answers[text(z.questionId)] = z.code ?? z.answer;
   });
+  const evalRec = record(x.evaluation);
   return {
     id: text(x._id, text(x.id)),
     assignmentId: text(x.assignmentId, text(record(x.assignment)._id)),
@@ -156,7 +201,34 @@ export function toAttempt(v: unknown): Attempt {
     currentQuestion: num(x.currentQuestion),
     questions,
     answers,
-  };
+    evaluation: x.evaluation
+      ? {
+          objectiveScore: num(evalRec.objectiveScore),
+          subjectiveScore: num(evalRec.subjectiveScore),
+          codingScore: num(evalRec.codingScore),
+          totalScore: num(evalRec.totalScore),
+          percentage: num(evalRec.percentage),
+          passed: Boolean(evalRec.passed),
+          reviewedAt: text(evalRec.reviewedAt),
+          reviewedBy: text(evalRec.reviewedBy),
+        }
+      : undefined,
+    questionResults: x.questionResults
+      ? arr(x.questionResults).map((qr) => {
+          const item = record(qr);
+          return {
+            questionId: text(item.questionId),
+            questionType: text(item.questionType),
+            marks: num(item.marks),
+            awardedMarks: num(item.awardedMarks),
+            isCorrect: Boolean(item.isCorrect),
+            requiresManualReview: Boolean(item.requiresManualReview),
+            feedback: text(item.feedback),
+            codingResult: item.codingResult,
+          };
+        })
+      : undefined,
+  } as Attempt;
 }
 export const safeResult = (v: unknown) => {
   const x = record(v);

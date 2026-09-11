@@ -82,7 +82,8 @@ a {
   outline-offset: var(--space-half);
   box-shadow: 0 0 0 var(--border-strong) var(--color-focus-halo);
 }
-.sr-only {
+.sr-only,
+.visually-hidden {
   position: absolute;
   width: 1px;
   height: 1px;
