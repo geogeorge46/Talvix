@@ -48,11 +48,18 @@ const createRecords = async (c, u, b, s) => {
     await OfferTemplate.updateOne({ _id: template.id }, { $inc: { usageCount: 1 } }, { session: s });
   }
 
-  const offerNumber = await generateOfferNumber(s);
+  const latestOffer = await Offer.findOne({ application: app.id }).sort({ revision: -1 }).session(s);
+  const revision = latestOffer ? latestOffer.revision + 1 : 1;
+  const chainId = latestOffer ? latestOffer.chainId : new mongoose.Types.ObjectId();
+  const parentOffer = latestOffer ? latestOffer._id : null;
+
+  const offerNumber = await generateOfferNumber(s, revision, latestOffer?.offerNumber);
   const [offer] = await Offer.create([{
     ...b,
     offerNumber,
-    chainId: new mongoose.Types.ObjectId(),
+    chainId,
+    revision,
+    parentOffer,
     company: c,
     job: app.job,
     application: app.id,
@@ -68,8 +75,8 @@ const createRecords = async (c, u, b, s) => {
     jobSnapshot: { title: job.title, employmentType: job.employmentType, workMode: job.workMode, location: job.location, companyName: company.name }
   }], { session: s });
 
-  if (app.status === 'interview-completed') {
-    changeApplicationStatus(app, 'offer-pending', u, 'Offer drafted');
+  if (app.status !== 'offer-pending') {
+    changeApplicationStatus(app, 'offer-pending', u, 'Offer drafted', { adminOverride: true });
     await app.save({ session: s });
   }
   return offer;
@@ -148,8 +155,28 @@ export const update = async (c, id, b, reqMeta = {}) => {
 
 export const requestApproval = async (c, id, u, reqMeta = {}) => {
   const o = await own(c, id);
-  if (!['draft', 'rejected'].includes(o.status) || !o.joiningDate || !o.expiresAt || !o.compensation) {
+  if (process.env.DEBUG_OFFER_VISIBILITY === 'true' || process.env.DEBUG_OFFER_APPROVAL === 'true') {
+    console.log('[DEBUG_OFFER_APPROVAL]', {
+      offerId: id,
+      status: o.status,
+      company: String(c),
+      candidate: String(o.candidate),
+      application: String(o.application),
+      hasTitle: Boolean(o.title),
+      hasJoiningDate: Boolean(o.joiningDate),
+      hasExpiresAt: Boolean(o.expiresAt),
+      hasCompensation: Boolean(o.compensation),
+      approvalRequired: Boolean(o.approval?.required)
+    });
+  }
+  if (!['draft', 'rejected'].includes(o.status) || !o.compensation) {
     throw new AppError('Offer is incomplete or cannot request approval', 409);
+  }
+  if (!o.joiningDate || isNaN(new Date(o.joiningDate).getTime())) {
+    o.joiningDate = new Date(Date.now() + 14 * 86400000);
+  }
+  if (!o.expiresAt || isNaN(new Date(o.expiresAt).getTime()) || new Date(o.expiresAt) <= new Date()) {
+    o.expiresAt = calculateOfferExpiry(7);
   }
 
   const CompanyModel = mongoose.model('Company');

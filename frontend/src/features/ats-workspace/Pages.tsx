@@ -2,12 +2,14 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import {
   Link as RouterLink,
+  NavLink as RouterNavLink,
   useNavigate,
   useParams,
   useSearchParams,
 } from 'react-router-dom';
-import { Check, X, ExternalLink, Download, FileText, Globe } from 'lucide-react';
-import { safeDownload } from '../offers-documents/api';
+import { Check, X, ExternalLink, Download, FileText, Globe, CheckCircle2, Clock, Sparkles, Users } from 'lucide-react';
+import { safeDownload, getDocumentUrl } from '../offers-documents/api';
+import { DocumentPreviewDialog } from '../offers-documents/DocumentPreviewDialog';
 import {
   Alert,
   Badge,
@@ -64,7 +66,16 @@ import {
   type CandidateRow,
   type EvidenceItem,
 } from './model';
-import { useAssignments } from '../assessments/api';
+import {
+  useAssignments,
+  useAssessments,
+  useCheckEligibility,
+  useBulkAssignAssessment,
+} from '../assessments/api';
+import type {
+  EligibilityCheckResult,
+  BulkAssignResult,
+} from '../assessments/model';
 import './ats-workspace.css';
 
 const statusTone = (s: string) =>
@@ -215,10 +226,25 @@ function AtsHeader({
       title={title}
       description={description}
       secondaryActions={
-        <nav aria-label="ATS sections" className="ats-tabs">
-          <RouterLink to="/org/applications">Applications</RouterLink>
-          <RouterLink to="/org/candidates">Candidates</RouterLink>
-        </nav>
+        <div className="ats-nav-tabs-wrapper">
+          <nav className="ats-nav-tabs" aria-label="ATS sections">
+            <RouterNavLink
+              to="/org/applications"
+              end
+              className={({ isActive }) => `ats-nav-tab ${isActive ? 'active' : ''}`}
+            >
+              <FileText size={15} />
+              <span>Applications</span>
+            </RouterNavLink>
+            <RouterNavLink
+              to="/org/candidates"
+              className={({ isActive }) => `ats-nav-tab ${isActive ? 'active' : ''}`}
+            >
+              <Users size={15} />
+              <span>Candidates</span>
+            </RouterNavLink>
+          </nav>
+        </div>
       }
     />
   );
@@ -409,131 +435,36 @@ function Filters({
           )}
         </div>
       }
+      end={
+        kind === 'applications' ? (
+          <div className="ats-view-toggle" aria-label="View">
+            <Button
+              variant={params.get('view') === 'board' ? 'secondary' : 'primary'}
+              onClick={() => setParam(params, setParams, 'view', 'list')}
+            >
+              Pipeline list
+            </Button>
+            <Button
+              variant={params.get('view') === 'board' ? 'primary' : 'secondary'}
+              onClick={() => setParam(params, setParams, 'view', 'board')}
+            >
+              Pipeline board
+            </Button>
+            {params.get('jobId') && (
+              <RouterLink
+                className="tvx-button tvx-button--secondary ml-auto"
+                to={`/org/applications/compare?jobId=${params.get('jobId')}`}
+              >
+                Compare Candidates
+              </RouterLink>
+            )}
+          </div>
+        ) : undefined
+      }
     />
   );
 }
-function MoveDialog({
-  row,
-  open,
-  onOpenChange,
-  onAnnounce,
-}: {
-  row: ApplicationRow;
-  open: boolean;
-  onOpenChange: (v: boolean) => void;
-  onAnnounce: (v: string) => void;
-}) {
-  const choices = row.status === 'unknown' ? [] : transitions[row.status];
-  const [destination, setDestination] = useState<ApplicationStatus | ''>('');
-  const [reason, setReason] = useState('');
-  const [category, setCategory] = useState('other');
-  const [notice, setNotice] = useState('');
-  const move = useMoveApplication(row.id);
-  const submit = async () => {
-    if (!destination) return;
-    if (destination === 'rejected' && !reason.trim()) {
-      setNotice('A rejection reason is required.');
-      return;
-    }
-    try {
-      await move.mutateAsync({
-        status: destination,
-        ...(reason.trim() ? { reason: reason.trim() } : {}),
-        ...(destination === 'rejected' ? { rejectionCategory: category } : {}),
-      });
-      onOpenChange(false);
-      onAnnounce(
-        `${row.candidateName} moved from ${labelStatus(row.status)} to ${labelStatus(destination)}.`,
-      );
-      setDestination('');
-      setReason('');
-      setNotice('');
-    } catch (e) {
-      if (e instanceof ApiError && e.status === 409) {
-        const intended = destination;
-        setNotice('');
-        setDestination('');
-        setReason('');
-        onOpenChange(false);
-        onAnnounce(
-          `Move to ${labelStatus(intended)} was not completed because this application changed. Refreshed data is available; reopen Move to stage and explicitly confirm a currently valid action.`,
-        );
-      } else setNotice(errorMessage(e));
-    }
-  };
-  return (
-    <Dialog
-      open={open}
-      onOpenChange={onOpenChange}
-      title="Move to stage"
-      description={`Confirm a stage change for ${row.candidateName}.`}
-      busy={move.isPending}
-      footer={
-        <>
-          <Button
-            variant="secondary"
-            onClick={() => onOpenChange(false)}
-            disabled={move.isPending}
-          >
-            Cancel
-          </Button>
-          <Button
-            onClick={() => void submit()}
-            loading={move.isPending}
-            disabled={!destination}
-          >
-            Confirm movement
-          </Button>
-        </>
-      }
-    >
-      <div className="ats-dialog-fields">
-        <p>
-          <strong>Current stage:</strong> {labelStatus(row.status)}
-        </p>
-        {choices.length ? (
-          <Select
-            label="Destination"
-            value={destination}
-            onChange={(e) =>
-              setDestination(e.target.value as ApplicationStatus)
-            }
-            options={choices.map((s) => ({ value: s, label: labelStatus(s) }))}
-          />
-        ) : (
-          <Alert title="No movement available" tone="info">
-            This application is at a terminal or unknown stage.
-          </Alert>
-        )}
-        {destination === 'rejected' && (
-          <>
-            <TextArea
-              label="Rejection reason"
-              required
-              value={reason}
-              error={notice && !reason.trim() ? notice : undefined}
-              onChange={(e) => setReason(e.target.value)}
-            />
-            <Select
-              label="Rejection category"
-              value={category}
-              onChange={(e) => setCategory(e.target.value)}
-              options={rejectionCategories.map((x) => ({
-                value: x,
-                label: labelStatus(x),
-              }))}
-            />
-          </>
-        )}
-        {notice && !(destination === 'rejected' && !reason.trim()) && (
-          <Alert title="Movement not completed" tone="warning">
-            {notice}
-          </Alert>
-        )}
-      </div>
-    </Dialog>
-  );
-}
+
 function ShortlistCandidateDialog({
   row,
   open,
@@ -684,14 +615,13 @@ function RejectCandidateDialog({
 
 function Actions({
   row,
-  canManage,
-  onAnnounce,
+  canManage: _canManage,
+  onAnnounce: _onAnnounce,
 }: {
   row: ApplicationRow;
   canManage: boolean;
   onAnnounce: (s: string) => void;
 }) {
-  const [open, setOpen] = useState(false);
   return (
     <div className="ats-actions">
       <RouterLink
@@ -708,30 +638,18 @@ function Actions({
           View profile
         </RouterLink>
       )}
-      {canManage &&
-        row.status !== 'unknown' &&
-        transitions[row.status].length > 0 && (
-          <Button size="compact" onClick={() => setOpen(true)}>
-            Move to stage
-          </Button>
-        )}
-      <MoveDialog
-        row={row}
-        open={open}
-        onOpenChange={setOpen}
-        onAnnounce={onAnnounce}
-      />
     </div>
   );
 }
 function Match({ row }: { row: ApplicationRow }) {
+  const tone = row.matchScore >= 80 ? 'high' : row.matchScore >= 50 ? 'medium' : 'low';
   return (
     <span
-      className="ats-match"
+      className={`ats-match-badge ats-match-badge--${tone}`}
       aria-label={`${row.matchScore} percent deterministic skill match`}
     >
-      <strong>{row.matchScore}</strong>
-      <small>Skill match</small>
+      <strong>{row.matchScore}%</strong>
+      <span>match</span>
     </span>
   );
 }
@@ -748,6 +666,14 @@ function ApplicationCard({
   onSelectToggle?: () => void;
   onDragStart?: (e: React.DragEvent) => void;
 }) {
+  const initials = row.candidateName
+    .split(' ')
+    .filter(Boolean)
+    .map((n) => n[0])
+    .join('')
+    .slice(0, 2)
+    .toUpperCase();
+
   return (
     <article
       className={`ats-record ${isSelected ? 'selected' : ''}`}
@@ -755,41 +681,475 @@ function ApplicationCard({
       onDragStart={onDragStart}
       style={{ cursor: 'grab' }}
     >
-      <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-start' }}>
+      <div className="ats-card-header">
         {onSelectToggle && (
           <input
             type="checkbox"
             checked={isSelected}
             onChange={onSelectToggle}
             className="ats-card-checkbox"
-            style={{ marginTop: '4px' }}
             aria-label={`Select ${row.candidateName}`}
           />
         )}
-        <div style={{ flex: 1 }}>
-          <strong>{row.candidateName}</strong>
-          <span>{row.jobTitle}</span>
+        <div className="ats-avatar-icon">{initials}</div>
+        <div className="ats-card-entity">
+          <strong className="ats-card-name">{row.candidateName}</strong>
+          <span className="ats-card-job">{row.jobTitle}</span>
         </div>
+        <Match row={row} />
       </div>
-      <Match row={row} />
-      <div className="ats-skills">
-        {row.skills.slice(0, 3).map((s) => (
-          <Badge key={s}>{s}</Badge>
-        ))}
+
+      {row.skills && row.skills.length > 0 && (
+        <div className="ats-skills">
+          {row.skills.slice(0, 3).map((s) => (
+            <Badge key={s}>{s}</Badge>
+          ))}
+        </div>
+      )}
+
+      <div className="ats-card-meta">
+        <StatusTag tone={statusTone(row.status)}>
+          {labelStatus(row.status)}
+        </StatusTag>
+        <small className="ats-card-date">
+          Submitted {formatDate(row.submittedAt)}
+        </small>
       </div>
-      <StatusTag tone={statusTone(row.status)}>
-        {labelStatus(row.status)}
-      </StatusTag>
-      <small>Submitted {formatDate(row.submittedAt)}</small>
-      {actions}
+
+      {actions && <div className="ats-card-actions">{actions}</div>}
     </article>
   );
 }
+export function AssignAssessmentModal({
+  open,
+  onOpenChange,
+  applicationIds,
+  onSuccess,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  applicationIds: string[];
+  onSuccess: () => void;
+}) {
+  const { recruiter } = useAuth();
+  const canAssign = Boolean(
+    recruiter?.permissions.includes('assessments.assign'),
+  );
+
+  const assessmentsQuery = useAssessments(
+    'page=1&limit=50&status=published',
+    open && canAssign,
+  );
+  const checkEligibilityMutation = useCheckEligibility();
+  const bulkAssignMutation = useBulkAssignAssessment();
+
+  const [assessmentId, setAssessmentId] = useState('');
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const defaultExpiryStr = new Date(Date.now() + 3 * 86400000)
+    .toISOString()
+    .slice(0, 10);
+  const [availableFrom, setAvailableFrom] = useState(todayStr);
+  const [expiresAt, setExpiresAt] = useState(defaultExpiryStr);
+  const [eligibilityData, setEligibilityData] =
+    useState<EligibilityCheckResult | null>(null);
+  const [outcome, setOutcome] = useState<BulkAssignResult | null>(null);
+  const [errorNotice, setErrorNotice] = useState('');
+
+  useEffect(() => {
+    if (!open) {
+      setAssessmentId('');
+      setEligibilityData(null);
+      setOutcome(null);
+      setErrorNotice('');
+    }
+  }, [open]);
+
+  useEffect(() => {
+    if (open && assessmentId && applicationIds.length > 0) {
+      setErrorNotice('');
+      checkEligibilityMutation.mutate(
+        { assessmentId, applicationIds },
+        {
+          onSuccess: (data) => setEligibilityData(data),
+          onError: (err) =>
+            setErrorNotice(
+              err instanceof Error
+                ? err.message
+                : 'Candidate eligibility check failed.',
+            ),
+        },
+      );
+    } else {
+      setEligibilityData(null);
+    }
+  }, [assessmentId, open, applicationIds]);
+
+  const handleConfirm = async () => {
+    if (!assessmentId) {
+      setErrorNotice('Please select an assessment to assign.');
+      return;
+    }
+    if (!availableFrom || !expiresAt) {
+      setErrorNotice('Both availability date and deadline are required.');
+      return;
+    }
+    if (new Date(expiresAt) <= new Date(availableFrom)) {
+      setErrorNotice('Deadline must be later than the available date.');
+      return;
+    }
+    setErrorNotice('');
+    try {
+      const fromIso = new Date(availableFrom + 'T00:00:00.000Z').toISOString();
+      const toIso = new Date(expiresAt + 'T23:59:59.000Z').toISOString();
+      const res = await bulkAssignMutation.mutateAsync({
+        assessmentId,
+        applicationIds,
+        availableFrom: fromIso,
+        expiresAt: toIso,
+      });
+      setOutcome(res);
+      onSuccess();
+    } catch (err) {
+      setErrorNotice(
+        err instanceof Error ? err.message : 'Bulk assignment failed.',
+      );
+    }
+  };
+
+  const assessments = (assessmentsQuery.data?.items ?? []) as Array<{
+    id: string;
+    title: string;
+    description: string;
+    type: string;
+    durationMinutes: number;
+    passingPercentage: number;
+    questionCount?: number;
+    questions?: unknown[];
+  }>;
+
+  const selectedAssessment = assessments.find((a) => a.id === assessmentId);
+  const eligibleCount = eligibilityData?.summary.eligibleCount ?? 0;
+  const alreadyAssignedCount = eligibilityData?.summary.alreadyAssignedCount ?? 0;
+  const ineligibleCount = eligibilityData?.summary.ineligibleCount ?? 0;
+
+  if (!canAssign) {
+    return (
+      <Dialog
+        open={open}
+        onOpenChange={onOpenChange}
+        title="Assign Assessment"
+        description="Permission required."
+        footer={<Button onClick={() => onOpenChange(false)}>Close</Button>}
+      >
+        <Alert tone="warning" title="Missing Permission">
+          The assessments.assign permission is required to assign assessments to candidates.
+        </Alert>
+      </Dialog>
+    );
+  }
+
+  if (outcome) {
+    return (
+      <Dialog
+        open={open}
+        onOpenChange={onOpenChange}
+        title="Assessment Assignment Outcomes"
+        description={`Processed ${outcome.summary.requested} candidate(s) for ${selectedAssessment?.title ?? 'the assessment'}.`}
+        footer={<Button onClick={() => onOpenChange(false)}>Done</Button>}
+      >
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          {outcome.summary.assignedCount > 0 ? (
+            <Alert tone="success" title="Assignments Issued Successfully">
+              Successfully assigned {outcome.summary.assignedCount} candidate(s). Candidate pipeline stage updated to <strong>Assessment Pending</strong>.
+            </Alert>
+          ) : (
+            <Alert tone="warning" title="No New Assignments Created">
+              No new assignments were created for the selected candidates.
+            </Alert>
+          )}
+
+          <div className="ats-outcome-list">
+            {outcome.assigned.map((c) => (
+              <div key={c.applicationId} className="ats-outcome-item">
+                <div className="ats-eligibility-candidate">
+                  <strong>{c.candidateName}</strong>
+                  <small>{c.email || c.applicationId}</small>
+                </div>
+                <StatusTag tone="success">Assigned</StatusTag>
+              </div>
+            ))}
+
+            {outcome.alreadyAssigned.map((c) => (
+              <div key={c.applicationId} className="ats-outcome-item">
+                <div className="ats-eligibility-candidate">
+                  <strong>{c.candidateName}</strong>
+                  <small>Existing status: {c.existingStatus ?? 'active'} (duplicate prevented)</small>
+                </div>
+                <StatusTag tone="warning">Skipped</StatusTag>
+              </div>
+            ))}
+
+            {outcome.ineligible.map((c) => (
+              <div key={c.applicationId} className="ats-outcome-item">
+                <div className="ats-eligibility-candidate">
+                  <strong>{c.candidateName}</strong>
+                  <small>{c.reason || 'Ineligible stage'}</small>
+                </div>
+                <StatusTag tone="danger">Ineligible</StatusTag>
+              </div>
+            ))}
+
+            {outcome.failed.map((c) => (
+              <div key={c.applicationId} className="ats-outcome-item">
+                <div className="ats-eligibility-candidate">
+                  <strong>{c.candidateName ?? c.applicationId}</strong>
+                  <small>{c.reason}</small>
+                </div>
+                <StatusTag tone="danger">Failed</StatusTag>
+              </div>
+            ))}
+          </div>
+        </div>
+      </Dialog>
+    );
+  }
+
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={onOpenChange}
+      title="Assign Assessment to Candidates"
+      description={`Configure and assign an assessment to ${applicationIds.length} candidate(s).`}
+      busy={bulkAssignMutation.isPending}
+      footer={
+        <>
+          <Button variant="secondary" onClick={() => onOpenChange(false)}>
+            Cancel
+          </Button>
+          <Button
+            onClick={handleConfirm}
+            disabled={
+              !assessmentId ||
+              eligibleCount === 0 ||
+              checkEligibilityMutation.isPending ||
+              bulkAssignMutation.isPending
+            }
+            loading={bulkAssignMutation.isPending}
+          >
+            Confirm &amp; Assign {eligibleCount > 0 ? `(${eligibleCount})` : ''}
+          </Button>
+        </>
+      }
+    >
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+        {errorNotice && <Alert tone="danger">{errorNotice}</Alert>}
+
+        {assessmentsQuery.isLoading ? (
+          <LoadingState label="Loading published assessments..." />
+        ) : assessmentsQuery.isError ? (
+          <Alert tone="danger">
+            {assessmentsQuery.error instanceof Error
+              ? assessmentsQuery.error.message
+              : 'Could not load assessments.'}
+          </Alert>
+        ) : assessments.length === 0 ? (
+          <EmptyState
+            title="No published assessments"
+            description="Create and publish an assessment before assigning it to candidates."
+          />
+        ) : (
+          <>
+            <Select
+              label="Select Assessment"
+              value={assessmentId}
+              onChange={(e) => setAssessmentId(e.target.value)}
+              options={assessments.map((a) => ({
+                value: a.id,
+                label: `${a.title} (${a.durationMinutes} mins · ${a.passingPercentage}% pass)`,
+              }))}
+              placeholder="-- Choose a published assessment --"
+            />
+
+            {selectedAssessment && (
+              <div
+                style={{
+                  padding: '8px 12px',
+                  background: 'var(--color-surface-subtle, rgba(0,0,0,0.02))',
+                  borderRadius: '6px',
+                  fontSize: '0.875rem',
+                }}
+              >
+                <div>
+                  <strong>Duration:</strong> {selectedAssessment.durationMinutes} minutes |{' '}
+                  <strong>Passing Score:</strong> {selectedAssessment.passingPercentage}%
+                </div>
+                {selectedAssessment.description && (
+                  <div
+                    style={{
+                      marginTop: '4px',
+                      color: 'var(--color-text-secondary)',
+                    }}
+                  >
+                    {selectedAssessment.description}
+                  </div>
+                )}
+              </div>
+            )}
+
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: '1fr 1fr',
+                gap: '12px',
+              }}
+            >
+              <DateField
+                label="Available From"
+                min={todayStr}
+                value={availableFrom}
+                onChange={(e) => {
+                  const nextAvail = e.target.value;
+                  setAvailableFrom(nextAvail);
+                  if (expiresAt && nextAvail && expiresAt <= nextAvail) {
+                    const nextMinExpiry = new Date(new Date(nextAvail).getTime() + 86400000)
+                      .toISOString()
+                      .slice(0, 10);
+                    setExpiresAt(nextMinExpiry);
+                  }
+                }}
+              />
+              <DateField
+                label="Deadline (Expiry Date)"
+                min={availableFrom ? new Date(new Date(availableFrom).getTime() + 86400000).toISOString().slice(0, 10) : todayStr}
+                value={expiresAt}
+                onChange={(e) => setExpiresAt(e.target.value)}
+              />
+            </div>
+
+            {assessmentId && (
+              <div className="ats-eligibility-preview">
+                <div
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                  }}
+                >
+                  <strong>Eligibility Preview</strong>
+                  {checkEligibilityMutation.isPending && (
+                    <small style={{ color: 'var(--color-text-secondary)' }}>
+                      Evaluating...
+                    </small>
+                  )}
+                </div>
+
+                {checkEligibilityMutation.isPending ? (
+                  <LoadingState label="Evaluating candidate eligibility..." />
+                ) : eligibilityData ? (
+                  <>
+                    <div className="ats-eligibility-summary">
+                      <StatusTag tone="success">
+                        {eligibleCount} Eligible
+                      </StatusTag>
+                      {alreadyAssignedCount > 0 && (
+                        <StatusTag tone="warning">
+                          {alreadyAssignedCount} Already Assigned
+                        </StatusTag>
+                      )}
+                      {ineligibleCount > 0 && (
+                        <StatusTag tone="danger">
+                          {ineligibleCount} Ineligible
+                        </StatusTag>
+                      )}
+                    </div>
+
+                    <div className="ats-eligibility-list">
+                      {eligibilityData.eligible.map((c) => (
+                        <div
+                          key={c.applicationId}
+                          className="ats-eligibility-item"
+                        >
+                          <div className="ats-eligibility-candidate">
+                            <strong>{c.candidateName}</strong>
+                            <small>
+                              {c.jobTitle ? `${c.jobTitle} · ` : ''}
+                              {c.stage
+                                ? `Stage: ${labelStatus(c.stage)}`
+                                : c.email}
+                            </small>
+                          </div>
+                          <StatusTag tone="success">Ready to Assign</StatusTag>
+                        </div>
+                      ))}
+
+                      {eligibilityData.alreadyAssigned.map((c) => (
+                        <div
+                          key={c.applicationId}
+                          className="ats-eligibility-item"
+                        >
+                          <div className="ats-eligibility-candidate">
+                            <strong>{c.candidateName}</strong>
+                            <small>
+                              Existing Assignment ({c.existingStatus ?? 'active'}) — duplicate will be skipped
+                            </small>
+                          </div>
+                          <StatusTag tone="warning">Already Assigned</StatusTag>
+                        </div>
+                      ))}
+
+                      {eligibilityData.ineligible.map((c) => (
+                        <div
+                          key={c.applicationId}
+                          className="ats-eligibility-item"
+                        >
+                          <div className="ats-eligibility-candidate">
+                            <strong>{c.candidateName}</strong>
+                            <small>
+                              {c.reason || 'Not in eligible pipeline stage'} — will be skipped
+                            </small>
+                          </div>
+                          <StatusTag tone="danger">Ineligible</StatusTag>
+                        </div>
+                      ))}
+                    </div>
+
+                    {eligibleCount === 0 && (
+                      <Alert tone="warning">
+                        None of the selected candidates are eligible for this assessment. Already assigned candidates and candidates in ineligible stages cannot be assigned.
+                      </Alert>
+                    )}
+
+                    {eligibleCount > 0 &&
+                      (alreadyAssignedCount > 0 || ineligibleCount > 0) && (
+                        <p
+                          style={{
+                            fontSize: '0.8125rem',
+                            color: 'var(--color-text-secondary)',
+                            margin: 0,
+                          }}
+                        >
+                          Note: Only the {eligibleCount} eligible candidate(s) will be assigned. Already assigned and ineligible candidates will be safely skipped.
+                        </p>
+                      )}
+                  </>
+                ) : null}
+              </div>
+            )}
+          </>
+        )}
+      </div>
+    </Dialog>
+  );
+}
+
 export function ApplicationsPage() {
   const { recruiter } = useAuth();
   const canView = Boolean(recruiter?.permissions.includes('applications.view'));
   const canManage = Boolean(
     recruiter?.permissions.includes('applications.manage'),
+  );
+  const canAssignAssessment = Boolean(
+    recruiter?.permissions.includes('assessments.assign'),
   );
   const [params, setParams] = useSearchParams();
   useEffect(() => {
@@ -802,6 +1162,80 @@ export function ApplicationsPage() {
   const pipeline = usePipeline(params.get('jobId') || undefined, canView);
   const [announcement, setAnnouncement] = useState('');
   const rows = query.data?.items ?? [];
+
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [bulkAction, setBulkAction] = useState<
+    'shortlist' | 'reject' | 'assign' | 'tag' | 'archive' | 'assign-assessment' | null
+  >(null);
+  const [bulkReason, setBulkReason] = useState<string>('');
+  const [bulkCategory, setBulkCategory] = useState<string>('other');
+  const [bulkTags, setBulkTags] = useState<string>('');
+  const [bulkNotice, setBulkNotice] = useState<string>('');
+
+  const bulkMutation = useBulkApplications();
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
+    );
+  };
+  const selectAll = () => {
+    setSelectedIds(
+      Array.from(new Set([...selectedIds, ...rows.map((r) => r.id)])),
+    );
+  };
+  const deselectAll = () => {
+    setSelectedIds((prev) =>
+      prev.filter((id) => !rows.some((r) => r.id === id)),
+    );
+  };
+
+  const executeBulkAction = async () => {
+    setBulkNotice('');
+    try {
+      if (bulkAction === 'shortlist') {
+        await bulkMutation.mutateAsync({
+          applicationIds: selectedIds,
+          action: 'move-stage',
+          payload: { status: 'shortlisted' },
+        });
+      } else if (bulkAction === 'reject') {
+        if (!bulkReason.trim()) {
+          setBulkNotice('A rejection reason is required.');
+          return;
+        }
+        await bulkMutation.mutateAsync({
+          applicationIds: selectedIds,
+          action: 'reject',
+          payload: { reason: bulkReason, rejectionCategory: bulkCategory },
+        });
+      } else if (bulkAction === 'archive') {
+        await bulkMutation.mutateAsync({
+          applicationIds: selectedIds,
+          action: 'archive',
+        });
+      } else if (bulkAction === 'tag') {
+        const tagsList = bulkTags
+          .split(',')
+          .map((t) => t.trim())
+          .filter(Boolean);
+        await bulkMutation.mutateAsync({
+          applicationIds: selectedIds,
+          action: 'add-tags',
+          payload: { tags: tagsList },
+        });
+      }
+
+      setSelectedIds([]);
+      setBulkAction(null);
+      setBulkReason('');
+      setBulkCategory('other');
+      setBulkTags('');
+    } catch (err) {
+      setBulkNotice(err instanceof Error ? err.message : 'An error occurred');
+    }
+  };
+
   const actions = (r: ApplicationRow) => (
     <Actions row={r} canManage={canManage} onAnnounce={setAnnouncement} />
   );
@@ -829,6 +1263,101 @@ export function ApplicationsPage() {
         title="Applications"
         description="Review submitted evidence and move candidates through the hiring pipeline."
       />
+
+      {/* 5 Metrics Summary Cards */}
+      <div className="ats-metrics-grid">
+        <div className="ats-metric-card">
+          <div className="ats-metric-card__header">
+            <div className="ats-metric-icon-box">
+              <FileText size={20} />
+            </div>
+            <span className="ats-metric-badge ats-metric-badge--success">
+              • Total
+            </span>
+          </div>
+          <div className="ats-metric-card__body">
+            <span className="ats-metric-card__label">Total Applications</span>
+            <strong className="ats-metric-card__val">
+              {query.data?.page.total ?? 0}
+            </strong>
+            <span className="ats-metric-card__sub">Across organization</span>
+          </div>
+        </div>
+
+        <div className="ats-metric-card">
+          <div className="ats-metric-card__header">
+            <div className="ats-metric-icon-box">
+              <Clock size={20} />
+            </div>
+            <span className="ats-metric-badge ats-metric-badge--info">
+              • Reviewing
+            </span>
+          </div>
+          <div className="ats-metric-card__body">
+            <span className="ats-metric-card__label">Applied / Screening</span>
+            <strong className="ats-metric-card__val" style={{ color: '#0284c7' }}>
+              {(pipeline.data?.pipeline?.submitted ?? 0) + (pipeline.data?.pipeline?.screening ?? 0)}
+            </strong>
+            <span className="ats-metric-card__sub">Under initial review</span>
+          </div>
+        </div>
+
+        <div className="ats-metric-card">
+          <div className="ats-metric-card__header">
+            <div className="ats-metric-icon-box">
+              <Users size={20} />
+            </div>
+            <span className="ats-metric-badge ats-metric-badge--warning">
+              • Evaluation
+            </span>
+          </div>
+          <div className="ats-metric-card__body">
+            <span className="ats-metric-card__label">Assessment / Interview</span>
+            <strong className="ats-metric-card__val" style={{ color: '#d97706' }}>
+              {(pipeline.data?.pipeline?.['assessment-pending'] ?? 0) +
+                (pipeline.data?.pipeline?.['interview-scheduled'] ?? 0)}
+            </strong>
+            <span className="ats-metric-card__sub">Active evaluations</span>
+          </div>
+        </div>
+
+        <div className="ats-metric-card">
+          <div className="ats-metric-card__header">
+            <div className="ats-metric-icon-box">
+              <CheckCircle2 size={20} />
+            </div>
+            <span className="ats-metric-badge ats-metric-badge--success">
+              • Shortlisted
+            </span>
+          </div>
+          <div className="ats-metric-card__body">
+            <span className="ats-metric-card__label">Shortlisted & Offer</span>
+            <strong className="ats-metric-card__val" style={{ color: '#059669' }}>
+              {(pipeline.data?.pipeline?.shortlisted ?? 0) +
+                (pipeline.data?.pipeline?.offered ?? 0)}
+            </strong>
+            <span className="ats-metric-card__sub">Selected candidates</span>
+          </div>
+        </div>
+
+        <div className="ats-metric-card">
+          <div className="ats-metric-card__header">
+            <div className="ats-metric-icon-box">
+              <Sparkles size={20} />
+            </div>
+            <span className="ats-metric-badge ats-metric-badge--neutral">
+              • Hired
+            </span>
+          </div>
+          <div className="ats-metric-card__body">
+            <span className="ats-metric-card__label">Hired & Onboarded</span>
+            <strong className="ats-metric-card__val" style={{ color: '#475569' }}>
+              {pipeline.data?.pipeline?.hired ?? 0}
+            </strong>
+            <span className="ats-metric-card__sub">Fulfilled positions</span>
+          </div>
+        </div>
+      </div>
       <div
         className={announcement ? 'ats-notice' : 'visually-hidden'}
         aria-live="polite"
@@ -851,28 +1380,6 @@ export function ApplicationsPage() {
           </Button>
         </Alert>
       )}
-      <div className="ats-view-toggle" aria-label="View">
-        <Button
-          variant={view === 'list' ? 'primary' : 'secondary'}
-          onClick={() => setParam(params, setParams, 'view', 'list')}
-        >
-          Pipeline list
-        </Button>
-        <Button
-          variant={view === 'board' ? 'primary' : 'secondary'}
-          onClick={() => setParam(params, setParams, 'view', 'board')}
-        >
-          Pipeline board
-        </Button>
-        {params.get('jobId') && (
-          <RouterLink
-            className="tvx-button tvx-button--secondary ml-auto"
-            to={`/org/applications/compare?jobId=${params.get('jobId')}`}
-          >
-            Compare Candidates
-          </RouterLink>
-        )}
-      </div>
       {query.isError ? (
         <ErrorState
           detail={errorMessage(query.error)}
@@ -885,6 +1392,10 @@ export function ApplicationsPage() {
           counts={pipeline.data?.pipeline ?? {}}
           actions={actions}
           empty={empty}
+          selectedIds={selectedIds}
+          toggleSelect={toggleSelect}
+          onSetSelectedIds={setSelectedIds}
+          onSetBulkAction={setBulkAction}
           {...(query.data?.page
             ? {
                 page: query.data.page,
@@ -894,321 +1405,105 @@ export function ApplicationsPage() {
             : {})}
         />
       ) : (
-        <PipelineList
-          rows={rows}
-          loading={query.isLoading}
-          {...(query.data?.page ? { page: query.data.page } : {})}
-          setPage={(p) => setParam(params, setParams, 'page', String(p))}
-          actions={actions}
-          empty={empty}
-        />
-      )}
-    </div>
-  );
-}
-function PipelineList({
-  rows,
-  loading,
-  page,
-  setPage,
-  actions,
-  empty,
-}: {
-  rows: ApplicationRow[];
-  loading: boolean;
-  page?: { page: number; pages: number };
-  setPage: (p: number) => void;
-  actions: (r: ApplicationRow) => ReactNode;
-  empty: ReactNode;
-}) {
-  return (
-    <DataTable
-      caption="Applications in the current result page"
-      rows={rows}
-      rowKey={(r) => r.id}
-      isLoading={loading}
-      empty={empty}
-      columns={[
-        {
-          id: 'candidate',
-          header: 'Candidate',
-          render: (r) => (
-            <>
-              <strong>{r.candidateName}</strong>
-              <small>{r.jobTitle}</small>
-            </>
-          ),
-        },
-        { id: 'match', header: 'Match', render: (r) => <Match row={r} /> },
-        {
-          id: 'skills',
-          header: 'Skills',
-          render: (r) => (
-            <span className="ats-skills">
-              {r.skills.slice(0, 3).map((s) => (
-                <Badge key={s}>{s}</Badge>
-              ))}
-            </span>
-          ),
-        },
-        {
-          id: 'stage',
-          header: 'Stage',
-          render: (r) => (
-            <StatusTag tone={statusTone(r.status)}>
-              {labelStatus(r.status)}
-            </StatusTag>
-          ),
-        },
-        {
-          id: 'submitted',
-          header: 'Submitted',
-          render: (r) => formatDate(r.submittedAt),
-        },
-      ]}
-      rowActions={actions}
-      renderNarrow={(r) => <ApplicationCard row={r} actions={null} />}
-      {...(page
-        ? {
-            pagination: {
-              page: page.page,
-              totalPages: page.pages,
-              onPageChange: setPage,
-              ariaLabel: 'Application pages',
-            },
-          }
-        : {})}
-    />
-  );
-}
-function PipelineBoard({
-  rows,
-  loading,
-  counts,
-  actions,
-  empty,
-  page,
-  setPage,
-}: {
-  rows: ApplicationRow[];
-  loading: boolean;
-  counts: Record<string, number>;
-  actions: (r: ApplicationRow) => ReactNode;
-  empty: ReactNode;
-  page?: { page: number; pages: number };
-  setPage?: (page: number) => void;
-}) {
-  const [selectedIds, setSelectedIds] = useState<string[]>([]);
-  const [draggedOverStage, setDraggedOverStage] = useState<string | null>(null);
-
-  const [bulkAction, setBulkAction] = useState<'move' | 'reject' | 'assign' | 'tag' | 'archive' | null>(null);
-  const [bulkStage, setBulkStage] = useState<string>('');
-  const [bulkReason, setBulkReason] = useState<string>('');
-  const [bulkCategory, setBulkCategory] = useState<string>('other');
-  const [bulkTags, setBulkTags] = useState<string>('');
-  const [notice, setNotice] = useState<string>('');
-
-  const bulkMutation = useBulkApplications();
-
-  if (loading) return <LoadingState label="Loading pipeline" />;
-  if (!rows.length) return <>{empty}</>;
-
-  const stages = applicationStatuses.filter(
-    (s) => rows.some((r) => r.status === s) || (counts[s] ?? 0) > 0,
-  );
-
-  const toggleSelect = (id: string) => {
-    setSelectedIds((prev) =>
-      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
-    );
-  };
-
-  const handleDragStart = (e: React.DragEvent, appId: string, status: string) => {
-    e.dataTransfer.setData('text/plain', JSON.stringify({ appId, status }));
-  };
-
-  const handleDrop = async (e: React.DragEvent, targetStatus: string) => {
-    e.preventDefault();
-    setDraggedOverStage(null);
-    try {
-      const dataStr = e.dataTransfer.getData('text/plain');
-      if (!dataStr) return;
-      const { appId, status } = JSON.parse(dataStr);
-      if (status === targetStatus) return;
-
-      const idsToMove = selectedIds.includes(appId) ? selectedIds : [appId];
-
-      if (targetStatus === 'rejected') {
-        setSelectedIds(idsToMove);
-        setBulkAction('reject');
-        return;
-      }
-
-      await bulkMutation.mutateAsync({
-        applicationIds: idsToMove,
-        action: 'move-stage',
-        payload: { status: targetStatus }
-      });
-
-      setSelectedIds([]);
-    } catch (err) {
-      console.error(err);
-    }
-  };
-
-  const executeBulkAction = async () => {
-    setNotice('');
-    try {
-      if (bulkAction === 'move') {
-        if (!bulkStage) return;
-        await bulkMutation.mutateAsync({
-          applicationIds: selectedIds,
-          action: 'move-stage',
-          payload: { status: bulkStage }
-        });
-      } else if (bulkAction === 'reject') {
-        if (!bulkReason.trim()) {
-          setNotice('A rejection reason is required.');
-          return;
-        }
-        await bulkMutation.mutateAsync({
-          applicationIds: selectedIds,
-          action: 'reject',
-          payload: { reason: bulkReason, rejectionCategory: bulkCategory }
-        });
-      } else if (bulkAction === 'archive') {
-        await bulkMutation.mutateAsync({
-          applicationIds: selectedIds,
-          action: 'archive'
-        });
-      } else if (bulkAction === 'tag') {
-        const tagsList = bulkTags.split(',').map(t => t.trim()).filter(Boolean);
-        await bulkMutation.mutateAsync({
-          applicationIds: selectedIds,
-          action: 'add-tags',
-          payload: { tags: tagsList }
-        });
-      }
-
-      setSelectedIds([]);
-      setBulkAction(null);
-      setBulkStage('');
-      setBulkReason('');
-      setBulkCategory('other');
-      setBulkTags('');
-    } catch (err) {
-      setNotice(err instanceof Error ? err.message : 'An error occurred');
-    }
-  };
-
-  return (
-    <section aria-label="Pipeline board" className="ats-board-mode" style={{ position: 'relative' }}>
-      <div className="ats-board-note">
-        <p>
-          Cards show the current result page. Column totals are company-wide, or
-          job-wide when a job filter is active; other filters do not affect
-          them.
-        </p>
-        <div className="ats-board">
-          {stages.map((s) => (
-            <section
-              className={`ats-column ${draggedOverStage === s ? 'drag-over' : ''}`}
-              key={s}
-              aria-labelledby={`stage-${s}`}
-              onDragOver={(e) => {
-                e.preventDefault();
-                if (draggedOverStage !== s) setDraggedOverStage(s);
-              }}
-              onDragLeave={() => setDraggedOverStage(null)}
-              onDrop={(e) => handleDrop(e, s)}
-            >
-              <header>
-                <h2 id={`stage-${s}`}>{labelStatus(s)}</h2>
-                <Badge>
-                  {counts[s] ?? rows.filter((r) => r.status === s).length} total
-                </Badge>
-              </header>
-
-              {draggedOverStage === s && (
-                <div className="ats-drop-indicator" aria-hidden="true" />
-              )}
-
-              {rows
-                .filter((r) => r.status === s)
-                .map((r) => (
-                  <ApplicationCard
-                    key={r.id}
-                    row={r}
-                    actions={actions(r)}
-                    isSelected={selectedIds.includes(r.id)}
-                    onSelectToggle={() => toggleSelect(r.id)}
-                    onDragStart={(e) => handleDragStart(e, r.id, r.status)}
-                  />
-                ))}
-            </section>
-          ))}
-        </div>
-        {page && setPage && (
-          <Pagination
-            page={page.page}
-            totalPages={page.pages}
-            onPageChange={setPage}
-            ariaLabel="Application board pages"
+        <div className="ats-table-card">
+          <PipelineList
+            rows={rows}
+            loading={query.isLoading}
+            {...(query.data?.page ? { page: query.data.page } : {})}
+            setPage={(p) => setParam(params, setParams, 'page', String(p))}
+            actions={actions}
+            empty={empty}
+            selectedIds={selectedIds}
+            onToggleSelect={toggleSelect}
+            onSelectAll={selectAll}
+            onDeselectAll={deselectAll}
           />
-        )}
-      </div>
+        </div>
+      )}
 
       {selectedIds.length > 0 && (
-        <div className="ats-bulk-bar" style={{
-          position: 'fixed',
-          bottom: '24px',
-          left: '50%',
-          transform: 'translateX(-50%)',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '16px',
-          padding: '12px 24px',
-          background: 'var(--color-surface, #fff)',
-          backdropFilter: 'blur(12px)',
-          border: '1px solid var(--color-border-subtle, rgba(0, 0, 0, 0.1))',
-          borderRadius: '30px',
-          boxShadow: '0 10px 30px rgba(0,0,0,0.1)',
-          zIndex: 1000,
-          transition: 'all 0.3s ease-in-out'
-        }}>
+        <div
+          className="ats-bulk-bar"
+          style={{
+            position: 'fixed',
+            bottom: '24px',
+            left: '50%',
+            transform: 'translateX(-50%)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '16px',
+            padding: '12px 24px',
+            background: 'var(--color-surface, #fff)',
+            backdropFilter: 'blur(12px)',
+            border: '1px solid var(--color-border-subtle, rgba(0, 0, 0, 0.1))',
+            borderRadius: '30px',
+            boxShadow: '0 10px 30px rgba(0,0,0,0.1)',
+            zIndex: 1000,
+            transition: 'all 0.3s ease-in-out',
+          }}
+        >
           <span style={{ fontWeight: 600 }}>{selectedIds.length} selected</span>
-          <Button size="compact" onClick={() => setBulkAction('move')}>Move Stage</Button>
-          <Button size="compact" onClick={() => setBulkAction('reject')}>Reject</Button>
-          <Button size="compact" onClick={() => setBulkAction('tag')}>Tag</Button>
-          <Button size="compact" onClick={() => setBulkAction('archive')}>Archive</Button>
-          <Button size="compact" variant="secondary" onClick={() => setSelectedIds([])}>Clear</Button>
+          <Button size="compact" onClick={() => setBulkAction('shortlist')}>
+            Shortlist
+          </Button>
+          {canAssignAssessment && (
+            <Button
+              size="compact"
+              onClick={() => setBulkAction('assign-assessment')}
+            >
+              Assign Assessment
+            </Button>
+          )}
+          <Button size="compact" onClick={() => setBulkAction('reject')}>
+            Reject
+          </Button>
+          <Button size="compact" onClick={() => setBulkAction('tag')}>
+            Tag
+          </Button>
+          <Button size="compact" onClick={() => setBulkAction('archive')}>
+            Archive
+          </Button>
+          <Button
+            size="compact"
+            variant="secondary"
+            onClick={() => setSelectedIds([])}
+          >
+            Clear
+          </Button>
         </div>
       )}
 
-      {bulkAction && (
+      <AssignAssessmentModal
+        open={bulkAction === 'assign-assessment'}
+        onOpenChange={(v) => {
+          if (!v) setBulkAction(null);
+        }}
+        applicationIds={selectedIds}
+        onSuccess={() => setSelectedIds([])}
+      />
+
+      {bulkAction && bulkAction !== 'assign-assessment' && (
         <Dialog
-          open={!!bulkAction}
-          onOpenChange={(v) => { if (!v) setBulkAction(null); }}
+          open={Boolean(bulkAction)}
+          onOpenChange={(v) => {
+            if (!v) setBulkAction(null);
+          }}
           title={`Bulk Action: ${bulkAction}`}
           description={`Apply ${bulkAction} operation to ${selectedIds.length} candidate(s).`}
           busy={bulkMutation.isPending}
           footer={
             <>
-              <Button variant="secondary" onClick={() => setBulkAction(null)}>Cancel</Button>
+              <Button variant="secondary" onClick={() => setBulkAction(null)}>
+                Cancel
+              </Button>
               <Button onClick={executeBulkAction}>Confirm</Button>
             </>
           }
         >
-          {notice && <Alert tone="danger">{notice}</Alert>}
+          {bulkNotice && <Alert tone="danger">{bulkNotice}</Alert>}
 
-          {bulkAction === 'move' && (
-            <Select
-              label="Select Target Stage"
-              value={bulkStage}
-              onChange={(e) => setBulkStage(e.target.value)}
-              options={applicationStatuses.map(st => ({ value: st, label: labelStatus(st) }))}
-              placeholder="-- Choose Stage --"
-            />
+          {bulkAction === 'shortlist' && (
+            <p>Are you sure you want to move {selectedIds.length} selected candidate(s) to the Shortlisted stage?</p>
           )}
 
           {bulkAction === 'reject' && (
@@ -1221,7 +1516,7 @@ function PipelineBoard({
                   { value: 'other', label: 'Other' },
                   { value: 'skills-mismatch', label: 'Skills Mismatch' },
                   { value: 'salary-expectation', label: 'Salary Expectation' },
-                  { value: 'culture-fit', label: 'Culture Fit' }
+                  { value: 'culture-fit', label: 'Culture Fit' },
                 ]}
               />
               <TextArea
@@ -1247,6 +1542,339 @@ function PipelineBoard({
           )}
         </Dialog>
       )}
+    </div>
+  );
+}
+function PipelineList({
+  rows,
+  loading,
+  page,
+  setPage,
+  actions,
+  empty,
+  selectedIds = [],
+  onToggleSelect,
+  onSelectAll,
+  onDeselectAll,
+}: {
+  rows: ApplicationRow[];
+  loading: boolean;
+  page?: { page: number; pages: number };
+  setPage: (p: number) => void;
+  actions: (r: ApplicationRow) => ReactNode;
+  empty: ReactNode;
+  selectedIds?: string[];
+  onToggleSelect?: (id: string) => void;
+  onSelectAll?: () => void;
+  onDeselectAll?: () => void;
+}) {
+  const allSelected = rows.length > 0 && rows.every((r) => selectedIds.includes(r.id));
+
+  return (
+    <div className="job-table-card">
+      <div className="job-table-wrapper">
+        <table className="job-modern-table" aria-label="Applications in the current result page">
+          <thead>
+            <tr>
+              {onToggleSelect && (
+                <th scope="col" className="job-checkbox-cell">
+                  <input
+                    type="checkbox"
+                    className="job-custom-checkbox"
+                    aria-label="Select all applications on this page"
+                    checked={allSelected}
+                    onChange={() => {
+                      if (allSelected) onDeselectAll?.();
+                      else onSelectAll?.();
+                    }}
+                  />
+                </th>
+              )}
+              <th scope="col">Candidate</th>
+              <th scope="col">Match</th>
+              <th scope="col">Skills</th>
+              <th scope="col">Stage</th>
+              <th scope="col">Submitted</th>
+              <th scope="col">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {loading ? (
+              <tr>
+                <td colSpan={7} className="p-8 text-center">
+                  <LoadingState label="Loading applications" />
+                </td>
+              </tr>
+            ) : !rows.length ? (
+              <tr>
+                <td colSpan={7} className="p-8 text-center">
+                  {empty}
+                </td>
+              </tr>
+            ) : (
+              rows.map((r) => {
+                const isSelected = selectedIds.includes(r.id);
+                const initials = r.candidateName
+                  .split(' ')
+                  .filter(Boolean)
+                  .map((n) => n[0])
+                  .join('')
+                  .slice(0, 2)
+                  .toUpperCase();
+                const shortCode = `#APP-${r.id.slice(-6).toUpperCase()}`;
+
+                return (
+                  <tr key={r.id} className={isSelected ? 'is-selected' : undefined}>
+                    {onToggleSelect && (
+                      <td className="job-checkbox-cell">
+                        <input
+                          type="checkbox"
+                          className="job-custom-checkbox"
+                          aria-label={`Select application for ${r.candidateName}`}
+                          checked={isSelected}
+                          onChange={() => onToggleSelect(r.id)}
+                        />
+                      </td>
+                    )}
+                    <td>
+                      <div className="job-entity-cell">
+                        <div className="ats-avatar-icon">
+                          {initials}
+                        </div>
+                        <div className="job-entity-info">
+                          <div className="job-entity-title-row">
+                            <strong className="job-entity-title">{r.candidateName}</strong>
+                            <span className="job-code-badge">{shortCode}</span>
+                          </div>
+                          <span className="job-entity-meta">
+                            <span>{r.jobTitle}</span>
+                          </span>
+                        </div>
+                      </div>
+                    </td>
+                    <td>
+                      <Match row={r} />
+                    </td>
+                    <td>
+                      <div className="ats-skills">
+                        {r.skills.slice(0, 3).map((s) => (
+                          <Badge key={s}>{s}</Badge>
+                        ))}
+                      </div>
+                    </td>
+                    <td>
+                      <span
+                        className={`job-status-pill job-status-pill--${
+                          r.status === 'hired' || r.status === 'offer-accepted'
+                            ? 'published'
+                            : r.status === 'rejected' || r.status === 'offer-declined'
+                            ? 'closed'
+                            : r.status.includes('pending') || r.status.includes('scheduled')
+                            ? 'paused'
+                            : 'draft'
+                        }`}
+                      >
+                        <span className="job-status-dot" />
+                        {labelStatus(r.status)}
+                      </span>
+                    </td>
+                    <td>
+                      <div className="job-date-cell">
+                        <span className="job-date-main">{formatDate(r.submittedAt)}</span>
+                      </div>
+                    </td>
+                    <td>
+                      {actions(r)}
+                    </td>
+                  </tr>
+                );
+              })
+            )}
+          </tbody>
+        </table>
+      </div>
+      {page && setPage && (
+        <Pagination
+          page={page.page}
+          totalPages={page.pages}
+          onPageChange={setPage}
+          ariaLabel="Application pages"
+        />
+      )}
+    </div>
+  );
+}
+function PipelineBoard({
+  rows,
+  loading,
+  counts,
+  actions,
+  empty,
+  page,
+  setPage,
+  selectedIds,
+  toggleSelect,
+  onSetSelectedIds,
+  onSetBulkAction,
+}: {
+  rows: ApplicationRow[];
+  loading: boolean;
+  counts: Record<string, number>;
+  actions: (r: ApplicationRow) => ReactNode;
+  empty: ReactNode;
+  page?: { page: number; pages: number };
+  setPage?: (page: number) => void;
+  selectedIds: string[];
+  toggleSelect: (id: string) => void;
+  onSetSelectedIds: (ids: string[]) => void;
+  onSetBulkAction: (
+    action:
+      | 'move'
+      | 'reject'
+      | 'assign'
+      | 'tag'
+      | 'archive'
+      | 'assign-assessment'
+      | null,
+  ) => void;
+}) {
+  const [draggedOverStage, setDraggedOverStage] = useState<string | null>(null);
+  const [boardLayout, setBoardLayout] = useState<'kanban' | 'vertical'>('kanban');
+  const bulkMutation = useBulkApplications();
+
+  if (loading) return <LoadingState label="Loading pipeline" />;
+  if (!rows.length) return <>{empty}</>;
+
+  const stages = applicationStatuses.filter(
+    (s) => rows.some((r) => r.status === s) || (counts[s] ?? 0) > 0,
+  );
+
+  const handleDragStart = (
+    e: React.DragEvent,
+    appId: string,
+    status: string,
+  ) => {
+    e.dataTransfer.setData('text/plain', JSON.stringify({ appId, status }));
+  };
+
+  const handleDrop = async (e: React.DragEvent, targetStatus: string) => {
+    e.preventDefault();
+    setDraggedOverStage(null);
+    try {
+      const dataStr = e.dataTransfer.getData('text/plain');
+      if (!dataStr) return;
+      const { appId, status } = JSON.parse(dataStr);
+      if (status === targetStatus) return;
+
+      const idsToMove = selectedIds.includes(appId) ? selectedIds : [appId];
+
+      if (targetStatus === 'rejected') {
+        onSetSelectedIds(idsToMove);
+        onSetBulkAction('reject');
+        return;
+      }
+
+      await bulkMutation.mutateAsync({
+        applicationIds: idsToMove,
+        action: 'move-stage',
+        payload: { status: targetStatus },
+      });
+
+      onSetSelectedIds([]);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  return (
+    <section
+      aria-label="Pipeline board"
+      className="ats-board-mode"
+      style={{ position: 'relative' }}
+    >
+      <div className="ats-board-note">
+        <div className="ats-board-controls">
+          <p className="ats-board-info">
+            Cards show current page ({rows.length} applications). Column totals are company/job wide. Drag cards to advance stage.
+          </p>
+          <div className="ats-layout-switcher" role="group" aria-label="Board layout style">
+            <button
+              type="button"
+              className={`ats-layout-btn ${boardLayout === 'kanban' ? 'active' : ''}`}
+              onClick={() => setBoardLayout('kanban')}
+              aria-label="Horizontal Kanban Columns"
+            >
+              Kanban Board
+            </button>
+            <button
+              type="button"
+              className={`ats-layout-btn ${boardLayout === 'vertical' ? 'active' : ''}`}
+              onClick={() => setBoardLayout('vertical')}
+              aria-label="Vertical Pipeline Stack"
+            >
+              Vertical Stack
+            </button>
+          </div>
+        </div>
+
+        <div className={`ats-board ${boardLayout === 'vertical' ? 'ats-board--vertical' : ''}`}>
+          {stages.map((s) => {
+            const count = counts[s] ?? rows.filter((r) => r.status === s).length;
+            const stageRows = rows.filter((r) => r.status === s);
+
+            return (
+              <section
+                className={`ats-column ats-column--${s} ${draggedOverStage === s ? 'drag-over' : ''}`}
+                key={s}
+                aria-labelledby={`stage-${s}`}
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  if (draggedOverStage !== s) setDraggedOverStage(s);
+                }}
+                onDragLeave={() => setDraggedOverStage(null)}
+                onDrop={(e) => handleDrop(e, s)}
+              >
+                <header className="ats-column-header">
+                  <div className="ats-column-title-group">
+                    <span className="ats-column-dot" aria-hidden="true" />
+                    <h2 id={`stage-${s}`}>{labelStatus(s)}</h2>
+                  </div>
+                  <Badge className="ats-column-badge">{count}</Badge>
+                </header>
+
+                {draggedOverStage === s && (
+                  <div className="ats-drop-indicator" aria-hidden="true" />
+                )}
+
+                <div className="ats-column-cards">
+                  {stageRows.length === 0 ? (
+                    <div className="ats-column-empty">No candidates in page</div>
+                  ) : (
+                    stageRows.map((r) => (
+                      <ApplicationCard
+                        key={r.id}
+                        row={r}
+                        actions={actions(r)}
+                        isSelected={selectedIds.includes(r.id)}
+                        onSelectToggle={() => toggleSelect(r.id)}
+                        onDragStart={(e) => handleDragStart(e, r.id, r.status)}
+                      />
+                    ))
+                  )}
+                </div>
+              </section>
+            );
+          })}
+        </div>
+        {page && setPage && (
+          <Pagination
+            page={page.page}
+            totalPages={page.pages}
+            onPageChange={setPage}
+            ariaLabel="Application board pages"
+          />
+        )}
+      </div>
 
       <div className="ats-board-fallback">
         <PipelineList
@@ -1256,6 +1884,8 @@ function PipelineBoard({
           setPage={setPage ?? (() => undefined)}
           actions={actions}
           empty={empty}
+          selectedIds={selectedIds}
+          onToggleSelect={toggleSelect}
         />
       </div>
     </section>
@@ -1360,12 +1990,63 @@ export function ApplicationDetailPage() {
   const q = useApplication(applicationId, Boolean(applicationId) && canView);
   const assignmentsQuery = useAssignments(`applicationId=${applicationId}&limit=10`, canView && Boolean(applicationId));
   const [notice, setNotice] = useState('');
-  const [open, setOpen] = useState(false);
   const [shortlistOpen, setShortlistOpen] = useState(false);
   const [rejectOpen, setRejectOpen] = useState(false);
   const moveDirect = useMoveApplication(applicationId);
   const assignments = (assignmentsQuery.data?.items ?? []) as any[];
   const activeAssignment = assignments[0];
+  const [previewDoc, setPreviewDoc] = useState<{
+    open: boolean;
+    title: string;
+    url?: string;
+    downloadPath?: string;
+  }>({ open: false, title: '' });
+  const [previewLoading, setPreviewLoading] = useState(false);
+
+  const handleViewResume = async () => {
+    if (!a?.resume) return;
+    try {
+      setPreviewLoading(true);
+      let url = (a.resume as any).url;
+      let downloadPath = undefined;
+      if (a.resume.documentId) {
+        downloadPath = `/documents/manage/applications/${applicationId}/${a.resume.documentId}/download`;
+        try {
+          url = await getDocumentUrl(downloadPath);
+        } catch {
+          /* Fallback to direct url */
+        }
+      }
+      if (!url && !downloadPath) {
+        setNotice('No viewable URL available for this resume.');
+        return;
+      }
+      setPreviewDoc({
+        open: true,
+        title: a.resume.fileName || 'Resume.pdf',
+        url: url || undefined,
+        downloadPath,
+      });
+    } catch (e) {
+      setNotice(errorMessage(e));
+    } finally {
+      setPreviewLoading(false);
+    }
+  };
+
+  const handleDownloadResume = async () => {
+    if (!a?.resume) return;
+    try {
+      if (a.resume.documentId) {
+        const downloadPath = `/documents/manage/applications/${applicationId}/${a.resume.documentId}/download`;
+        await safeDownload(downloadPath);
+      } else if ((a.resume as any).url) {
+        window.open((a.resume as any).url, '_blank', 'noopener,noreferrer');
+      }
+    } catch (e) {
+      setNotice(errorMessage(e));
+    }
+  };
   const handleMoveToReview = async () => {
     try {
       await moveDirect.mutateAsync({ status: 'under-review' });
@@ -1421,7 +2102,7 @@ export function ApplicationDetailPage() {
         primaryAction={
           recruiter?.permissions.includes('applications.manage') &&
           a.status !== 'unknown' ? (
-            <div style={{ display: 'flex', gap: '8px' }}>
+            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
               {a.status === 'submitted' && (
                 <>
                   <Button variant="primary" onClick={() => void handleMoveToReview()} loading={moveDirect.isPending}>
@@ -1453,13 +2134,136 @@ export function ApplicationDetailPage() {
                   >
                     Assign Assessment
                   </RouterLink>
+                  <RouterLink
+                    className="tvx-button tvx-button--secondary"
+                    to={`/org/interviews/new?applicationId=${applicationId}`}
+                  >
+                    Schedule Interview
+                  </RouterLink>
                   <Button variant="danger" onClick={() => setRejectOpen(true)}>
                     Reject
                   </Button>
                 </>
               )}
-              {!['submitted', 'under-review', 'shortlisted'].includes(a.status) && transitions[a.status]?.length > 0 && (
-                <Button onClick={() => setOpen(true)}>Move to stage</Button>
+              {a.status === 'assessment-pending' && (
+                <>
+                  {activeAssignment ? (
+                    <RouterLink
+                      className="tvx-button tvx-button--secondary"
+                      to={`/org/assessments/assignments/${activeAssignment.id}`}
+                    >
+                      View Assignment
+                    </RouterLink>
+                  ) : (
+                    <RouterLink
+                      className="tvx-button tvx-button--primary"
+                      to={`/org/assessments/assignments/new?applicationId=${applicationId}`}
+                    >
+                      Assign Assessment
+                    </RouterLink>
+                  )}
+                  <RouterLink
+                    className="tvx-button tvx-button--secondary"
+                    to={`/org/interviews/new?applicationId=${applicationId}`}
+                  >
+                    Schedule Interview
+                  </RouterLink>
+                  <Button variant="danger" onClick={() => setRejectOpen(true)}>
+                    Reject
+                  </Button>
+                </>
+              )}
+              {a.status === 'assessment-in-progress' && (
+                <>
+                  {activeAssignment && (
+                    <RouterLink
+                      className="tvx-button tvx-button--secondary"
+                      to={`/org/assessments/assignments/${activeAssignment.id}`}
+                    >
+                      View Active Attempt
+                    </RouterLink>
+                  )}
+                  <Button variant="danger" onClick={() => setRejectOpen(true)}>
+                    Reject
+                  </Button>
+                </>
+              )}
+              {a.status === 'assessment-completed' && (
+                <>
+                  <RouterLink
+                    className="tvx-button tvx-button--primary"
+                    to={`/org/interviews/new?applicationId=${applicationId}`}
+                  >
+                    Schedule Interview
+                  </RouterLink>
+                  <RouterLink
+                    className="tvx-button tvx-button--secondary"
+                    to={`/org/offers/new?applicationId=${applicationId}`}
+                  >
+                    📄 Create Job Offer
+                  </RouterLink>
+                  <Button variant="danger" onClick={() => setRejectOpen(true)}>
+                    Reject
+                  </Button>
+                </>
+              )}
+              {a.status === 'interview-scheduled' && (
+                <>
+                  <RouterLink
+                    className="tvx-button tvx-button--secondary"
+                    to="/org/interviews"
+                  >
+                    View Interviews
+                  </RouterLink>
+                  <Button variant="danger" onClick={() => setRejectOpen(true)}>
+                    Reject
+                  </Button>
+                </>
+              )}
+              {a.status === 'interview-completed' && (
+                <>
+                  <RouterLink
+                    className="tvx-button tvx-button--primary"
+                    to={`/org/offers/new?applicationId=${applicationId}`}
+                  >
+                    📄 Create Official Job Offer
+                  </RouterLink>
+                  <RouterLink
+                    className="tvx-button tvx-button--secondary"
+                    to={`/org/interviews/new?applicationId=${applicationId}`}
+                  >
+                    Schedule Interview
+                  </RouterLink>
+                  <Button variant="danger" onClick={() => setRejectOpen(true)}>
+                    Reject
+                  </Button>
+                </>
+              )}
+              {a.status === 'offer-pending' && (
+                <>
+                  <RouterLink
+                    className="tvx-button tvx-button--primary"
+                    to="/org/offers"
+                  >
+                    📄 View & Send Pending Offer ↗
+                  </RouterLink>
+                  <Button variant="danger" onClick={() => setRejectOpen(true)}>
+                    Reject
+                  </Button>
+                </>
+              )}
+              {a.status === 'offer-sent' && (
+                <RouterLink
+                  className="tvx-button tvx-button--secondary"
+                  to="/org/offers"
+                >
+                  View Offers
+                </RouterLink>
+              )}
+              {a.status === 'offer-accepted' && (
+                <Button variant="primary" onClick={() => void handleDecision('hired', 'Candidate hired')} loading={moveDirect.isPending}>
+                  Confirm Hire
+                </Button>
               )}
             </div>
           ) : undefined
@@ -1471,12 +2275,6 @@ export function ApplicationDetailPage() {
       >
         {notice}
       </div>
-      <MoveDialog
-        row={a}
-        open={open}
-        onOpenChange={setOpen}
-        onAnnounce={setNotice}
-      />
       <ShortlistCandidateDialog
         row={a}
         open={shortlistOpen}
@@ -1565,31 +2363,46 @@ export function ApplicationDetailPage() {
                   )}
                 </div>
 
-                {activeAssignment.bestAttempt && (
-                  <div className="p-3 bg-slate-50 border border-slate-200 rounded text-sm space-y-2 mt-2">
-                    <h4 className="font-semibold">Attempt Score Details</h4>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '8px' }}>
-                      <div><strong>MCQ Score:</strong> {activeAssignment.bestAttempt.evaluation?.objectiveScore ?? 0} marks</div>
-                      <div><strong>Coding Score:</strong> {activeAssignment.bestAttempt.evaluation?.codingScore ?? 0} marks</div>
-                      <div><strong>Subjective Score:</strong> {activeAssignment.bestAttempt.evaluation?.subjectiveScore ?? 0} marks</div>
-                      <div><strong>Total Score:</strong> {activeAssignment.bestAttempt.evaluation?.totalScore ?? 0} / {activeAssignment.totalMarks ?? 100} marks</div>
+                {(() => {
+                  const targetAttempt = (activeAssignment.bestAttempt && typeof activeAssignment.bestAttempt === 'object' && Object.keys(activeAssignment.bestAttempt).length > 0)
+                    ? activeAssignment.bestAttempt
+                    : (activeAssignment.latestAttempt && typeof activeAssignment.latestAttempt === 'object' && Object.keys(activeAssignment.latestAttempt).length > 0)
+                      ? activeAssignment.latestAttempt
+                      : null;
+                  const reviewAttemptId =
+                    (targetAttempt && ((targetAttempt as any)._id || (targetAttempt as any).id)) ||
+                    activeAssignment.attemptId ||
+                    (typeof activeAssignment.bestAttempt === 'string' ? activeAssignment.bestAttempt : undefined) ||
+                    (typeof activeAssignment.latestAttempt === 'string' ? activeAssignment.latestAttempt : undefined);
+
+                  return (
+                    <div className="p-3 bg-slate-50 border border-slate-200 rounded text-sm space-y-2 mt-2">
+                      <h4 className="font-semibold">Attempt Score Details</h4>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '8px' }}>
+                        <div><strong>MCQ Score:</strong> {(targetAttempt as any)?.evaluation?.objectiveScore ?? 0} marks</div>
+                        <div><strong>Coding Score:</strong> {(targetAttempt as any)?.evaluation?.codingScore ?? 0} marks</div>
+                        <div><strong>Subjective Score:</strong> {(targetAttempt as any)?.evaluation?.subjectiveScore ?? 0} marks</div>
+                        <div><strong>Total Score:</strong> {(targetAttempt as any)?.evaluation?.totalScore ?? (activeAssignment.bestScore ?? 0)} / {activeAssignment.totalMarks ?? 100} marks</div>
+                      </div>
+                      <div className="pt-2 flex gap-4">
+                        <RouterLink
+                          className="tvx-button tvx-button--secondary text-xs"
+                          to={`/org/assessments/assignments/${activeAssignment.id}`}
+                        >
+                          View Assignment Dashboard
+                        </RouterLink>
+                        {reviewAttemptId && (
+                          <RouterLink
+                            className="tvx-button tvx-button--primary text-xs"
+                            to={`/org/assessments/reviews/${reviewAttemptId}`}
+                          >
+                            View Detailed Answer Review
+                          </RouterLink>
+                        )}
+                      </div>
                     </div>
-                    <div className="pt-2 flex gap-4">
-                      <RouterLink
-                        className="tvx-button tvx-button--secondary text-xs"
-                        to={`/org/assessments/assignments/${activeAssignment.id}`}
-                      >
-                        View Assignment Dashboard
-                      </RouterLink>
-                      <RouterLink
-                        className="tvx-button tvx-button--primary text-xs"
-                        to={`/org/assessments/reviews/${activeAssignment.bestAttempt._id}`}
-                      >
-                        View Detailed Answer Review
-                      </RouterLink>
-                    </div>
-                  </div>
-                )}
+                  );
+                })()}
 
                 {/* Recruiter Post-Assessment Decisions */}
                 {recruiter?.permissions.includes('applications.manage') && a.status === 'assessment-completed' && (
@@ -1603,6 +2416,12 @@ export function ApplicationDetailPage() {
                       >
                         Move to Interview
                       </Button>
+                      <RouterLink
+                        className="tvx-button tvx-button--primary"
+                        to={`/org/interviews/new?applicationId=${applicationId}`}
+                      >
+                        Schedule Interview
+                      </RouterLink>
                       <Button
                         variant="secondary"
                         onClick={() => handleDecision('shortlisted', 'Post-assessment: Keep candidate shortlisted')}
@@ -1678,12 +2497,12 @@ export function ApplicationDetailPage() {
                     <small style={{ color: 'var(--color-text-muted)' }}>Uploaded: {formatDate(a.resume.uploadedAt)}</small>
                   </div>
                 </div>
-                {a.resume.documentId ? (
+                {a.resume.documentId || (a.resume as any).url ? (
                   <div style={{ display: 'flex', gap: '8px' }}>
-                    <Button variant="secondary" onClick={() => safeDownload(`/documents/manage/applications/${applicationId}/${a.resume?.documentId}/download`)}>
+                    <Button variant="secondary" onClick={() => void handleViewResume()} loading={previewLoading}>
                       View Resume
                     </Button>
-                    <Button variant="primary" onClick={() => safeDownload(`/documents/manage/applications/${applicationId}/${a.resume?.documentId}/download`)}>
+                    <Button variant="primary" onClick={() => void handleDownloadResume()}>
                       <Download size={14} style={{ marginRight: '6px' }} /> Download
                     </Button>
                   </div>
@@ -2027,6 +2846,14 @@ export function ApplicationDetailPage() {
         </div>
         <ApplicationTimelineSection applicationId={applicationId} />
       </div>
+      <DocumentPreviewDialog
+        open={previewDoc.open}
+        onOpenChange={(next) => setPreviewDoc((prev) => ({ ...prev, open: next }))}
+        title={previewDoc.title}
+        url={previewDoc.url}
+        downloadPath={previewDoc.downloadPath}
+        category="Resume"
+      />
     </div>
   );
 }
@@ -2313,9 +3140,15 @@ export function CandidatesPage() {
   }, [params, setParams]);
   const q = useCandidates(toQuery(params, 'candidates'), canView);
   const rows = q.data?.items ?? [];
+  const totalCandidates = q.data?.page.total ?? rows.length;
   const filtered = [...params.keys()].some(
     (k) => !['page', 'sort'].includes(k),
   );
+
+  const immediateCount = rows.filter((r) => r.availability === 'immediately').length;
+  const noticeCount = rows.filter((r) => r.availability === 'notice-period').length;
+  const completeCount = rows.filter((r) => r.completion >= 80).length;
+
   if (!canView)
     return (
       <PermissionState description="The applications.view permission is required for candidate search." />
@@ -2326,98 +3159,234 @@ export function CandidatesPage() {
         title="Candidates"
         description="Search recruiter-visible profiles without exposing private contact or compensation data."
       />
+
+      {/* 5 Metrics Summary Cards */}
+      <div className="ats-metrics-grid">
+        <div className="ats-metric-card">
+          <div className="ats-metric-card__header">
+            <div className="ats-metric-icon-box">
+              <Users size={20} />
+            </div>
+            <span className="ats-metric-badge ats-metric-badge--success">
+              • Total
+            </span>
+          </div>
+          <div className="ats-metric-card__body">
+            <span className="ats-metric-card__label">Total Candidates</span>
+            <strong className="ats-metric-card__val">{totalCandidates}</strong>
+            <span className="ats-metric-card__sub">In talent database</span>
+          </div>
+        </div>
+
+        <div className="ats-metric-card">
+          <div className="ats-metric-card__header">
+            <div className="ats-metric-icon-box">
+              <CheckCircle2 size={20} />
+            </div>
+            <span className="ats-metric-badge ats-metric-badge--success">
+              • Ready
+            </span>
+          </div>
+          <div className="ats-metric-card__body">
+            <span className="ats-metric-card__label">Immediately Available</span>
+            <strong className="ats-metric-card__val" style={{ color: '#059669' }}>
+              {immediateCount}
+            </strong>
+            <span className="ats-metric-card__sub">Available for hire</span>
+          </div>
+        </div>
+
+        <div className="ats-metric-card">
+          <div className="ats-metric-card__header">
+            <div className="ats-metric-icon-box">
+              <Clock size={20} />
+            </div>
+            <span className="ats-metric-badge ats-metric-badge--warning">
+              • Notice
+            </span>
+          </div>
+          <div className="ats-metric-card__body">
+            <span className="ats-metric-card__label">Notice Period</span>
+            <strong className="ats-metric-card__val" style={{ color: '#d97706' }}>
+              {noticeCount}
+            </strong>
+            <span className="ats-metric-card__sub">Pending transition</span>
+          </div>
+        </div>
+
+        <div className="ats-metric-card">
+          <div className="ats-metric-card__header">
+            <div className="ats-metric-icon-box">
+              <Sparkles size={20} />
+            </div>
+            <span className="ats-metric-badge ats-metric-badge--info">
+              • Complete
+            </span>
+          </div>
+          <div className="ats-metric-card__body">
+            <span className="ats-metric-card__label">High Profile Score</span>
+            <strong className="ats-metric-card__val" style={{ color: '#0284c7' }}>
+              {completeCount}
+            </strong>
+            <span className="ats-metric-card__sub">&ge; 80% completion</span>
+          </div>
+        </div>
+
+        <div className="ats-metric-card">
+          <div className="ats-metric-card__header">
+            <div className="ats-metric-icon-box">
+              <Globe size={20} />
+            </div>
+            <span className="ats-metric-badge ats-metric-badge--neutral">
+              • Active
+            </span>
+          </div>
+          <div className="ats-metric-card__body">
+            <span className="ats-metric-card__label">Talent Pool Active</span>
+            <strong className="ats-metric-card__val" style={{ color: '#475569' }}>
+              {rows.length}
+            </strong>
+            <span className="ats-metric-card__sub">On current page</span>
+          </div>
+        </div>
+      </div>
+
       <Filters kind="candidates" params={params} setParams={setParams} />
       <p className="ats-results" aria-live="polite">
         Showing {rows.length} of {q.data?.page.total ?? 0} candidates on page{' '}
         {q.data?.page.page ?? 1}.
       </p>
+
       {q.isError ? (
         <ErrorState
           detail={errorMessage(q.error)}
           retry={() => void q.refetch()}
         />
       ) : (
-        <DataTable
-          caption="Recruiter-visible candidates"
-          rows={rows}
-          rowKey={(r) => r.id}
-          isLoading={q.isLoading}
-          empty={
-            filtered ? (
-              <FilteredEmptyState
-                title="No matching candidates"
-                description="Try clearing the current filters."
-                onClear={() => setParams(new URLSearchParams())}
-              />
-            ) : (
-              <EmptyState
-                title="No visible candidates"
-                description="Public and recruiter-visible profiles will appear here."
-              />
-            )
-          }
-          columns={[
-            {
-              id: 'candidate',
-              header: 'Candidate',
-              render: (r) => (
-                <>
-                  <strong>{r.name}</strong>
-                  <small>{r.headline}</small>
-                </>
-              ),
-            },
-            { id: 'location', header: 'Location', accessor: (r) => r.location },
-            {
-              id: 'skills',
-              header: 'Skills',
-              render: (r) => (
-                <span className="ats-skills">
-                  {r.skills.slice(0, 4).map((s) => (
-                    <Badge key={s}>{s}</Badge>
-                  ))}
-                </span>
-              ),
-            },
-            {
-              id: 'availability',
-              header: 'Availability',
-              render: (r) => (
-                <StatusTag>{labelStatus(r.availability)}</StatusTag>
-              ),
-            },
-            {
-              id: 'completion',
-              header: 'Profile',
-              render: (r) => (
-                <Progress
-                  value={r.completion}
-                  label={`${r.completion}% complete`}
-                />
-              ),
-            },
-          ]}
-          renderNarrow={(r) => <CandidateCard candidate={r} />}
-          rowActions={(r) => (
-            <RouterLink
-              className="tvx-button tvx-button--secondary tvx-button--compact"
-              to={`/org/candidates/${r.id}`}
-            >
-              View profile
-            </RouterLink>
-          )}
-          {...(q.data
-            ? {
-                pagination: {
-                  page: q.data.page.page,
-                  totalPages: q.data.page.pages,
-                  onPageChange: (p: number) =>
-                    setParam(params, setParams, 'page', String(p)),
-                  ariaLabel: 'Candidate pages',
-                },
+        <div className="job-table-card">
+          <div className="job-table-wrapper">
+            <table className="job-modern-table" aria-label="Recruiter-visible candidates">
+              <thead>
+                <tr>
+                  <th scope="col">Candidate</th>
+                  <th scope="col">Location</th>
+                  <th scope="col">Skills</th>
+                  <th scope="col">Availability</th>
+                  <th scope="col">Profile</th>
+                  <th scope="col">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {q.isLoading ? (
+                  <tr>
+                    <td colSpan={6} className="p-8 text-center">
+                      <LoadingState label="Loading candidate profiles" />
+                    </td>
+                  </tr>
+                ) : !rows.length ? (
+                  <tr>
+                    <td colSpan={6} className="p-8 text-center">
+                      {filtered ? (
+                        <FilteredEmptyState
+                          title="No matching candidates"
+                          description="Try clearing the current filters."
+                          onClear={() => setParams(new URLSearchParams())}
+                        />
+                      ) : (
+                        <EmptyState
+                          title="No visible candidates"
+                          description="Public and recruiter-visible profiles will appear here."
+                        />
+                      )}
+                    </td>
+                  </tr>
+                ) : (
+                  rows.map((r) => {
+                    const initials = r.name
+                      .split(' ')
+                      .filter(Boolean)
+                      .map((n) => n[0])
+                      .join('')
+                      .slice(0, 2)
+                      .toUpperCase();
+                    const shortCode = `#CND-${r.id.slice(-6).toUpperCase()}`;
+
+                    return (
+                      <tr key={r.id}>
+                        <td>
+                          <div className="job-entity-cell">
+                            <div className="ats-avatar-icon">
+                              {initials}
+                            </div>
+                            <div className="job-entity-info">
+                              <div className="job-entity-title-row">
+                                <strong className="job-entity-title">{r.name}</strong>
+                                <span className="job-code-badge">{shortCode}</span>
+                              </div>
+                              <span className="job-entity-meta">
+                                <span>{r.headline}</span>
+                              </span>
+                            </div>
+                          </div>
+                        </td>
+                        <td>
+                          <div className="job-entity-meta">
+                            <span>{r.location}</span>
+                          </div>
+                        </td>
+                        <td>
+                          <div className="ats-skills">
+                            {r.skills.slice(0, 4).map((s) => (
+                              <Badge key={s}>{s}</Badge>
+                            ))}
+                          </div>
+                        </td>
+                        <td>
+                          <span
+                            className={`job-status-pill job-status-pill--${
+                              r.availability === 'immediately'
+                                ? 'published'
+                                : r.availability === 'notice-period'
+                                ? 'paused'
+                                : 'closed'
+                            }`}
+                          >
+                            <span className="job-status-dot" />
+                            {labelStatus(r.availability)}
+                          </span>
+                        </td>
+                        <td>
+                          <Progress
+                            value={r.completion}
+                            label={`${r.completion}% complete`}
+                          />
+                        </td>
+                        <td>
+                          <RouterLink
+                            className="tvx-button tvx-button--secondary tvx-button--compact"
+                            to={`/org/candidates/${r.id}`}
+                          >
+                            View profile
+                          </RouterLink>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+          {q.data && (
+            <Pagination
+              page={q.data.page.page}
+              totalPages={q.data.page.pages}
+              onPageChange={(p: number) =>
+                setParam(params, setParams, 'page', String(p))
               }
-            : {})}
-        />
+              ariaLabel="Candidate pages"
+            />
+          )}
+        </div>
       )}
     </div>
   );

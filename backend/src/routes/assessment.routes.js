@@ -41,6 +41,8 @@ assessmentRouter.get('/assignments/manage/:assignmentId', ...recruiter('assessme
 assessmentRouter.patch('/assignments/manage/:assignmentId/cancel', ...recruiter('assessments.assign'), validateParams(schemas.assignmentIdSchema), validateBody(schemas.reasonSchema), assignmentController.cancelManagedAssignment);
 assessmentRouter.patch('/assignments/manage/:assignmentId/extend', ...recruiter('assessments.assign'), validateParams(schemas.assignmentIdSchema), validateBody(schemas.extendSchema), assignmentController.extendManagedAssignment);
 assessmentRouter.patch('/assignments/manage/:assignmentId/release-result', ...recruiter('assessments.review'), validateParams(schemas.assignmentIdSchema), reviewController.releaseAssignmentResult);
+assessmentRouter.post('/assignments/check-eligibility', ...recruiter('assessments.assign'), validateBody(schemas.checkEligibilitySchema), assignmentController.checkEligibility);
+assessmentRouter.post('/assignments/bulk', ...recruiter('assessments.assign'), validateBody(schemas.bulkAssignmentSchema), assignmentController.bulkAssign);
 assessmentRouter.post('/assignments', ...recruiter('assessments.assign'), validateBody(schemas.assignmentBodySchema), assignmentController.createAssignment);
 assessmentRouter.get('/assignments/me', candidate, validateQuery(schemas.candidateAssignmentQuerySchema), assignmentController.myAssignments);
 assessmentRouter.get('/assignments/me/:assignmentId', candidate, validateParams(schemas.assignmentIdSchema), assignmentController.myAssignment);
@@ -100,5 +102,8 @@ assessmentRouter.get('/questions/:questionId/compare', ...recruiter('assessments
 assessmentRouter.post('/questions/:questionId/favorite', ...recruiter('assessments.view'), enterpriseController.toggleQuestionFavorite);
 
 // Analytics: Leaderboards & Benchmarking
+assessmentRouter.get('/manage/:assessmentId/cohort-leaderboard', ...recruiter('assessments.view'), validateParams(schemas.assessmentIdSchema), validateQuery(schemas.cohortLeaderboardQuerySchema), enterpriseController.getCohortLeaderboard);
+assessmentRouter.post('/manage/:assessmentId/promote', ...recruiter('applications.manage'), validateParams(schemas.assessmentIdSchema), validateBody(schemas.promoteCandidatesSchema), enterpriseController.promoteCandidates);
 assessmentRouter.get('/manage/:assessmentId/leaderboard', ...recruiter('assessments.view'), enterpriseController.getAssessmentLeaderboard);
 assessmentRouter.get('/benchmarking', ...recruiter('assessments.view'), enterpriseController.getAssessmentBenchmarking);
+

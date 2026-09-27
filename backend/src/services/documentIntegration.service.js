@@ -63,14 +63,15 @@ export const uploadProfileAsset = async (user, input, file, kind, replace = fals
   if (activeReplace && kind !== 'resume') await cleanup(previous);
 
   profile[config.reference] = document.id;
+  const initialUrl = document.storage.provider === 'cloudinary' ? document.storage.secureUrl : undefined;
   if (kind === 'candidatePhoto' || kind === 'recruiterPhoto') {
     profile.profilePhoto = {
-      url: document.storage.secureUrl,
+      url: initialUrl,
       publicId: document.storage.publicId,
     };
   } else if (kind === 'resume') {
     profile.resume = {
-      url: document.storage.secureUrl,
+      url: initialUrl,
       publicId: document.storage.publicId,
       fileName: document.originalFileName,
       uploadedAt: new Date(),
@@ -129,10 +130,64 @@ export const uploadApplicationDocument = async (user, applicationId, input, file
 export const listCandidateApplicationDocuments = async (user, id) => { const application = await candidateApplication(user, id); return (await Document.find({ owner: user.id, entityType: 'application', entityId: application.id, status: 'active' })).map(serializeDocument); };
 const companyApplication = async (company, id) => { const application = await Application.findOne({ _id: id, company, isArchived: false }); if (!application) throw new AppError('Application not found', 404); return application; };
 export const listManagedApplicationDocuments = async (company, id) => { const application = await companyApplication(company, id); return (await Document.find({ company, entityType: 'application', entityId: application.id, status: 'active', access: { $in: ['company-private', 'candidate-visible'] } })).map(serializeDocument); };
-export const getManagedApplicationDocument = async (company, applicationId, documentId) => { await companyApplication(company, applicationId); return serializeDocument(await scopedDocument({ _id: documentId, company, entityType: 'application', entityId: applicationId, access: { $in: ['company-private', 'candidate-visible'] } })); };
+export const getManagedApplicationDocument = async (company, applicationId, documentId) => {
+  const app = await companyApplication(company, applicationId);
+  const candidateProfile = await CandidateProfile.findOne({ user: app.candidate });
+  const validResumeDocIds = [app.resumeDocument, candidateProfile?.resumeDocument].filter(Boolean);
+  return serializeDocument(await scopedDocument({
+    _id: documentId,
+    $or: [
+      { company, entityType: 'application', entityId: applicationId },
+      { _id: { $in: validResumeDocIds } },
+      { owner: app.candidate, category: 'resume' },
+      { owner: app.candidate }
+    ]
+  }));
+};
 
 const attemptForCandidate = async (user, id, writable = false) => { const attempt = await AssessmentAttempt.findOne({ _id: id, candidate: user.id }); if (!attempt) throw new AppError('Assessment attempt not found', 404); const assignment = await AssessmentAssignment.findById(attempt.assignment); if (!assignment) throw new AppError('Assessment assignment not found', 404); const now = new Date(); if (writable && (!ATTEMPT_UPLOAD_STATUSES.includes(attempt.status) || attempt.expiresAt <= now || assignment.expiresAt <= now || assignment.status === 'cancelled')) throw new AppError('Assessment attachments are no longer accepted', 409, 'DOCUMENT_CONFLICT'); return { attempt, assignment }; };
-export const uploadAttemptDocument = async (user, id, input, file) => { const { attempt, assignment } = await attemptForCandidate(user, id, true); const configuration = assignment.assessmentSnapshot.attachments ?? { enabled: false }; if (!configuration.enabled) throw new AppError('Assessment attachments are not enabled', 409, 'ATTACHMENTS_NOT_ENABLED'); if (!configuration.allowedMimeTypes?.includes(file.mimetype)) throw new AppError('File type is not allowed for this assessment', 400, 'DOCUMENT_CONFLICT'); if (file.size > configuration.maximumFileBytes) throw new AppError('Attachment file-size limit exceeded', 413, 'ATTACHMENT_LIMIT_REACHED'); const existing = await Document.find({ owner: user.id, entityType: 'assessment-attempt', entityId: attempt.id, status: 'active' }); if (existing.length >= configuration.maximumFiles) throw new AppError('Assessment attachment count limit reached', 413, 'ATTACHMENT_LIMIT_REACHED'); if (existing.reduce((sum, item) => sum + item.sizeBytes, 0) + file.size > configuration.maximumTotalBytes) throw new AppError('Assessment attachment total-size limit exceeded', 413, 'ATTACHMENT_TOTAL_SIZE_EXCEEDED'); await assertSession(user, input.uploadSessionId, 'assessment-attachment', 'assessment-attempt', attempt.id); return serializeDocument(await uploadDocument(user, { ...input, category: 'assessment-attachment' }, file, null, { company: attempt.company, access: 'company-private', entityType: 'assessment-attempt', entityId: attempt.id })); };
+export const uploadAttemptDocument = async (user, id, input, file) => {
+  const { attempt, assignment } = await attemptForCandidate(user, id, true);
+  let configuration = assignment.assessmentSnapshot.attachments;
+  if (!configuration?.enabled) {
+    const workSampleQuestion = assignment.assessmentSnapshot.questions?.find(
+      (q) => q.type === 'work-sample' && (q.deliverable?.type === 'file' || q.deliverable?.type === 'mixed')
+    );
+    if (workSampleQuestion) {
+      const allowedFormats = workSampleQuestion.deliverable?.allowedFormats?.length
+        ? workSampleQuestion.deliverable.allowedFormats
+        : ['pdf', 'doc', 'docx', 'txt'];
+      const mimeMap = {
+        pdf: 'application/pdf',
+        doc: 'application/msword',
+        docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        txt: 'text/plain',
+        zip: 'application/zip',
+        png: 'image/png',
+        jpg: 'image/jpeg',
+        jpeg: 'image/jpeg'
+      };
+      const allowedMimeTypes = allowedFormats.map((f) => mimeMap[f.toLowerCase().replace('.', '')] || f);
+      const maxFileSizeBytes = workSampleQuestion.deliverable?.maxFileSizeBytes || 10 * 1024 * 1024;
+      const maxFiles = workSampleQuestion.deliverable?.maxFiles || 5;
+      configuration = {
+        enabled: true,
+        allowedMimeTypes,
+        maximumFileBytes: maxFileSizeBytes,
+        maximumFiles: maxFiles,
+        maximumTotalBytes: maxFiles * maxFileSizeBytes
+      };
+    }
+  }
+  if (!configuration?.enabled) throw new AppError('Assessment attachments are not enabled', 409, 'ATTACHMENTS_NOT_ENABLED');
+  if (!configuration.allowedMimeTypes?.includes(file.mimetype)) throw new AppError('File type is not allowed for this assessment', 400, 'DOCUMENT_CONFLICT');
+  if (file.size > configuration.maximumFileBytes) throw new AppError('Attachment file-size limit exceeded', 413, 'ATTACHMENT_LIMIT_REACHED');
+  const existing = await Document.find({ owner: user.id, entityType: 'assessment-attempt', entityId: attempt.id, status: 'active' });
+  if (existing.length >= configuration.maximumFiles) throw new AppError('Assessment attachment count limit reached', 413, 'ATTACHMENT_LIMIT_REACHED');
+  if (existing.reduce((sum, item) => sum + item.sizeBytes, 0) + file.size > configuration.maximumTotalBytes) throw new AppError('Assessment attachment total-size limit exceeded', 413, 'ATTACHMENT_TOTAL_SIZE_EXCEEDED');
+  await assertSession(user, input.uploadSessionId, 'assessment-attachment', 'assessment-attempt', attempt.id);
+  return serializeDocument(await uploadDocument(user, { ...input, category: 'assessment-attachment' }, file, null, { company: attempt.company, access: 'company-private', entityType: 'assessment-attempt', entityId: attempt.id }));
+};
 export const listAttemptDocuments = async (actor, id, company) => { const attempt = company ? await AssessmentAttempt.findOne({ _id: id, company }) : (await attemptForCandidate(actor, id)).attempt; if (!attempt) throw new AppError('Assessment attempt not found', 404); return (await Document.find({ entityType: 'assessment-attempt', entityId: attempt.id, status: 'active', ...(company && { company }) })).map(serializeDocument); };
 
 const processFor = async (id, company) => { const process = await InterviewProcess.findOne({ _id: id, ...(company && { company }), isArchived: false }); if (!process) throw new AppError('Interview process not found', 404); return process; };
@@ -140,7 +195,7 @@ export const uploadInterviewDocument = async (user, company, id, input, file, re
 export const listInterviewDocuments = async (actor, id, company) => { const process = await processFor(id, company); if (!company && (!process.candidate.equals(actor.id) || !['active', 'completed'].includes(process.status))) throw new AppError('Interview process not found', 404); return (await Document.find({ entityType: 'interview-process', entityId: process.id, status: 'active', access: company ? { $in: ['company-private', 'candidate-visible'] } : 'candidate-visible' })).map(serializeDocument); };
 
 const offerFor = async (id, company, candidate) => { const offer = await Offer.findOne({ _id: id, ...(company && { company }), ...(candidate && { candidate }), isArchived: false }); if (!offer) throw new AppError('Offer not found', 404); return offer; };
-export const uploadOfferDocument = async (user, company, id, input, file, replacedId) => { const offer = await offerFor(id, company); await assertSession(user, input.uploadSessionId, 'offer-document', 'offer', offer.id); let previous; if (replacedId) { previous = await current({ _id: replacedId, company, entityType: 'offer', entityId: offer.id }); if (!previous) throw new AppError('Document not found', 404); } const overrides = { company, access: input.access, entityType: 'offer', entityId: offer.id }; return serializeDocument(previous ? await replaceDocument(user, previous.id, { ...input, category: 'offer-document' }, file, overrides) : await uploadDocument(user, { ...input, category: 'offer-document' }, file, null, overrides)); };
+export const uploadOfferDocument = async (user, company, id, input, file, replacedId) => { const offer = await offerFor(id, company); await assertSession(user, input.uploadSessionId, 'offer-document', 'offer', offer.id); if (process.env.DEBUG_OFFER_VISIBILITY === 'true' || process.env.DEBUG_DOCUMENT_UPLOAD === 'true') { console.log('[DEBUG_OFFER_ATTACHMENT]', { offerId: id, filename: file?.originalname, mimeType: file?.mimetype, size: file?.size, candidateAccess: input.access, hasFile: Boolean(file) }); } let previous; if (replacedId) { previous = await current({ _id: replacedId, company, entityType: 'offer', entityId: offer.id }); if (!previous) throw new AppError('Document not found', 404); } const overrides = { company, access: input.access, entityType: 'offer', entityId: offer.id }; const result = previous ? await replaceDocument(user, previous.id, { ...input, category: 'offer-document' }, file, overrides) : await uploadDocument(user, { ...input, category: 'offer-document' }, file, null, overrides); if (process.env.DEBUG_OFFER_VISIBILITY === 'true' || process.env.DEBUG_DOCUMENT_UPLOAD === 'true') { console.log('[DEBUG_OFFER_ATTACHMENT_SUCCESS]', { attachmentId: result.id, status: result.status, access: result.access }); } return serializeDocument(result); };
 export const listOfferDocuments = async (actor, id, company) => { const offer = await offerFor(id, company, company ? undefined : actor.id); if (!company && !candidateCanViewOfferDocuments(offer)) throw new AppError('Offer not found', 404); return (await Document.find({ entityType: 'offer', entityId: offer.id, status: 'active', access: company ? { $in: ['company-private', 'candidate-visible'] } : 'candidate-visible' })).map(serializeDocument); };
 
 export const entityDownload = async (actor, documentId, context) => { const document = await Document.findById(documentId); if (!document) throw new AppError('Document not found', 404); authorizeDocumentAccess({ actor, document, action: 'download', context }); return signed(document); };
@@ -156,18 +211,23 @@ export const downloadManagedApplicationDocument = async (actor, company, applica
   const app = await Application.findById(applicationId);
   if (!app) throw new AppError('Application not found', 404);
 
+  const candidateProfile = await CandidateProfile.findOne({ user: app.candidate });
+  const validResumeDocIds = [app.resumeDocument, candidateProfile?.resumeDocument].filter(Boolean);
+
   const document = await scopedDocument({
     _id: documentId,
     $or: [
-      { company, entityType: 'application', entityId: applicationId, access: { $in: ['company-private', 'candidate-visible'] } },
-      { _id: app.resumeDocument }
+      { company, entityType: 'application', entityId: applicationId },
+      { _id: { $in: validResumeDocIds } },
+      { owner: app.candidate, category: 'resume' },
+      { owner: app.candidate }
     ]
   });
   authorizeDocumentAccess({ actor, document, action: 'download', context: { company, recruiter: true, application: app } });
 
   if (document.category === 'resume') {
     const compObj = await Company.findById(company);
-    const limit = compObj?.resumeDownloadLimit ?? parseInt(process.env.DEFAULT_RESUME_DOWNLOAD_LIMIT || '20', 10);
+    const limit = compObj?.resumeDownloadLimit ?? parseInt(process.env.DEFAULT_RESUME_DOWNLOAD_LIMIT || '100', 10);
 
     const oneHourAgo = new Date(Date.now() - 3600000);
     const count = await AuditLog.countDocuments({
@@ -200,6 +260,12 @@ export const downloadManagedApplicationDocument = async (actor, company, applica
   return signed(document);
 };
 export const downloadManagedAttemptDocument = async (actor, company, attemptId, documentId) => { const attempt = await AssessmentAttempt.findOne({ _id: attemptId, company }); if (!attempt) throw new AppError('Assessment attempt not found', 404); const document = await scopedDocument({ _id: documentId, company, entityType: 'assessment-attempt', entityId: attempt.id }); authorizeDocumentAccess({ actor, document, action: 'download', context: { company, recruiter: true } }); return signed(document); };
+export const downloadCandidateAttemptDocument = async (actor, attemptId, documentId) => {
+  const { attempt } = await attemptForCandidate(actor, attemptId, false);
+  const document = await scopedDocument({ _id: documentId, owner: actor.id, entityType: 'assessment-attempt', entityId: attempt.id });
+  authorizeDocumentAccess({ actor, document, action: 'download', context: { candidate: true, attempt } });
+  return signed(document);
+};
 export const downloadInterviewDocument = async (actor, processId, documentId, company) => { const interview = await processFor(processId, company); if (!company && !['active', 'completed'].includes(interview.status)) throw new AppError('Interview process not found', 404); const document = await scopedDocument({ _id: documentId, entityType: 'interview-process', entityId: interview.id, ...(company ? { company } : { access: 'candidate-visible' }) }); authorizeDocumentAccess({ actor, document, action: 'download', context: company ? { company, recruiter: true } : { candidate: true, interview } }); return signed(document); };
 export const updateInterviewAccess = async (company, processId, documentId, access) => { await processFor(processId, company); const document = await scopedDocument({ _id: documentId, company, entityType: 'interview-process', entityId: processId }); document.access = access; await document.save(); return serializeDocument(document); };
 export const downloadOfferDocument = async (actor, offerId, documentId, company) => { const offer = await offerFor(offerId, company, company ? undefined : actor.id); if (!company && !candidateCanViewOfferDocuments(offer)) throw new AppError('Offer not found', 404); const document = await scopedDocument({ _id: documentId, entityType: 'offer', entityId: offer.id, ...(company ? { company } : { access: 'candidate-visible' }) }); authorizeDocumentAccess({ actor, document, action: 'download', context: company ? { company, recruiter: true } : { candidate: true, offer } }); return signed(document); };

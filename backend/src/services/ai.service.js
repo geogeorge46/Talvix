@@ -2,9 +2,63 @@ import { invokeAIGateway } from './aiProvider.service.js';
 import { parseJSON } from './jsonParser.service.js';
 import { z } from 'zod';
 
-export const generateJobDescription = async (title, keyRequirements, context = {}) => {
-  return await invokeAIGateway('generate_job_description', { title, keyRequirements }, context);
+export const generateJobDescription = async (input, secondArg = {}, thirdArg = {}) => {
+  let title = '';
+  let keyRequirements = '';
+  let department = '';
+  let employmentType = '';
+  let workMode = '';
+  let skills = [];
+  let minimumExperience;
+  let maximumExperience;
+  let location = '';
+  let context = {};
+
+  if (typeof input === 'string') {
+    title = input;
+    keyRequirements = typeof secondArg === 'string' ? secondArg : '';
+    context = typeof secondArg === 'object' && secondArg !== null && !('title' in secondArg) ? secondArg : (thirdArg || {});
+  } else if (input && typeof input === 'object') {
+    title = input.title || '';
+    keyRequirements = input.keyRequirements || '';
+    department = input.department || '';
+    employmentType = input.employmentType || '';
+    workMode = input.workMode || '';
+    skills = Array.isArray(input.skills) ? input.skills : [];
+    minimumExperience = input.minimumExperience;
+    maximumExperience = input.maximumExperience;
+    location = input.location || '';
+    context = secondArg || {};
+  }
+
+  const company = context.company || {};
+  const companyName = company.name || 'Our Company';
+  const companyIndustry = company.industry || 'Technology';
+  const companyAbout = company.description || '';
+  const companyBenefits = Array.isArray(company.benefits) && company.benefits.length > 0 ? company.benefits.join(', ') : '';
+  const companyTechnologies = Array.isArray(company.technologies) && company.technologies.length > 0 ? company.technologies.join(', ') : '';
+  const hq = company.headquarters;
+  const companyLocation = location || (hq?.city ? [hq.city, hq.state, hq.country].filter(Boolean).join(', ') : '');
+
+  const promptVariables = {
+    title,
+    keyRequirements,
+    department,
+    employmentType,
+    workMode,
+    skills: skills.join(', '),
+    experience: minimumExperience !== undefined ? `${minimumExperience}${maximumExperience ? `-${maximumExperience}` : '+'} years` : '',
+    companyName,
+    companyIndustry,
+    companyAbout,
+    companyBenefits,
+    companyTechnologies,
+    companyLocation
+  };
+
+  return await invokeAIGateway('generate_job_description', promptVariables, context);
 };
+
 
 export const suggestSkills = async (title, description, context = {}) => {
   const resultText = await invokeAIGateway('suggest_skills', { title, description }, context);

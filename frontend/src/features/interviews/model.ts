@@ -41,7 +41,10 @@ export interface Process {
   id: string;
   applicationId: string;
   candidateId: string;
+  candidateName?: string | undefined;
+  candidateEmail?: string | undefined;
   jobId: string;
+  jobTitle?: string | undefined;
   status: string;
   feedbackReleased: boolean;
   overallScore?: number | undefined;
@@ -93,6 +96,7 @@ export interface SafeSchedule {
   status: string;
   candidateResponse: string;
   candidateId?: string;
+  candidateName?: string;
   candidate?: string;
   processId?: string;
   process?: string;
@@ -164,7 +168,10 @@ export const toProcess = (v: unknown): Process => {
     id: id(x),
     applicationId: id(x.applicationId ?? x.application),
     candidateId: id(x.candidateId ?? x.candidate),
+    candidateName: str(x.candidateName || obj(x.candidate).fullName || obj(x.application).candidateName) || undefined,
+    candidateEmail: str(x.candidateEmail || obj(x.candidate).email) || undefined,
     jobId: id(x.jobId ?? x.job),
+    jobTitle: str(x.jobTitle || obj(x.job).title) || undefined,
     status: str(x.status),
     feedbackReleased: x.feedbackReleased === true,
     overallScore:
@@ -210,7 +217,8 @@ export const toScorecard = (v: unknown): Scorecard => {
 export const safeSchedule = (v: unknown): SafeSchedule => {
   const x = obj(v),
     phone = obj(x.phoneDetails),
-    loc = obj(x.location);
+    loc = obj(x.location),
+    cand = obj(x.candidate || x.candidateSnapshot);
   return {
     id: id(x),
     timezone: str(x.timezone),
@@ -225,6 +233,9 @@ export const safeSchedule = (v: unknown): SafeSchedule => {
     candidateInstructions: str(x.candidateInstructions),
     status: str(x.status),
     candidateResponse: str(x.candidateResponse),
+    candidateId: id(x.candidate || x.candidateId),
+    candidateName: str(cand.fullName || cand.name || x.candidateName),
+    processId: id(x.process || x.interviewProcessId || x.processId),
   };
 };
 export const toCandidateProcess = (v: unknown): CandidateProcess => {

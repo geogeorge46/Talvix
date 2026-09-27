@@ -135,7 +135,8 @@ export function useRecruiterDashboardQuery(enabled = false) {
     queryKey: ['recruiter-dashboard'],
     queryFn: async () => {
       try {
-        return await apiRequest<any>('/analytics/recruiter/dashboard');
+        const res = await apiRequest<any>('/analytics/recruiter/dashboard');
+        return res?.data ?? res;
       } catch {
         return { metrics: {}, recentActivity: [] };
       }
@@ -150,7 +151,8 @@ export function useCompanyDashboardQuery(enabled = false) {
     queryKey: ['company-dashboard'],
     queryFn: async () => {
       try {
-        return await apiRequest<any>('/analytics/company/dashboard');
+        const res = await apiRequest<any>('/analytics/company/dashboard');
+        return res?.data ?? res;
       } catch {
         return {
           overview: {},

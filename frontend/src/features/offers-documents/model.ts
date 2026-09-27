@@ -13,10 +13,13 @@ export const OFFER_STATUSES = [
   'expired',
   'cancelled',
   'superseded',
+  'onboarding-started',
+  'completed',
 ] as const;
 export type OfferStatus = (typeof OFFER_STATUSES)[number];
 export interface Offer {
   id: string;
+  applicationId?: string | undefined;
   status: OfferStatus;
   title: string;
   department?: string | undefined;
@@ -46,6 +49,15 @@ export interface Offer {
     required: boolean;
     order: number;
   }[];
+  negotiation?:
+    | {
+        requestedAt?: string | undefined;
+        message?: string | undefined;
+        requestedChanges?: Record<string, unknown> | undefined;
+        resolution?: string | undefined;
+        comments?: string | undefined;
+      }
+    | undefined;
   createdAt?: string | undefined;
   updatedAt?: string | undefined;
 }
@@ -109,6 +121,7 @@ export function toOffer(value: unknown): Offer {
     : 'draft';
   return {
     id: id(v),
+    applicationId: text(v.applicationId) || text(v.application) || id(record(v.application)) || undefined,
     status,
     title: text(v.title, text(job.title, 'Untitled offer')),
     department: text(v.department) || undefined,
@@ -147,6 +160,17 @@ export function toOffer(value: unknown): Offer {
       : [],
     createdAt: text(v.createdAt) || undefined,
     updatedAt: text(v.updatedAt) || undefined,
+    negotiation: (() => {
+      const neg = record(v.negotiation);
+      if (!Object.keys(neg).length) return undefined;
+      return {
+        requestedAt: text(neg.requestedAt) || undefined,
+        message: text(neg.message) || undefined,
+        requestedChanges: record(neg.requestedChanges),
+        resolution: text(neg.resolution) || undefined,
+        comments: text(neg.comments) || undefined,
+      };
+    })(),
   };
 }
 export function toCandidateOffer(value: unknown): Offer {
@@ -214,7 +238,7 @@ export function toDocument(value: unknown): DocumentRecord {
 export const offerTone = (
   status: OfferStatus,
 ): 'neutral' | 'success' | 'warning' | 'danger' | 'info' =>
-  ['accepted', 'approved'].includes(status)
+  ['accepted', 'approved', 'onboarding-started', 'completed'].includes(status)
     ? 'success'
     : ['expired', 'declined', 'withdrawn', 'cancelled'].includes(status)
       ? 'danger'

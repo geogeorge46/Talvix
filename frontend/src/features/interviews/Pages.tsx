@@ -1,12 +1,41 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import {
+  Briefcase,
+  Calendar,
+  Layers,
+  CheckCircle2,
+  Plus,
+  Search,
+  X,
+  RotateCcw,
+  FileEdit,
+  Archive,
+  Award,
+  ChevronLeft,
+  ChevronRight,
+  Clock,
+  Users,
+  FileText,
+  Video,
+  Phone,
+  MapPin,
+  User,
+  Download,
+  ExternalLink,
+  CalendarX,
+  Sparkles,
+  Copy,
+} from 'lucide-react';
 import {
   Link,
+  NavLink,
   useNavigate,
   useParams,
   useSearchParams,
 } from 'react-router-dom';
 import {
   Alert,
+  Badge,
   Button,
   Card,
   ConfirmDialog,
@@ -17,8 +46,10 @@ import {
   ErrorState,
   FilteredEmptyState,
   LoadingState,
+  MetricCard,
   PageHeader,
   PermissionState,
+  SearchField,
   Select,
   StatusTag,
   TextArea,
@@ -26,6 +57,7 @@ import {
   Toolbar,
 } from '../../design-system';
 import { useAuth } from '../../auth/AuthProvider';
+import { useCompany } from '../organization-admin/api';
 import {
   useProcess,
   useProcessAction,
@@ -60,13 +92,47 @@ const tone = (s: string) =>
       : ['reschedule-requested', 'awaiting-feedback', 'proposed'].includes(s)
         ? 'warning'
         : 'neutral';
-function InterviewTabs() {
+export function InterviewTabs() {
   return (
-    <nav className="iv-tabs" aria-label="Interview sections">
-      <Link to="/org/interviews">Processes</Link>
-      <Link to="/org/interviews/calendar">Calendar</Link>
-      <Link to="/org/interviews/templates">Templates</Link>
-      <Link to="/org/interviews/feedback">Scorecards</Link>
+    <nav className="ats-nav-tabs-wrapper" aria-label="Interview sections">
+      <div className="ats-nav-tabs">
+        <NavLink
+          to="/org/interviews"
+          end
+          className={({ isActive }) => `ats-nav-tab ${isActive ? 'active' : ''}`}
+        >
+          <Briefcase size={15} />
+          <span>Processes</span>
+        </NavLink>
+        <NavLink
+          to="/org/interviews/calendar"
+          className={({ isActive }) => `ats-nav-tab ${isActive ? 'active' : ''}`}
+        >
+          <Calendar size={15} />
+          <span>Calendar</span>
+        </NavLink>
+        <NavLink
+          to="/org/interviews/templates"
+          className={({ isActive }) => `ats-nav-tab ${isActive ? 'active' : ''}`}
+        >
+          <Layers size={15} />
+          <span>Templates</span>
+        </NavLink>
+        <NavLink
+          to="/org/interviews/feedback"
+          className={({ isActive }) => `ats-nav-tab ${isActive ? 'active' : ''}`}
+        >
+          <CheckCircle2 size={15} />
+          <span>Scorecards</span>
+        </NavLink>
+        <NavLink
+          to="/org/interviews/new"
+          className={({ isActive }) => `ats-nav-tab ${isActive ? 'active' : ''}`}
+        >
+          <Plus size={15} />
+          <span>Create process</span>
+        </NavLink>
+      </div>
     </nav>
   );
 }
@@ -117,20 +183,26 @@ function Rail({
   );
 }
 function TemplateCard({ t }: { t: Template }) {
+  const codeBadge = `#TPL-${t.id.slice(-6).toUpperCase()}`;
   return (
-    <article className="iv-record">
-      <div>
-        <strong>{t.name}</strong>
-        <small>
+    <article className="iv-record" style={{ borderRadius: '12px', padding: '16px' }}>
+      <div className="job-entity-info" style={{ flex: 1 }}>
+        <div className="job-entity-title-row">
+          <strong style={{ fontSize: '0.9375rem' }}>{t.name}</strong>
+          <span className="job-code-badge">{codeBadge}</span>
+        </div>
+        <small style={{ color: '#64748b' }}>
           {t.rounds.length} rounds · used {t.usageCount} times
         </small>
       </div>
-      <StatusTag tone={t.isActive ? 'success' : 'neutral'}>
+      <span className={`job-status-pill job-status-pill--${t.isActive ? 'success' : 'neutral'}`}>
+        <span className={`job-status-dot job-status-dot--${t.isActive ? 'success' : 'neutral'}`} />
         {t.isActive ? 'Active' : 'Inactive'}
-      </StatusTag>
+      </span>
       <Link
-        className="tvx-button tvx-button--secondary"
+        className="tvx-button tvx-button--secondary tvx-button--sm"
         to={`/org/interviews/templates/${t.id}`}
+        style={{ height: '30px', borderRadius: '9999px', fontSize: '0.78125rem' }}
       >
         Open
       </Link>
@@ -138,18 +210,66 @@ function TemplateCard({ t }: { t: Template }) {
   );
 }
 export function TemplatesPage() {
-  const { recruiter } = useAuth(),
-    view = has(recruiter?.permissions ?? [], 'interviews.view'),
-    manage = has(recruiter?.permissions ?? [], 'interviews.manage'),
-    [p, setP] = useSearchParams();
-  const q = useTemplates(
-    `page=${p.get('page') || 1}&limit=10&sort=${p.get('sort') || 'newest'}${p.get('search') ? `&search=${encodeURIComponent(p.get('search') ?? '')}` : ''}`,
-    view,
-  );
+  const { recruiter } = useAuth();
+  const view = has(recruiter?.permissions ?? [], 'interviews.view');
+  const manage = has(recruiter?.permissions ?? [], 'interviews.manage');
+  const [p, setP] = useSearchParams();
+
+  const currentPage = Number(p.get('page')) || 1;
+  const currentSearch = p.get('search') || '';
+  const currentStatus = p.get('status') || '';
+
+  const [searchDraft, setSearchDraft] = useState(currentSearch);
+
+  useEffect(() => {
+    setSearchDraft(currentSearch);
+  }, [currentSearch]);
+
+  const queryStr = useMemo(() => {
+    const params = new URLSearchParams();
+    params.set('page', String(currentPage));
+    params.set('limit', '10');
+    params.set('sort', 'newest');
+    if (currentSearch) params.set('search', currentSearch);
+    if (currentStatus) params.set('status', currentStatus);
+    return params.toString();
+  }, [currentPage, currentSearch, currentStatus]);
+
+  const q = useTemplates(queryStr, view);
+
   if (!view)
     return (
       <PermissionState description="The interviews.view permission is required." />
     );
+
+  const items = (q.data?.items ?? []) as Template[];
+  const totalItems = q.data?.total ?? items.length;
+  const activeCount = items.filter((t) => t.isActive).length;
+  const reusableCount = items.filter((t) => t.isReusable).length;
+  const totalRounds = items.reduce((acc, t) => acc + (t.rounds?.length || 0), 0);
+  const maxUsage = items.length ? Math.max(...items.map((t) => t.usageCount || 0)) : 0;
+
+  const hasFilters = Boolean(currentSearch || currentStatus);
+
+  const updateFilters = (patch: { search?: string; status?: string; page?: number }) => {
+    const next = new URLSearchParams(p);
+    if (patch.search !== undefined) {
+      if (patch.search) next.set('search', patch.search);
+      else next.delete('search');
+    }
+    if (patch.status !== undefined) {
+      if (patch.status) next.set('status', patch.status);
+      else next.delete('status');
+    }
+    if (patch.page !== undefined) {
+      if (patch.page > 1) next.set('page', String(patch.page));
+      else next.delete('page');
+    } else {
+      next.delete('page');
+    }
+    setP(next, { replace: true });
+  };
+
   return (
     <div className="iv-page">
       <PageHeader
@@ -162,84 +282,231 @@ export function TemplatesPage() {
               className="tvx-button tvx-button--primary"
               to="/org/interviews/templates/new"
             >
-              Create template
+              <Plus size={16} /> Create template
             </Link>
           ) : undefined
         }
       />
+
+      <div className="ats-metrics-grid">
+        <div className="ats-metric-card">
+          <div className="ats-metric-card__header">
+            <div className="ats-metric-icon-box"><Layers size={18} /></div>
+            <span className="ats-metric-badge ats-metric-badge--neutral">Catalog</span>
+          </div>
+          <div className="ats-metric-card__body">
+            <span className="ats-metric-card__label">Total Templates</span>
+            <span className="ats-metric-card__val">{totalItems}</span>
+            <span className="ats-metric-card__sub">Structured interview plans</span>
+          </div>
+        </div>
+        <div className="ats-metric-card">
+          <div className="ats-metric-card__header">
+            <div className="ats-metric-icon-box" style={{ background: '#10b981' }}><CheckCircle2 size={18} /></div>
+            <span className="ats-metric-badge ats-metric-badge--success">Ready</span>
+          </div>
+          <div className="ats-metric-card__body">
+            <span className="ats-metric-card__label">Active Plans</span>
+            <span className="ats-metric-card__val">{activeCount}</span>
+            <span className="ats-metric-card__sub">Deployed across workflows</span>
+          </div>
+        </div>
+        <div className="ats-metric-card">
+          <div className="ats-metric-card__header">
+            <div className="ats-metric-icon-box" style={{ background: '#0284c7' }}><Copy size={18} /></div>
+            <span className="ats-metric-badge ats-metric-badge--info">Multi-Use</span>
+          </div>
+          <div className="ats-metric-card__body">
+            <span className="ats-metric-card__label">Reusable Plans</span>
+            <span className="ats-metric-card__val">{reusableCount}</span>
+            <span className="ats-metric-card__sub">Clonable template definitions</span>
+          </div>
+        </div>
+        <div className="ats-metric-card">
+          <div className="ats-metric-card__header">
+            <div className="ats-metric-icon-box" style={{ background: '#6366f1' }}><Briefcase size={18} /></div>
+            <span className="ats-metric-badge ats-metric-badge--neutral">Stages</span>
+          </div>
+          <div className="ats-metric-card__body">
+            <span className="ats-metric-card__label">Total Rounds</span>
+            <span className="ats-metric-card__val">{totalRounds}</span>
+            <span className="ats-metric-card__sub">Defined evaluation stages</span>
+          </div>
+        </div>
+        <div className="ats-metric-card">
+          <div className="ats-metric-card__header">
+            <div className="ats-metric-icon-box" style={{ background: '#f59e0b' }}><Sparkles size={18} /></div>
+            <span className="ats-metric-badge ats-metric-badge--warning">Popularity</span>
+          </div>
+          <div className="ats-metric-card__body">
+            <span className="ats-metric-card__label">Top Usage</span>
+            <span className="ats-metric-card__val">{maxUsage}</span>
+            <span className="ats-metric-card__sub">Max active process runs</span>
+          </div>
+        </div>
+      </div>
+
       <Toolbar
         label="Template filters"
         start={
-          <TextField
+          <SearchField
             label="Search templates"
-            value={p.get('search') || ''}
-            onChange={(e) => {
-              const n = new URLSearchParams(p);
-              if (e.target.value) n.set('search', e.target.value);
-              else n.delete('search');
-              setP(n);
-            }}
+            value={searchDraft}
+            onChange={(e) => setSearchDraft(e.target.value)}
+            onSearch={(value) => updateFilters({ search: value.trim(), page: 1 })}
           />
         }
+        end={
+          <div className="tvx-dashboard-filter-actions">
+            <Select
+              aria-label="Filter by status"
+              value={currentStatus}
+              options={[
+                { value: '', label: 'All statuses' },
+                { value: 'active', label: 'Active' },
+                { value: 'inactive', label: 'Inactive' },
+              ]}
+              onChange={(e) => updateFilters({ status: e.target.value, page: 1 })}
+            />
+            {hasFilters && (
+              <Button
+                variant="quiet"
+                onClick={() => {
+                  setSearchDraft('');
+                  setP({}, { replace: true });
+                }}
+              >
+                Reset filters
+              </Button>
+            )}
+          </div>
+        }
       />
+
       {q.isError ? (
         <ErrorState detail={err(q.error)} retry={() => void q.refetch()} />
       ) : (
-        <DataTable
-          caption="Interview templates"
-          rows={(q.data?.items ?? []) as Template[]}
-          rowKey={(x) => x.id}
-          isLoading={q.isLoading}
-          empty={
-            p.has('search') ? (
-              <FilteredEmptyState
-                title="No matching templates"
-                description="Adjust the search."
-                onClear={() => setP({})}
-              />
-            ) : (
-              <EmptyState
-                title="No templates"
-                description="Create a structured interview plan."
-              />
-            )
-          }
-          columns={[
-            {
-              id: 'name',
-              header: 'Template',
-              render: (x) => (
-                <>
-                  <strong>{x.name}</strong>
-                  <small>{x.rounds.length} rounds</small>
-                </>
-              ),
-            },
-            {
-              id: 'usage',
-              header: 'Usage',
-              render: (x) => <>{x.usageCount}</>,
-            },
-            {
-              id: 'status',
-              header: 'Status',
-              render: (x) => (
-                <StatusTag tone={x.isActive ? 'success' : 'neutral'}>
-                  {x.isActive ? 'Active' : 'Inactive'}
-                </StatusTag>
-              ),
-            },
-          ]}
-          renderNarrow={(x) => <TemplateCard t={x} />}
-          rowActions={(x) => (
-            <Link
-              className="tvx-button tvx-button--secondary tvx-button--compact"
-              to={`/org/interviews/templates/${x.id}`}
-            >
-              Open
-            </Link>
-          )}
-        />
+        <div className="ats-table-card">
+          <DataTable
+            caption="Interview templates"
+            rows={items}
+            rowKey={(x) => x.id}
+            isLoading={q.isLoading}
+            pagination={
+              q.data && q.data.pages > 1
+                ? {
+                    page: q.data.page,
+                    totalPages: q.data.pages,
+                    onPageChange: (page) => updateFilters({ page }),
+                  }
+                : undefined
+            }
+            empty={
+              hasFilters ? (
+                <FilteredEmptyState
+                  title="No matching templates"
+                  description="Adjust your search query or status filter."
+                  onClear={() => {
+                    setSearchDraft('');
+                    setP({}, { replace: true });
+                  }}
+                />
+              ) : (
+                <EmptyState
+                  title="No templates yet"
+                  description="Create a structured interview plan to standardize candidate evaluations."
+                />
+              )
+            }
+            columns={[
+              {
+                id: 'name',
+                header: 'Template',
+                render: (x) => {
+                  const codeBadge = `#TPL-${x.id.slice(-6).toUpperCase()}`;
+                  return (
+                    <div className="job-entity-cell">
+                      <div className="job-entity-icon">
+                        <Layers size={18} />
+                      </div>
+                      <div className="job-entity-info">
+                        <div className="job-entity-title-row">
+                          <Link to={`/org/interviews/templates/${x.id}`} className="job-entity-title">
+                            {x.name}
+                          </Link>
+                          <span className="job-code-badge">{codeBadge}</span>
+                        </div>
+                        <div className="job-entity-meta">
+                          <span>{x.description || 'No description provided'}</span>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                },
+              },
+              {
+                id: 'rounds',
+                header: 'Rounds',
+                render: (x) => (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', flexWrap: 'wrap' }}>
+                    <Badge variant="neutral">
+                      {x.rounds?.length || 0} {x.rounds?.length === 1 ? 'round' : 'rounds'}
+                    </Badge>
+                    {x.rounds?.slice(0, 2).map((r) => (
+                      <span
+                        key={r.id || r.name}
+                        style={{
+                          fontSize: '0.75rem',
+                          color: '#64748b',
+                          background: '#f8fafc',
+                          padding: '2px 8px',
+                          borderRadius: '4px',
+                          border: '1px solid #e2e8f0',
+                        }}
+                      >
+                        {r.name}
+                      </span>
+                    ))}
+                    {x.rounds && x.rounds.length > 2 && (
+                      <span style={{ fontSize: '0.75rem', color: '#94a3b8' }}>
+                        +{x.rounds.length - 2} more
+                      </span>
+                    )}
+                  </div>
+                ),
+              },
+              {
+                id: 'usage',
+                header: 'Usage',
+                render: (x) => (
+                  <Badge variant={x.usageCount > 0 ? 'accent' : 'neutral'}>
+                    {x.usageCount || 0} {x.usageCount === 1 ? 'process' : 'processes'}
+                  </Badge>
+                ),
+              },
+              {
+                id: 'status',
+                header: 'Status',
+                render: (x) => (
+                  <span className={`job-status-pill job-status-pill--${x.isActive ? 'success' : 'neutral'}`}>
+                    <span className={`job-status-dot job-status-dot--${x.isActive ? 'success' : 'neutral'}`} />
+                    {x.isActive ? 'Active' : 'Inactive'}
+                  </span>
+                ),
+              },
+            ]}
+            renderNarrow={(x) => <TemplateCard t={x} />}
+            rowActions={(x) => (
+              <Link
+                className="tvx-button tvx-button--secondary tvx-button--sm"
+                to={`/org/interviews/templates/${x.id}`}
+                style={{ height: '30px', borderRadius: '9999px', fontSize: '0.78125rem' }}
+              >
+                Open
+              </Link>
+            )}
+          />
+        </div>
       )}
     </div>
   );
@@ -518,116 +785,480 @@ function TemplateEditor({ existing }: { existing?: Template }) {
   );
 }
 
+function formatDateTimeParts(dateStr?: string) {
+  if (!dateStr) return { date: '-', time: '' };
+  try {
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return { date: '-', time: '' };
+    const dateFormatted = new Intl.DateTimeFormat('en-GB', {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+    }).format(d);
+    const timeFormatted = new Intl.DateTimeFormat('en-US', {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true,
+    }).format(d);
+    return { date: dateFormatted, time: timeFormatted };
+  } catch {
+    return { date: '-', time: '' };
+  }
+}
+
 export function ProcessesPage() {
-  const { recruiter } = useAuth(),
-    view = has(recruiter?.permissions ?? [], 'interviews.view'),
-    manage = has(recruiter?.permissions ?? [], 'interviews.manage'),
-    [p, setP] = useSearchParams();
-  const q = useProcesses(
-    `page=${p.get('page') || 1}&limit=10&sort=${p.get('sort') || 'newest'}${p.get('status') ? `&status=${p.get('status')}` : ''}`,
-    view,
-  );
-  if (!view)
+  const { recruiter } = useAuth();
+  const can = has(recruiter?.permissions ?? [], 'interviews.view');
+  const manage = has(recruiter?.permissions ?? [], 'interviews.manage');
+  const [p, setP] = useSearchParams();
+
+  const search = p.get('search') || '';
+  const statusFilter = p.get('status') || '';
+  const sort = p.get('sort') || 'newest';
+  const page = Math.max(1, Number(p.get('page') || 1));
+  const limit = 10;
+
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+
+  // Paginated query for table
+  const queryStr = `page=${page}&limit=${limit}&sort=${sort}${
+    search ? `&search=${encodeURIComponent(search)}` : ''
+  }${statusFilter ? `&status=${statusFilter}` : ''}`;
+  const q = useProcesses(queryStr, can);
+
+  // Query for metric summary cards
+  const allQ = useProcesses('limit=100&sort=newest', can);
+
+  if (!can) {
     return (
       <PermissionState description="The interviews.view permission is required." />
     );
+  }
+
+  const items = (q.data?.items ?? []) as Process[];
+  const totalItems = q.data?.pagination?.total ?? items.length;
+  const totalPages = Math.max(1, Math.ceil(totalItems / limit));
+
+  const allItems = (allQ.data?.items ?? []) as Process[];
+  const totalProcesses = allQ.data?.pagination?.total ?? allItems.length;
+  const activeCount = allItems.filter((x) => x.status === 'active').length;
+  const draftCount = allItems.filter((x) => x.status === 'draft').length;
+  const completedCount = allItems.filter((x) => x.status === 'completed').length;
+  const cancelledCount = allItems.filter((x) => x.status === 'cancelled' || x.status === 'archived').length;
+
+  const startIdx = totalItems === 0 ? 0 : (page - 1) * limit + 1;
+  const endIdx = Math.min(page * limit, totalItems);
+
+  const handleSelectAll = (checked: boolean) => {
+    if (checked) {
+      setSelectedIds(new Set(items.map((x) => x.id)));
+    } else {
+      setSelectedIds(new Set());
+    }
+  };
+
+  const handleToggleRow = (id: string) => {
+    const next = new Set(selectedIds);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    setSelectedIds(next);
+  };
+
+  const handlePageChange = (newPage: number) => {
+    const n = new URLSearchParams(p);
+    n.set('page', String(newPage));
+    setP(n);
+  };
+
+  const handleClearFilters = () => {
+    const n = new URLSearchParams();
+    setP(n);
+    setSelectedIds(new Set());
+  };
+
+  const isFiltered = Boolean(search || statusFilter || sort !== 'newest');
+
   return (
     <div className="iv-page">
+      {/* Header & Sub-Navigation Pill Tabs */}
       <PageHeader
         title="Interview processes"
-        description="Track structured interview plans without obscuring execution-data gaps."
+        description="Track structured interview plans, candidates, scorecards and timeline execution."
         secondaryActions={<InterviewTabs />}
         primaryAction={
           manage ? (
-            <Link
-              className="tvx-button tvx-button--primary"
-              to="/org/interviews/new"
-            >
-              Create process
+            <Link className="iv-btn-black" to="/org/interviews/new">
+              <Plus size={16} />
+              Create Process
             </Link>
           ) : undefined
         }
       />
-      <Toolbar
-        label="Process filters"
-        start={
-          <Select
-            label="Status"
-            value={p.get('status') || ''}
-            onChange={(e) => {
-              const n = new URLSearchParams(p);
-              if (e.target.value) n.set('status', e.target.value);
-              else n.delete('status');
-              setP(n);
-            }}
-            options={[
-              'draft',
-              'active',
-              'completed',
-              'cancelled',
-              'archived',
-            ].map((x) => ({ value: x, label: label(x) }))}
-          />
-        }
-      />
-      {q.isError ? (
-        <ErrorState detail={err(q.error)} retry={() => void q.refetch()} />
-      ) : (
-        <DataTable
-          caption="Interview processes"
-          rows={(q.data?.items ?? []) as Process[]}
-          rowKey={(x) => x.id}
-          isLoading={q.isLoading}
-          empty={
-            p.has('status') ? (
+
+      {/* 5 Metrics Cards Grid */}
+      <div className="iv-metrics-grid">
+        <div className="iv-metric-card">
+          <div className="iv-metric-card__header">
+            <div className="iv-metric-icon-box">
+              <Briefcase size={20} />
+            </div>
+            <span className="iv-metric-badge iv-metric-badge--success">
+              • Configured
+            </span>
+          </div>
+          <div className="iv-metric-card__body">
+            <span className="iv-metric-card__label">Total Processes</span>
+            <strong className="iv-metric-card__val">{totalProcesses}</strong>
+            <span className="iv-metric-card__sub">Interview pipelines</span>
+          </div>
+        </div>
+
+        <div className="iv-metric-card">
+          <div className="iv-metric-card__header">
+            <div className="iv-metric-icon-box">
+              <CheckCircle2 size={20} />
+            </div>
+            <span className="iv-metric-badge iv-metric-badge--success">
+              • Active
+            </span>
+          </div>
+          <div className="iv-metric-card__body">
+            <span className="iv-metric-card__label">Active Execution</span>
+            <strong className="iv-metric-card__val" style={{ color: '#059669' }}>
+              {activeCount}
+            </strong>
+            <span className="iv-metric-card__sub">Live candidate rounds</span>
+          </div>
+        </div>
+
+        <div className="iv-metric-card">
+          <div className="iv-metric-card__header">
+            <div className="iv-metric-icon-box">
+              <FileEdit size={20} />
+            </div>
+            <span className="iv-metric-badge iv-metric-badge--warning">
+              • In Progress
+            </span>
+          </div>
+          <div className="iv-metric-card__body">
+            <span className="iv-metric-card__label">Draft Processes</span>
+            <strong className="iv-metric-card__val" style={{ color: '#d97706' }}>
+              {draftCount}
+            </strong>
+            <span className="iv-metric-card__sub">Under configuration</span>
+          </div>
+        </div>
+
+        <div className="iv-metric-card">
+          <div className="iv-metric-card__header">
+            <div className="iv-metric-icon-box">
+              <Award size={20} />
+            </div>
+            <span className="iv-metric-badge iv-metric-badge--info">
+              • Completed
+            </span>
+          </div>
+          <div className="iv-metric-card__body">
+            <span className="iv-metric-card__label">Finished</span>
+            <strong className="iv-metric-card__val" style={{ color: '#0284c7' }}>
+              {completedCount}
+            </strong>
+            <span className="iv-metric-card__sub">Evaluated & closed</span>
+          </div>
+        </div>
+
+        <div className="iv-metric-card">
+          <div className="iv-metric-card__header">
+            <div className="iv-metric-icon-box">
+              <Archive size={20} />
+            </div>
+            <span className="iv-metric-badge iv-metric-badge--neutral">
+              • Inactive
+            </span>
+          </div>
+          <div className="iv-metric-card__body">
+            <span className="iv-metric-card__label">Cancelled / Archived</span>
+            <strong className="iv-metric-card__val" style={{ color: '#475569' }}>
+              {cancelledCount}
+            </strong>
+            <span className="iv-metric-card__sub">Historical records</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Modern Filter Toolbar */}
+      <div className="iv-modern-toolbar">
+        <div className="iv-toolbar-filters">
+          <div className="iv-filter-group">
+            <span className="iv-filter-label">Search</span>
+            <div className="iv-search-container">
+              <Search className="iv-search-icon" size={16} />
+              <input
+                type="text"
+                className="iv-search-input"
+                placeholder="Search processes by application, ID..."
+                value={search}
+                onChange={(e) => {
+                  const n = new URLSearchParams(p);
+                  if (e.target.value) n.set('search', e.target.value);
+                  else n.delete('search');
+                  n.set('page', '1');
+                  setP(n);
+                }}
+              />
+              {search && (
+                <button
+                  type="button"
+                  className="iv-search-clear"
+                  onClick={() => {
+                    const n = new URLSearchParams(p);
+                    n.delete('search');
+                    n.set('page', '1');
+                    setP(n);
+                  }}
+                  aria-label="Clear search"
+                >
+                  <X size={14} />
+                </button>
+              )}
+            </div>
+          </div>
+
+          <div className="iv-filter-group">
+            <span className="iv-filter-label">Status</span>
+            <select
+              className="iv-pill-select"
+              value={statusFilter}
+              onChange={(e) => {
+                const n = new URLSearchParams(p);
+                if (e.target.value) n.set('status', e.target.value);
+                else n.delete('status');
+                n.set('page', '1');
+                setP(n);
+              }}
+            >
+              <option value="">All status</option>
+              <option value="active">Active</option>
+              <option value="draft">Draft</option>
+              <option value="completed">Completed</option>
+              <option value="cancelled">Cancelled</option>
+              <option value="archived">Archived</option>
+            </select>
+          </div>
+
+          <div className="iv-filter-group">
+            <span className="iv-filter-label">Sort By</span>
+            <select
+              className="iv-pill-select"
+              value={sort}
+              onChange={(e) => {
+                const n = new URLSearchParams(p);
+                n.set('sort', e.target.value);
+                setP(n);
+              }}
+            >
+              <option value="newest">Newest first</option>
+              <option value="oldest">Oldest first</option>
+            </select>
+          </div>
+
+          {isFiltered && (
+            <button
+              type="button"
+              className="tvx-button tvx-button--secondary text-xs"
+              style={{ borderRadius: '9999px', height: '42px', padding: '0 16px' }}
+              onClick={handleClearFilters}
+            >
+              <RotateCcw size={14} />
+              Clear Filters
+            </button>
+          )}
+        </div>
+
+        <div className="iv-toolbar-actions">
+          {manage && (
+            <Link className="iv-btn-black" to="/org/interviews/new">
+              <Plus size={16} />
+              Create Process
+            </Link>
+          )}
+        </div>
+      </div>
+
+      {/* Modern Data Table Card */}
+      <div className="iv-table-card">
+        {q.isError ? (
+          <div className="p-6">
+            <ErrorState detail={err(q.error)} retry={() => void q.refetch()} />
+          </div>
+        ) : q.isLoading ? (
+          <div className="p-12">
+            <LoadingState label="Loading interview processes..." />
+          </div>
+        ) : items.length === 0 ? (
+          <div className="p-8">
+            {isFiltered ? (
               <FilteredEmptyState
-                title="No matching processes"
-                description="Clear the current filter."
-                onClear={() => setP({})}
+                title="No matching processes found"
+                description="Try clearing search keywords or status filters."
+                onClear={handleClearFilters}
               />
             ) : (
               <EmptyState
-                title="No interview processes"
-                description="Create one from an eligible application."
+                title="No interview processes defined yet"
+                description="Create one from an eligible candidate application."
               />
-            )
-          }
-          columns={[
-            {
-              id: 'application',
-              header: 'Application',
-              render: (x) => <code>{x.applicationId}</code>,
-            },
-            {
-              id: 'status',
-              header: 'Status',
-              render: (x) => (
-                <StatusTag tone={tone(x.status)}>{label(x.status)}</StatusTag>
-              ),
-            },
-            {
-              id: 'rounds',
-              header: 'Plan',
-              render: (x) => <>{x.rounds.length} rounds</>,
-            },
-          ]}
-          renderNarrow={(x) => (
-            <article className="iv-record">
-              <strong>Application {x.applicationId}</strong>
-              <StatusTag tone={tone(x.status)}>{label(x.status)}</StatusTag>
-              <Link to={`/org/interviews/${x.id}`}>Open</Link>
-            </article>
-          )}
-          rowActions={(x) => (
-            <Link
-              className="tvx-button tvx-button--secondary tvx-button--compact"
-              to={`/org/interviews/${x.id}`}
-            >
-              Open
-            </Link>
-          )}
-        />
-      )}
+            )}
+          </div>
+        ) : (
+          <>
+            <div className="iv-table-wrapper">
+              <table className="iv-modern-table" aria-label="Interview processes table">
+                <thead>
+                  <tr>
+                    <th scope="col" className="iv-checkbox-cell">
+                      <input
+                        type="checkbox"
+                        className="iv-custom-checkbox"
+                        aria-label="Select all processes"
+                        checked={items.length > 0 && selectedIds.size === items.length}
+                        onChange={(e) => handleSelectAll(e.target.checked)}
+                      />
+                    </th>
+                    <th scope="col">Process ID</th>
+                    <th scope="col">Application / Candidate</th>
+                    <th scope="col">Status</th>
+                    <th scope="col">Plan & Rounds</th>
+                    <th scope="col">Created Date</th>
+                    <th scope="col">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {items.map((x) => {
+                    const isSelected = selectedIds.has(x.id);
+                    const dt = formatDateTimeParts(x.createdAt);
+                    const shortCode = `#PRC-${x.id.slice(-6).toUpperCase()}`;
+                    const roundCount = x.rounds?.length ?? 0;
+
+                    return (
+                      <tr key={x.id} className={isSelected ? 'is-selected' : undefined}>
+                        <td className="iv-checkbox-cell">
+                          <input
+                            type="checkbox"
+                            className="iv-custom-checkbox"
+                            aria-label={`Select process for application ${x.applicationId}`}
+                            checked={isSelected}
+                            onChange={() => handleToggleRow(x.id)}
+                          />
+                        </td>
+                        <td>
+                          <span className="iv-code-badge">{shortCode}</span>
+                        </td>
+                        <td>
+                          <div className="iv-entity-cell">
+                            <div className="iv-entity-icon">
+                              <Briefcase size={18} />
+                            </div>
+                            <div className="iv-entity-info">
+                              <Link
+                                to={`/org/interviews/${x.id}`}
+                                className="iv-entity-title"
+                              >
+                                Application #{x.applicationId.slice(-8).toUpperCase()}
+                              </Link>
+                              <span className="iv-entity-meta">
+                                <span>{roundCount} rounds configured</span>
+                              </span>
+                            </div>
+                          </div>
+                        </td>
+                        <td>
+                          <span
+                            className={`iv-status-pill iv-status-pill--${
+                              x.status === 'active'
+                                ? 'active'
+                                : x.status === 'completed'
+                                ? 'completed'
+                                : x.status === 'draft'
+                                ? 'draft'
+                                : 'cancelled'
+                            }`}
+                          >
+                            <span className="iv-status-dot" />
+                            {label(x.status)}
+                          </span>
+                        </td>
+                        <td>
+                          <div className="iv-entity-meta">
+                            <Layers size={14} />
+                            <span>{roundCount} {roundCount === 1 ? 'Round' : 'Rounds'}</span>
+                          </div>
+                        </td>
+                        <td>
+                          <div className="iv-date-cell">
+                            <span className="iv-date-main">{dt.date}</span>
+                            {dt.time && <span className="iv-date-sub">{dt.time}</span>}
+                          </div>
+                        </td>
+                        <td>
+                          <Link
+                            className="iv-action-link"
+                            to={`/org/interviews/${x.id}`}
+                          >
+                            Open Process
+                          </Link>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Pagination Footer */}
+            <div className="iv-pagination-footer">
+              <span className="iv-pagination-info">
+                Showing <strong>{startIdx}</strong> to <strong>{endIdx}</strong> of{' '}
+                <strong>{totalItems}</strong> processes
+              </span>
+              {totalPages > 1 && (
+                <div className="iv-pagination-controls">
+                  <button
+                    type="button"
+                    className="iv-page-btn"
+                    disabled={page <= 1}
+                    onClick={() => handlePageChange(page - 1)}
+                    aria-label="Previous page"
+                  >
+                    <ChevronLeft size={16} />
+                  </button>
+
+                  {Array.from({ length: totalPages }, (_, i) => i + 1).map((pNum) => (
+                    <button
+                      key={pNum}
+                      type="button"
+                      className={`iv-page-btn ${pNum === page ? 'iv-page-btn--active' : ''}`}
+                      onClick={() => handlePageChange(pNum)}
+                    >
+                      {pNum}
+                    </button>
+                  ))}
+
+                  <button
+                    type="button"
+                    className="iv-page-btn"
+                    disabled={page >= totalPages}
+                    onClick={() => handlePageChange(page + 1)}
+                    aria-label="Next page"
+                  >
+                    <ChevronRight size={16} />
+                  </button>
+                </div>
+              )}
+            </div>
+          </>
+        )}
+      </div>
     </div>
   );
 }
@@ -653,8 +1284,8 @@ export function ProcessDetailPage() {
   return (
     <div className="iv-page">
       <PageHeader
-        title="Interview runbook"
-        description={`Application ${p.applicationId} · Candidate ${p.candidateId}`}
+        title={p.candidateName ? `Interview Process: ${p.candidateName}` : "Interview runbook"}
+        description={`${p.candidateName ? `Candidate: ${p.candidateName}` : `Candidate ID: ${p.candidateId}`}${p.jobTitle ? ` · Job: ${p.jobTitle}` : ''} · Application ${p.applicationId}`}
         secondaryActions={
           <StatusTag tone={tone(p.status)}>{label(p.status)}</StatusTag>
         }
@@ -668,8 +1299,9 @@ export function ProcessDetailPage() {
         <Card heading="Process control" headingLevel={2}>
           <DescriptionList
             items={[
-              { term: 'Candidate ID', description: p.candidateId },
-              { term: 'Job ID', description: p.jobId },
+              { term: 'Candidate Name', description: p.candidateName || p.candidateId },
+              { term: 'Candidate Email', description: p.candidateEmail || 'Not provided' },
+              { term: 'Job Title', description: p.jobTitle || p.jobId },
               {
                 term: 'Feedback',
                 description: p.feedbackReleased ? 'Released' : 'Not released',
@@ -695,12 +1327,33 @@ export function ProcessDetailPage() {
           )}
         </Card>
         <Card heading="Final decision" headingLevel={2}>
-          <p>Finalize only after every required round is completed or skipped.</p>
-          {manage && !['completed', 'cancelled', 'archived'].includes(p.status) && <>
-            <Select label="Recommendation" value={recommendation} onChange={(e) => setRecommendation(e.target.value)} options={['strong-hire','hire','neutral','no-hire','strong-no-hire'].map((value) => ({ value, label: label(value) }))} />
-            <TextArea required label="Decision or override reason" value={reason} onChange={(e) => setReason(e.target.value)} />
-            <ConfirmDialog title="Finalize interview process?" description="This computes the aggregate result and completes the process." confirmLabel="Finalize" onConfirm={() => action.mutateAsync({ action: 'finalize', body: { recommendation, reason } })} trigger={<Button disabled={!reason}>Finalize process</Button>} />
-          </>}
+          {p.status === 'completed' ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <Alert tone="success" title="Interview process completed">
+                Final Recommendation: <strong>{label(p.overallRecommendation || 'hire')}</strong>
+              </Alert>
+              <p style={{ margin: 0, fontSize: '0.9rem', color: '#475569' }}>
+                Next Steps in Hiring Pipeline:
+              </p>
+              <div className="iv-actions" style={{ marginTop: 0 }}>
+                <Link to={`/org/applications/${p.applicationId}`} className="tvx-button tvx-button--secondary">
+                  View ATS Application ↗
+                </Link>
+                <Link to={`/org/offers/new?applicationId=${p.applicationId}`} className="tvx-button">
+                  Create Job Offer 📄↗
+                </Link>
+              </div>
+            </div>
+          ) : (
+            <>
+              <p>Finalize only after every required round is completed or skipped.</p>
+              {manage && !['completed', 'cancelled', 'archived'].includes(p.status) && <>
+                <Select label="Recommendation" value={recommendation} onChange={(e) => setRecommendation(e.target.value)} options={['strong-hire','hire','neutral','no-hire','strong-no-hire'].map((value) => ({ value, label: label(value) }))} />
+                <TextArea required label="Decision or override reason" value={reason} onChange={(e) => setReason(e.target.value)} />
+                <ConfirmDialog title="Finalize interview process?" description="This computes the aggregate result and completes the process." confirmLabel="Finalize" onConfirm={() => action.mutateAsync({ action: 'finalize', body: { recommendation, reason } })} trigger={<Button disabled={!reason}>Finalize process</Button>} />
+              </>}
+            </>
+          )}
         </Card>
       </div>
       {action.isError && <Alert tone="danger" title="Process action failed">{err(action.error)}</Alert>}
@@ -716,8 +1369,31 @@ export function ProcessDetailPage() {
 
 function LiveRound({ processId, round, index, canSchedule, canEvaluate }: { processId: string; round: RoundPlan; index: number; canSchedule: boolean; canEvaluate: boolean }) {
   const action = useRoundAction(processId, round.id);
+  const { user } = useAuth();
+  const defaultUserId = user?._id || user?.id || '';
   const [open, setOpen] = useState(false), [reason, setReason] = useState(''), [party, setParty] = useState('candidate'), [formError, setFormError] = useState('');
-  const [interviewers, setInterviewers] = useState((round.interviewerIds ?? []).join(', '));
+  const [interviewers, setInterviewers] = useState((round.interviewerIds && round.interviewerIds.length > 0) ? round.interviewerIds.join(', ') : defaultUserId);
+  const [showAdvanced, setShowAdvanced] = useState(false);
+
+  useEffect(() => {
+    if (!interviewers && defaultUserId) {
+      setInterviewers(defaultUserId);
+    }
+  }, [defaultUserId, interviewers]);
+
+  const companyQuery = useCompany(open && canSchedule, true);
+  const teamMembers = (companyQuery.data?.team ?? []).filter((m) => m.status === 'active');
+
+  const interviewerOptions = [
+    { value: defaultUserId, label: `Me (${user?.fullName || 'Current Recruiter'})` },
+    ...teamMembers
+      .filter((m) => m.recruiterId && m.recruiterId !== defaultUserId)
+      .map((m) => ({
+        value: m.recruiterId,
+        label: `${m.fullName || 'Team Member'} (${m.email || m.role})`,
+      })),
+  ];
+
   const [timezone, setTimezone] = useState(round.schedule?.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone);
   const [start, setStart] = useState(''), [mode, setMode] = useState(round.schedule?.mode || 'video');
   const [provider, setProvider] = useState(round.schedule?.meetingProvider || 'custom'), [details, setDetails] = useState(round.schedule?.meetingUrl || '');
@@ -730,7 +1406,16 @@ function LiveRound({ processId, round, index, canSchedule, canEvaluate }: { proc
     if (mode === 'video' && provider === 'custom' && !/^https:\/\//i.test(details)) { const cause = new Error('Enter a valid HTTPS meeting URL.'); setFormError(cause.message); return Promise.reject(cause); }
     if (mode === 'video' && provider !== 'custom' && details && !/^https:\/\//i.test(details)) { const cause = new Error('Enter a valid HTTPS meeting URL.'); setFormError(cause.message); return Promise.reject(cause); }
     const startTime = new Date(startIso), endTime = new Date(startTime.getTime() + round.durationMinutes * 60000);
-    const body: Record<string, unknown> = { interviewerIds: interviewers.split(',').map((x) => x.trim()).filter(Boolean), timezone, startTime: startTime.toISOString(), endTime: endTime.toISOString(), mode, meetingProvider: provider, ...(scheduled ? { reason } : {}) };
+    let selectedInterviewers = interviewers.split(',').map((x) => x.trim()).filter(Boolean);
+    if (selectedInterviewers.length === 0 && defaultUserId) {
+      selectedInterviewers = [defaultUserId];
+    }
+    if (selectedInterviewers.length === 0) {
+      const cause = new Error('Please select at least one interviewer.');
+      setFormError(cause.message);
+      return Promise.reject(cause);
+    }
+    const body: Record<string, unknown> = { interviewerIds: selectedInterviewers, timezone, startTime: startTime.toISOString(), endTime: endTime.toISOString(), mode, meetingProvider: provider, ...(scheduled ? { reason } : {}) };
     if (mode === 'video' && details) body.meetingUrl = details;
     if (mode === 'phone') body.phoneDetails = { phoneNumber: details };
     if (mode === 'onsite') body.location = { name: 'Interview location', address: details };
@@ -754,15 +1439,40 @@ function LiveRound({ processId, round, index, canSchedule, canEvaluate }: { proc
     </article>
     <Dialog open={open} onOpenChange={setOpen} title={scheduled ? 'Reschedule round' : 'Schedule round'} description={`The end time is fixed to ${round.durationMinutes} minutes after the start.`} footer={<div className="tvx-dialog__actions"><Button variant="secondary" onClick={() => setOpen(false)}>Close</Button><Button loading={action.isPending} disabled={!interviewers || !start || (detailsRequired && !details) || (scheduled && !reason)} onClick={() => void submitSchedule()}>{scheduled ? 'Reschedule' : 'Schedule'}</Button></div>}>
       {formError && <Alert tone="danger" title="Check the scheduling fields">{formError}</Alert>}
-      <div className="iv-form-grid"><TextField required label="Interviewer IDs (comma separated)" value={interviewers} onChange={(e) => setInterviewers(e.target.value)} /><TextField required label="IANA timezone" error={formError.toLowerCase().includes('timezone') ? formError : undefined} value={timezone} onChange={(e) => setTimezone(e.target.value)} /><TextField required type="datetime-local" label="Start time" error={formError.toLowerCase().includes('local time') ? formError : undefined} value={start} onChange={(e) => setStart(e.target.value)} /><Select label="Mode" value={mode} onChange={(e) => setMode(e.target.value)} options={['video','phone','onsite'].map((value) => ({ value, label: label(value) }))} /><Select label="Meeting provider" value={provider} onChange={(e) => setProvider(e.target.value)} options={['zoom','google-meet','microsoft-teams','custom','none'].map((value) => ({ value, label: label(value) }))} /><TextField required={detailsRequired} error={formError.toLowerCase().includes('https') ? formError : undefined} label={mode === 'video' ? (provider === 'custom' ? 'HTTPS meeting URL' : 'HTTPS meeting URL (optional - will auto-generate if blank)') : mode === 'phone' ? 'Phone number' : 'Location address'} value={details} onChange={(e) => setDetails(e.target.value)} />{scheduled && <TextArea required label="Reschedule reason" value={reason} onChange={(e) => setReason(e.target.value)} />}</div>
+      <div className="iv-form-grid">
+        <Select
+          label="Assigned interviewer"
+          value={interviewers.split(',')[0]?.trim() || defaultUserId}
+          onChange={(e) => setInterviewers(e.target.value)}
+          options={interviewerOptions}
+        />
+        <div style={{ gridColumn: '1 / -1', marginTop: '-8px' }}>
+          <button
+            type="button"
+            onClick={() => setShowAdvanced(!showAdvanced)}
+            style={{ background: 'none', border: 'none', color: '#3b82f6', fontSize: '0.85rem', cursor: 'pointer', padding: 0 }}
+          >
+            {showAdvanced ? '▲ Hide raw IDs' : '▼ Advanced: Multiple interviewers / raw IDs'}
+          </button>
+        </div>
+        {showAdvanced && (
+          <TextField
+            required
+            label="Interviewer IDs (comma separated)"
+            hint="Enter one or more team member User IDs separated by commas for panel interviews."
+            value={interviewers}
+            onChange={(e) => setInterviewers(e.target.value)}
+          />
+        )}
+        <TextField required label="IANA timezone" error={formError.toLowerCase().includes('timezone') ? formError : undefined} value={timezone} onChange={(e) => setTimezone(e.target.value)} /><TextField required type="datetime-local" label="Start time" error={formError.toLowerCase().includes('local time') ? formError : undefined} value={start} onChange={(e) => setStart(e.target.value)} /><Select label="Mode" value={mode} onChange={(e) => setMode(e.target.value)} options={['video','phone','onsite'].map((value) => ({ value, label: label(value) }))} /><Select label="Meeting provider" value={provider} onChange={(e) => setProvider(e.target.value)} options={['zoom','google-meet','microsoft-teams','custom','none'].map((value) => ({ value, label: label(value) }))} /><TextField required={detailsRequired} error={formError.toLowerCase().includes('https') ? formError : undefined} label={mode === 'video' ? (provider === 'custom' ? 'HTTPS meeting URL' : 'HTTPS meeting URL (optional - will auto-generate if blank)') : mode === 'phone' ? 'Phone number' : 'Location address'} value={details} onChange={(e) => setDetails(e.target.value)} />{scheduled && <TextArea required label="Reschedule reason" value={reason} onChange={(e) => setReason(e.target.value)} />}</div>
     </Dialog>
   </li>;
 }
 
 export function CalendarPage() {
-  const { recruiter } = useAuth(),
-    view = has(recruiter?.permissions ?? [], 'interviews.view'),
-    [currentDate, setCurrentDate] = useState(new Date());
+  const { recruiter } = useAuth();
+  const view = has(recruiter?.permissions ?? [], 'interviews.view');
+  const [currentDate, setCurrentDate] = useState(new Date());
 
   // Get start and end dates of the week containing currentDate
   const startOfWeek = new Date(currentDate);
@@ -775,7 +1485,7 @@ export function CalendarPage() {
   endOfWeek.setDate(startOfWeek.getDate() + 6);
   endOfWeek.setHours(23, 59, 59, 999);
 
-  const q = useCalendar(`start=${startOfWeek.toISOString()}&end=${endOfWeek.toISOString()}`, view);
+  const q = useCalendar(`from=${startOfWeek.toISOString()}&to=${endOfWeek.toISOString()}`, view);
 
   if (!view)
     return (
@@ -787,6 +1497,8 @@ export function CalendarPage() {
     d.setDate(startOfWeek.getDate() + idx);
     return d;
   });
+
+  const todayDate = new Date();
 
   const nextWeek = () => {
     const next = new Date(currentDate);
@@ -804,6 +1516,12 @@ export function CalendarPage() {
     setCurrentDate(new Date());
   };
 
+  const formatRangeText = () => {
+    const startStr = startOfWeek.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+    const endStr = endOfWeek.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+    return `${startStr} – ${endStr}`;
+  };
+
   return (
     <div className="iv-page">
       <PageHeader
@@ -811,17 +1529,25 @@ export function CalendarPage() {
         description="View scheduled sessions, mock video links, and download calendar invites."
         secondaryActions={<InterviewTabs />}
       />
-      <div className="iv-calendar-header">
-        <div className="iv-calendar-nav">
-          <Button variant="secondary" onClick={prevWeek}>Previous Week</Button>
-          <Button variant="secondary" onClick={today}>Today</Button>
-          <Button variant="secondary" onClick={nextWeek}>Next Week</Button>
+
+      <div className="iv-calendar-toolbar">
+        <div className="iv-calendar-nav-group">
+          <Button variant="secondary" size="compact" onClick={prevWeek} leadingIcon={<ChevronLeft size={16} />}>
+            Prev
+          </Button>
+          <Button variant="secondary" size="compact" onClick={today}>
+            Today
+          </Button>
+          <Button variant="secondary" size="compact" onClick={nextWeek} trailingIcon={<ChevronRight size={16} />}>
+            Next
+          </Button>
         </div>
-        <h3 className="iv-calendar-month">
-          {startOfWeek.toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}
-        </h3>
+        <div className="iv-calendar-range-title">
+          <Calendar size={18} style={{ color: '#0284c7' }} />
+          <span>{formatRangeText()}</span>
+        </div>
       </div>
-      
+
       {q.isLoading ? (
         <LoadingState label="Loading calendar schedules" />
       ) : q.isError ? (
@@ -829,37 +1555,77 @@ export function CalendarPage() {
       ) : (
         <div className="iv-calendar-grid">
           {days.map((dayDate) => {
+            const isToday = dayDate.toDateString() === todayDate.toDateString();
             const daySchedules = (q.data ?? []).filter((s: SafeSchedule) => {
               const sDate = new Date(s.startTime);
               return sDate.toDateString() === dayDate.toDateString();
             });
 
             return (
-              <div key={dayDate.toISOString()} className="iv-calendar-day">
+              <div key={dayDate.toISOString()} className={`iv-calendar-day ${isToday ? 'is-today' : ''}`}>
                 <header className="iv-calendar-day-header">
                   <span className="iv-day-name">{dayDate.toLocaleDateString(undefined, { weekday: 'short' })}</span>
                   <span className="iv-day-number">{dayDate.getDate()}</span>
                 </header>
                 <div className="iv-calendar-day-events">
                   {daySchedules.length === 0 ? (
-                    <span className="iv-no-events">No interviews</span>
+                    <div className="iv-empty-day">
+                      <CalendarX size={20} />
+                      <span>No interviews</span>
+                    </div>
                   ) : (
-                    daySchedules.map((s: SafeSchedule) => (
-                      <article key={s.id} className="iv-calendar-event">
-                        <header>
-                          <strong>{new Date(s.startTime).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}</strong>
-                          <span className={`iv-event-mode iv-event-mode--${s.mode}`}>{s.mode}</span>
-                        </header>
-                        <p>Candidate ID: {s.candidateId || s.candidate}</p>
-                        {s.meetingUrl && (
-                          <a href={s.meetingUrl} target="_blank" rel="noopener noreferrer" className="iv-meet-link">Join Video</a>
-                        )}
-                        <div className="iv-event-footer">
-                          <Link to={`/org/interviews/${s.processId || s.process}`}>Open Process</Link>
-                          <a href={`/api/v1/interviews/schedules/${s.id}/ics`} download className="iv-ics-download">Invite (.ics)</a>
-                        </div>
-                      </article>
-                    ))
+                    daySchedules.map((s: SafeSchedule) => {
+                      const startTime = new Date(s.startTime);
+                      const modeLower = (s.mode || 'video').toLowerCase();
+
+                      return (
+                        <article key={s.id} className="iv-calendar-event-card">
+                          <header className="iv-event-header">
+                            <span className="iv-event-time">
+                              {Number.isNaN(startTime.valueOf())
+                                ? 'Scheduled'
+                                : startTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            </span>
+                            <span className={`iv-event-mode-tag iv-event-mode-tag--${modeLower}`}>
+                              {modeLower === 'phone' ? (
+                                <Phone size={11} />
+                              ) : modeLower === 'onsite' ? (
+                                <MapPin size={11} />
+                              ) : (
+                                <Video size={11} />
+                              )}
+                              {s.mode || 'Video'}
+                            </span>
+                          </header>
+
+                          <div className="iv-event-candidate" title={s.candidateName || s.candidateId || 'Candidate'}>
+                            <User size={13} style={{ flexShrink: 0, color: '#64748b' }} />
+                            <span>{s.candidateName || (s.candidateId ? `Candidate #${s.candidateId.slice(-6)}` : 'Candidate')}</span>
+                          </div>
+
+                          <div className="iv-event-actions">
+                            {s.meetingUrl ? (
+                              <a href={s.meetingUrl} target="_blank" rel="noopener noreferrer" className="iv-join-btn">
+                                <Video size={13} /> Join Meeting
+                              </a>
+                            ) : null}
+                            <div className="iv-sub-links">
+                              <Link to={`/org/interviews/${s.processId || s.process || s.id}`} className="iv-sub-link">
+                                Process
+                              </Link>
+                              <a
+                                href={`/api/v1/interviews/schedules/${s.id}/ics`}
+                                download
+                                className="iv-sub-link"
+                                style={{ display: 'inline-flex', alignItems: 'center', gap: '2px' }}
+                              >
+                                <Download size={11} /> Invite
+                              </a>
+                            </div>
+                          </div>
+                        </article>
+                      );
+                    })
                   )}
                 </div>
               </div>

@@ -1,5 +1,55 @@
 /* Recruiter analytics styles */
+.tvx-main-content:has(.rec-analytics-page) {
+  max-width: var(--container-wide);
+}
 .rec-analytics-page {
-  max-width: 1200px;
-  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+.rec-analytics-filter-card {
+  padding: var(--space-3);
+  border: var(--border-thin) solid var(--color-border-subtle);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface-1);
+  box-shadow: var(--shadow-xs);
+}
+.rec-analytics-filter-grid {
+  display: flex;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+.rec-analytics-filter-grid > div {
+  flex: 1;
+  min-width: 12rem;
+}
+.rec-analytics-funnel-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+.rec-analytics-funnel-stage {
+  text-align: center;
+  padding: var(--space-2);
+  border: var(--border-thin) solid var(--color-border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-2);
+}
+.rec-analytics-funnel-stage--hired {
+  background: var(--color-success-bg);
+  border-color: var(--color-success-border);
+}
+.rec-analytics-funnel-stage--hired strong {
+  color: var(--color-success-fg);
+}
+.rec-analytics-metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
+  gap: var(--space-2);
+}
+@media (max-width: 768px) {
+  .rec-analytics-funnel-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
 }

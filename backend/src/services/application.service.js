@@ -1,5 +1,5 @@
 import mongoose from 'mongoose';
-import { CANDIDATE_WITHDRAWABLE_STATUSES } from '../utils/applicationStatus.js';
+import { CANDIDATE_WITHDRAWABLE_STATUSES, syncApplicationStatus } from '../utils/applicationStatus.js';
 import { Application } from '../models/Application.js';
 import { CandidateProfile } from '../models/CandidateProfile.js';
 import { Job } from '../models/Job.js';
@@ -114,7 +114,7 @@ export const listCandidateApplications = async (candidateId, query) => {
   const [items, total] = await Promise.all([Application.find(filter).select('applicationNumber status job company jobSnapshot skillMatch.score submittedAt lastStatusChangedAt').sort(sorts[query.sort]).skip((query.page - 1) * query.limit).limit(query.limit), Application.countDocuments(filter)]);
   return { applications: items, pagination: buildPagination(query.page, query.limit, total) };
 };
-export const getCandidateApplication = async (candidateId, id) => { const application = await Application.findOne({ _id: id, candidate: candidateId, isArchived: false }); if (!application) throw new AppError('Application not found', 404); return candidateSafe(application); };
+export const getCandidateApplication = async (candidateId, id) => { const application = await Application.findOne({ _id: id, candidate: candidateId, isArchived: false }); if (!application) throw new AppError('Application not found', 404); await syncApplicationStatus(application); return candidateSafe(application); };
 export const withdrawApplication = async (candidateId, id, reason) => {
   const application = await Application.findOne({ _id: id, candidate: candidateId, isArchived: false }); if (!application) throw new AppError('Application not found', 404);
   if (!CANDIDATE_WITHDRAWABLE_STATUSES.includes(application.status)) throw new AppError(`Application cannot transition from ${application.status} to withdrawn`, 409);

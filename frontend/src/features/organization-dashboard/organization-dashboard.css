@@ -423,3 +423,159 @@
     border-block-start: var(--border-thin) solid var(--color-ai-border);
   }
 }
+
+/* Parclgo Design System Sub-Navigation Pill Bar */
+.org-nav-tabs-wrapper {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 1.5rem;
+}
+
+.org-nav-tabs {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #ffffff;
+  padding: 6px;
+  border-radius: 9999px;
+  border: 1px solid var(--color-border-subtle, #e2e8f0);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.org-nav-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 18px;
+  border-radius: 9999px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--color-text-secondary, #64748b);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  white-space: nowrap;
+}
+
+.org-nav-tab:hover {
+  color: var(--color-text-primary, #0f172a);
+  background: #f1f5f9;
+}
+
+.org-nav-tab.active {
+  background: #0f172a;
+  color: #ffffff;
+  font-weight: 600;
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.18);
+}
+
+/* 5-Card Metric Grids for Company Dashboard */
+.org-metrics-grid-5 {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.org-metrics-grid-5 .tvx-card {
+  min-height: 8.5rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 1rem;
+}
+
+.org-metrics-grid-5 .tvx-metric {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.org-metrics-grid-5 .tvx-metric strong {
+  font-size: 1.5rem;
+  font-weight: 700;
+  line-height: 1.25;
+  color: #0f172a;
+  word-break: break-word;
+}
+
+.org-section-heading {
+  margin-bottom: 1rem;
+}
+.org-section-heading h2 {
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: #0f172a;
+  margin: 0 0 0.25rem 0;
+}
+.org-section-heading p {
+  font-size: 0.875rem;
+  color: #64748b;
+  margin: 0;
+}
+
+/* Team Summary List Styling */
+.org-team-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.org-team-role-label {
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: #64748b;
+}
+.org-team-member-card {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.625rem 0.875rem;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  transition: border-color 0.15s ease;
+}
+.org-team-member-card:hover {
+  border-color: #cbd5e1;
+}
+.org-team-member-info {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.org-team-member-name {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #0f172a;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.org-team-member-email {
+  font-size: 0.75rem;
+  color: #64748b;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+@media (max-width: 79.999rem) {
+  .org-metrics-grid-5 {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 47.999rem) {
+  .org-metrics-grid-5 {
+    grid-template-columns: repeat(1, minmax(0, 1fr));
+  }
+}
+

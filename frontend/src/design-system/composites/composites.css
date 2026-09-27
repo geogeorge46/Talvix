@@ -135,7 +135,8 @@
   top: 50%;
   left: 50%;
   translate: -50% -50%;
-  width: min(calc(100% - var(--space-4)), var(--content-form));
+  width: min(calc(100% - var(--space-4)), var(--content-form, 42rem));
+  max-width: 42rem;
   max-height: calc(100vh - var(--space-4));
   overflow: auto;
   background: var(--color-surface-1);

@@ -221,6 +221,25 @@ export const useCandidateProfilePhoto = () =>
     retry: false,
   });
 
+export const useCandidateProfileResume = () =>
+  useQuery({
+    queryKey: ['candidate', 'profile-resume'],
+    queryFn: async () => {
+      try {
+        const value = rec(
+          await apiRequest<unknown>('/documents/me/resume'),
+        );
+        return value.document ? toDocument(value.document) : null;
+      } catch (error) {
+        if (error instanceof ApiError && error.status === 404) {
+          return null;
+        }
+        throw error;
+      }
+    },
+    retry: false,
+  });
+
 export interface CandidateAccessLog {
   id: string;
   recruiter?: { _id?: string; fullName?: string; email?: string };

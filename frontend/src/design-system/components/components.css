@@ -9,11 +9,18 @@
   border: var(--border-thin) solid transparent;
   border-radius: var(--radius-pill);
   font: var(--weight-semibold) var(--text-body-sm)/1 var(--font-sans);
+  white-space: nowrap;
+  flex-shrink: 0;
   transition:
     background var(--duration-fast) var(--ease-standard),
     border-color var(--duration-fast) var(--ease-standard),
     transform var(--duration-fast) var(--ease-standard);
   cursor: pointer;
+}
+.tvx-button--compact {
+  min-height: 2rem;
+  padding-inline: 0.875rem;
+  font-size: var(--text-body-xs, 0.75rem);
 }
 .tvx-button--primary {
   background: var(--ref-nexa-black);

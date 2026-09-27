@@ -34,6 +34,7 @@ import {
   useCandidateProfile,
   useCandidateProfileMutation,
   useCandidateProfilePhoto,
+  useCandidateProfileResume,
   useCandidateProfileAccessLogs,
   useJob,
   useJobs,
@@ -47,7 +48,11 @@ import {
   useSafeCandidateOffers,
 } from './api';
 import type { CandidateProfile } from './model';
-import { UploadControl } from '../offers-documents';
+import {
+  UploadControl,
+  DocumentPreviewDialog,
+  safeDownload,
+} from '../offers-documents';
 import {
   Sparkles,
   ChevronRight,
@@ -80,6 +85,8 @@ import {
   LogOut,
   Link2,
   Search,
+  CheckCheck,
+  Archive,
 } from 'lucide-react';
 import './candidate-portal.css';
 const message = (error: unknown) =>
@@ -458,6 +465,8 @@ function DomainSummaryCard({
   const q = useCandidateProfile(),
     mutation = useCandidateProfileMutation();
   const photo = useCandidateProfilePhoto();
+  const resume = useCandidateProfileResume();
+  const [previewResume, setPreviewResume] = useState(false);
   const accessLogsQuery = useCandidateProfileAccessLogs('page=1&limit=1');
   const [confirm, setConfirm] = useState(false);
   const [pendingProfile, setPendingProfile] = useState<Record<
@@ -469,6 +478,48 @@ function DomainSummaryCard({
     'overview' | 'personal' | 'experience' | 'skills' | 'documents' | 'security'
   >('overview');
 
+  const [draft, setDraft] = useState<Record<string, string>>({});
+  const [dirtyFields, setDirtyFields] = useState<Record<string, boolean>>({});
+
+  useEffect(() => {
+    if (q.data) {
+      const data = q.data;
+      setDraft((prev) => ({
+        headline: dirtyFields.headline ? (prev.headline ?? '') : (data.headline || ''),
+        bio: dirtyFields.bio ? (prev.bio ?? '') : (data.bio || ''),
+        phone: dirtyFields.phone ? (prev.phone ?? '') : (data.phone || ''),
+        city: dirtyFields.city ? (prev.city ?? '') : (data.location?.city || ''),
+        state: dirtyFields.state ? (prev.state ?? '') : (data.location?.state || ''),
+        country: dirtyFields.country ? (prev.country ?? '') : (data.location?.country || ''),
+        dateOfBirth: dirtyFields.dateOfBirth ? (prev.dateOfBirth ?? '') : (data.dateOfBirth || ''),
+        gender: dirtyFields.gender ? (prev.gender ?? '') : (data.gender || ''),
+        profileVisibility: dirtyFields.profileVisibility ? (prev.profileVisibility ?? 'recruiters-only') : (data.profileVisibility || 'recruiters-only'),
+        github: dirtyFields.github ? (prev.github ?? '') : (data.socialLinks?.github || ''),
+        linkedin: dirtyFields.linkedin ? (prev.linkedin ?? '') : (data.socialLinks?.linkedin || ''),
+        portfolio: dirtyFields.portfolio ? (prev.portfolio ?? '') : (data.socialLinks?.portfolio || ''),
+        preferredRoles: dirtyFields.preferredRoles ? (prev.preferredRoles ?? '') : ((data.preferredRoles || []).join(', ')),
+        preferredLocations: dirtyFields.preferredLocations ? (prev.preferredLocations ?? '') : ((data.preferredLocations || []).join(', ')),
+        preferredJobTypes: dirtyFields.preferredJobTypes ? (prev.preferredJobTypes ?? '') : ((data.preferredJobTypes || []).join(', ')),
+        salaryMinimum: dirtyFields.salaryMinimum ? (prev.salaryMinimum ?? '') : (data.expectedSalary?.minimum ? String(data.expectedSalary.minimum) : ''),
+        salaryMaximum: dirtyFields.salaryMaximum ? (prev.salaryMaximum ?? '') : (data.expectedSalary?.maximum ? String(data.expectedSalary.maximum) : ''),
+        salaryCurrency: dirtyFields.salaryCurrency ? (prev.salaryCurrency ?? 'INR') : (data.expectedSalary?.currency || 'INR'),
+        availability: dirtyFields.availability ? (prev.availability ?? '') : (data.availability || ''),
+        noticePeriodDays: dirtyFields.noticePeriodDays ? (prev.noticePeriodDays ?? '') : (data.noticePeriodDays ? String(data.noticePeriodDays) : ''),
+      }));
+    }
+  }, [q.data]);
+
+  useEffect(() => {
+    if (mutation.isSuccess) {
+      setDirtyFields({});
+    }
+  }, [mutation.isSuccess]);
+
+  const updateDraft = (name: string, value: string) => {
+    setDraft((prev) => ({ ...prev, [name]: value }));
+    setDirtyFields((prev) => ({ ...prev, [name]: true }));
+  };
+
   if (q.isPending) return <LoadingState label="Loading profile" />;
   if (q.isError)
     return <ErrorState title="Profile unavailable" detail={message(q.error)} />;
@@ -478,18 +529,18 @@ function DomainSummaryCard({
 
   // Calculate profile completion metrics
   const completedSections = [
-    Boolean(p.headline),
-    Boolean(p.bio),
-    Boolean(p.location?.city || p.location?.country),
-    Boolean(p.phone),
+    Boolean(draft.headline ?? p.headline),
+    Boolean(draft.bio ?? p.bio),
+    Boolean((draft.city ?? p.location?.city) || (draft.country ?? p.location?.country)),
+    Boolean(draft.phone ?? p.phone),
     Boolean(photo.data?.url),
     p.skills.length > 0,
     p.experience.length > 0,
     p.education.length > 0,
     p.projects.length > 0,
-    Boolean(p.socialLinks?.github || p.socialLinks?.linkedin || p.socialLinks?.portfolio),
-    Boolean(p.dateOfBirth),
-    Boolean(p.availability),
+    Boolean(draft.github || draft.linkedin || draft.portfolio || p.socialLinks?.github || p.socialLinks?.linkedin || p.socialLinks?.portfolio),
+    Boolean(draft.dateOfBirth ?? p.dateOfBirth),
+    Boolean(draft.availability ?? p.availability),
     p.preferredJobTypes.length > 0,
   ].filter(Boolean).length;
 
@@ -512,13 +563,17 @@ function DomainSummaryCard({
     currencyOptions.push({ value: currentCurrency, label: currentCurrency });
   }
 
-  const submit = (e: FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
+  const submit = (e?: FormEvent<HTMLFormElement>) => {
+    if (e) e.preventDefault();
     setValidationError('');
-    const f = new FormData(e.currentTarget);
+    const formEl = document.getElementById('profile-form-personal') as HTMLFormElement | null;
+    const f = formEl ? new FormData(formEl) : null;
     const getVal = (name: string) => {
-      const v = f.get(name);
-      return v !== null && v !== undefined ? String(v).trim() : '';
+      const v = f ? f.get(name) : null;
+      if (v !== null && v !== undefined && String(v).trim() !== '') {
+        return String(v).trim();
+      }
+      return draft[name] !== undefined ? draft[name].trim() : '';
     };
 
     const phoneVal = getVal('phone');
@@ -657,8 +712,8 @@ function DomainSummaryCard({
   const locationString = p.location?.city
     ? `${p.location.city}${p.location.state ? `, ${p.location.state}` : ''}${p.location.country ? `, ${p.location.country}` : ''}`
     : 'Kanjirappally, Kerala, India';
-  const educationString = p.education.length > 0
-    ? `${p.education[0].degree} • ${p.education[0].institution}`
+  const educationString = p.education && p.education.length > 0
+    ? `${p.education[0]?.degree ?? ''} • ${p.education[0]?.institution ?? ''}`
     : 'MCA (Integrated) • 2022 - 2027';
 
   return (
@@ -706,10 +761,23 @@ function DomainSummaryCard({
             </div>
 
             <div className="profile-header-actions">
-              <a className="btn-pill-dark" href="#resume">
-                <Download size={15} />
-                <span>Download Resume</span>
-              </a>
+              <button
+                type="button"
+                className="btn-pill-dark"
+                onClick={() => {
+                  if (resume.data?.url) {
+                    setPreviewResume(true);
+                  } else {
+                    void safeDownload('/documents/me/resume').catch(() => {
+                      const el = document.getElementById('resume');
+                      if (el) el.scrollIntoView({ behavior: 'smooth' });
+                    });
+                  }
+                }}
+              >
+                <Eye size={15} />
+                <span>View Resume</span>
+              </button>
               {p.socialLinks.portfolio ? (
                 <a className="btn-pill-dark" href={p.socialLinks.portfolio} target="_blank" rel="noopener noreferrer">
                   <ExternalLink size={15} />
@@ -911,336 +979,301 @@ function DomainSummaryCard({
         </button>
       </nav>
 
-      {/* Overview Tab Content (Exact 2-Column/3-Column Layout from Mockup) */}
+      {/* Overview Tab Content (Pure Read-Only Dashboard) */}
       {activeTab === 'overview' && (
-        <>
-          <form id="profile-form-overview" onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: '24px' }} className="delay-3 animated-entrance">
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }} className="delay-3 animated-entrance">
+          
+          {/* Row 1: Personal Summary & Contact & Demographics (Read-Only) */}
+          <div className="profile-sections-grid-2col">
             
-            {/* Row 1: Personal Summary & Contact & Demographics */}
-            <div className="profile-sections-grid-2col">
-              
-              {/* Personal Summary Card */}
-              <div className="section-card-mindease">
-                <div className="section-card-header">
-                  <div className="section-card-header-icon">
-                    <FileText size={20} />
-                  </div>
-                  <div>
-                    <h3 className="section-card-header-title">Personal Summary</h3>
-                    <p className="section-card-header-subtext">Professional introduction about yourself</p>
-                  </div>
+            {/* Personal Summary Card */}
+            <div className="section-card-mindease">
+              <div className="section-card-header">
+                <div className="section-card-header-icon">
+                  <FileText size={20} />
                 </div>
+                <div style={{ flex: 1 }}>
+                  <h3 className="section-card-header-title">Personal Summary</h3>
+                  <p className="section-card-header-subtext">Professional introduction & bio</p>
+                </div>
+                <button type="button" className="btn-pill-dark" onClick={() => setActiveTab('personal')}>
+                  Manage Personal Info
+                </button>
+              </div>
 
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                 <div>
-                  <FormField label="Professional headline">
-                    {({ id, ...control }) => (
-                      <TextField
-                        id={id}
-                        {...control}
-                        name="headline"
-                        defaultValue={p.headline}
-                        placeholder="e.g. Production-ready candidate profile with professional summary..."
-                      />
-                    )}
-                  </FormField>
-
-                  <div style={{ marginTop: '12px' }}>
-                    <FormField label="About you">
-                      {({ id, ...control }) => (
-                        <TextArea
-                          id={id}
-                          {...control}
-                          name="bio"
-                          defaultValue={p.bio}
-                          placeholder="Production-ready candidate profile with professional summary, skills, and background..."
-                          rows={4}
-                        />
-                      )}
-                    </FormField>
-                    <span style={{ display: 'block', fontSize: '11px', color: '#94a3b8', textAlign: 'right', marginTop: '4px' }}>
-                      {(p.bio || '').length}/500
-                    </span>
-                  </div>
+                  <span style={{ fontSize: '11px', fontWeight: 600, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Professional Headline</span>
+                  <p style={{ margin: '4px 0 0 0', fontSize: '14px', fontWeight: 600, color: '#0f172a' }}>
+                    {p.headline || 'No headline specified yet.'}
+                  </p>
                 </div>
-              </div>
-
-              {/* Contact & Demographics Card */}
-              <div className="section-card-mindease">
-                <div className="section-card-header">
-                  <div className="section-card-header-icon">
-                    <User size={20} />
-                  </div>
-                  <div>
-                    <h3 className="section-card-header-title">Contact & Demographics</h3>
-                    <p className="section-card-header-subtext">Basic contact details and personal information</p>
-                  </div>
-                </div>
-
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-                  <FormField label="Phone Number">
-                    {({ id, ...control }) => (
-                      <TextField
-                        id={id}
-                        {...control}
-                        name="phone"
-                        defaultValue={p.phone}
-                        placeholder="+919876543210"
-                      />
-                    )}
-                  </FormField>
-
-                  <FormField label="Email Address">
-                    {({ id, ...control }) => (
-                      <TextField
-                        id={id}
-                        {...control}
-                        readOnly
-                        disabled
-                        value={user?.email || 'geo@example.com'}
-                      />
-                    )}
-                  </FormField>
-
-                  <FormField label="Location">
-                    {({ id, ...control }) => (
-                      <TextField
-                        id={id}
-                        {...control}
-                        name="city"
-                        defaultValue={p.location?.city || 'Kanjirappally, Kerala'}
-                      />
-                    )}
-                  </FormField>
-
-                  <FormField label="Date of Birth">
-                    {({ id, ...control }) => (
-                      <TextField
-                        id={id}
-                        {...control}
-                        name="dateOfBirth"
-                        type="date"
-                        defaultValue={p.dateOfBirth}
-                      />
-                    )}
-                  </FormField>
+                <div>
+                  <span style={{ fontSize: '11px', fontWeight: 600, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px' }}>About Candidate</span>
+                  <p style={{ margin: '4px 0 0 0', fontSize: '13px', color: '#334155', lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>
+                    {p.bio || 'No bio provided yet.'}
+                  </p>
                 </div>
               </div>
             </div>
 
-            {/* Row 2: Visibility Settings, Work Experience & Education, Skills & Portfolio */}
-            <div className="profile-sections-grid-3col">
-              
-              {/* Visibility Settings Card */}
-              <div className="section-card-mindease">
-                <div className="section-card-header">
-                  <div className="section-card-header-icon">
-                    <Eye size={20} />
-                  </div>
-                  <div>
-                    <h3 className="section-card-header-title">Visibility Settings</h3>
-                    <p className="section-card-header-subtext">Control your profile visibility and data sharing</p>
-                  </div>
+            {/* Contact & Demographics Card */}
+            <div className="section-card-mindease">
+              <div className="section-card-header">
+                <div className="section-card-header-icon">
+                  <User size={20} />
                 </div>
+                <div style={{ flex: 1 }}>
+                  <h3 className="section-card-header-title">Contact & Demographics</h3>
+                  <p className="section-card-header-subtext">Contact details & location</p>
+                </div>
+                <button type="button" className="btn-pill-dark" onClick={() => setActiveTab('personal')}>
+                  Edit Details
+                </button>
+              </div>
 
-                <FormField label="Profile Visibility">
-                  {({ id, ...control }) => (
-                    <Select
-                      id={id}
-                      {...control}
-                      name="profileVisibility"
-                      defaultValue={p.profileVisibility}
-                      options={[
-                        { value: 'recruiters-only', label: 'Recruiters Only' },
-                        { value: 'public', label: 'Public within Talvix' },
-                        { value: 'private', label: 'Private' },
-                      ]}
-                    />
-                  )}
-                </FormField>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                <div>
+                  <span style={{ fontSize: '11px', fontWeight: 600, color: '#64748b', textTransform: 'uppercase' }}>Phone Number</span>
+                  <p style={{ margin: '4px 0 0 0', fontSize: '13px', fontWeight: 500, color: '#0f172a' }}>
+                    {p.phone || 'Not provided'}
+                  </p>
+                </div>
+                <div>
+                  <span style={{ fontSize: '11px', fontWeight: 600, color: '#64748b', textTransform: 'uppercase' }}>Email Address</span>
+                  <p style={{ margin: '4px 0 0 0', fontSize: '13px', fontWeight: 500, color: '#0f172a' }}>
+                    {user?.email || 'geo@example.com'}
+                  </p>
+                </div>
+                <div>
+                  <span style={{ fontSize: '11px', fontWeight: 600, color: '#64748b', textTransform: 'uppercase' }}>Location</span>
+                  <p style={{ margin: '4px 0 0 0', fontSize: '13px', fontWeight: 500, color: '#0f172a' }}>
+                    {locationString}
+                  </p>
+                </div>
+                <div>
+                  <span style={{ fontSize: '11px', fontWeight: 600, color: '#64748b', textTransform: 'uppercase' }}>Date of Birth</span>
+                  <p style={{ margin: '4px 0 0 0', fontSize: '13px', fontWeight: 500, color: '#0f172a' }}>
+                    {date(p.dateOfBirth)}
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
 
-                <div className="mindease-toggle-wrapper">
-                  <div>
-                    <strong style={{ display: 'block', fontSize: '13px', color: '#0f172a' }}>Allow recruiters to contact me</strong>
-                    <span style={{ fontSize: '11px', color: '#64748b' }}>You'll be notified when someone reaches out.</span>
-                  </div>
-                  <input
-                    type="checkbox"
-                    className="toggle-switch-input"
-                    defaultChecked
-                    aria-label="Allow recruiters to contact me"
-                  />
+          {/* Row 2: Visibility Settings, Work Experience & Education, Skills & Portfolio */}
+          <div className="profile-sections-grid-3col">
+            
+            {/* Visibility Settings Card */}
+            <div className="section-card-mindease">
+              <div className="section-card-header">
+                <div className="section-card-header-icon">
+                  <Eye size={20} />
+                </div>
+                <div>
+                  <h3 className="section-card-header-title">Visibility Settings</h3>
+                  <p className="section-card-header-subtext">Profile discoverability status</p>
                 </div>
               </div>
 
-              {/* Work Experience & Education Card */}
-              <div className="section-card-mindease">
-                <div className="section-card-header">
-                  <div className="section-card-header-icon">
-                    <Briefcase size={20} />
-                  </div>
-                  <div>
-                    <h3 className="section-card-header-title">Work Experience & Education</h3>
-                    <p className="section-card-header-subtext">Add your professional experience and academic details</p>
-                  </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <span style={{ fontSize: '13px', color: '#475569' }}>Profile Visibility:</span>
+                  <StatusTag tone="info">{p.profileVisibility || 'recruiters-only'}</StatusTag>
                 </div>
-
-                <div className="mindease-list-group">
-                  <div className="mindease-list-row" onClick={() => setActiveTab('experience')}>
-                    <div className="mindease-row-left">
-                      <Briefcase size={18} className="mindease-row-icon" />
-                      <div>
-                        <span className="mindease-row-title" style={{ display: 'block' }}>Work Experience</span>
-                        <span className="mindease-row-detail">{p.experience.length} entries • Latest at Talvix</span>
-                      </div>
-                    </div>
-                    <ChevronRight size={18} className="mindease-row-arrow" />
-                  </div>
-
-                  <div className="mindease-list-row" onClick={() => setActiveTab('experience')}>
-                    <div className="mindease-row-left">
-                      <GraduationCap size={18} className="mindease-row-icon" />
-                      <div>
-                        <span className="mindease-row-title" style={{ display: 'block' }}>Education</span>
-                        <span className="mindease-row-detail">{p.education.length} entries • Add your degree details</span>
-                      </div>
-                    </div>
-                    <ChevronRight size={18} className="mindease-row-arrow" />
-                  </div>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <span style={{ fontSize: '13px', color: '#475569' }}>Recruiter Outreach:</span>
+                  <span style={{ fontSize: '12px', fontWeight: 600, color: '#10b981' }}>Enabled ✓</span>
                 </div>
+                <button type="button" className="btn-pill-dark" onClick={() => setActiveTab('personal')} style={{ marginTop: '8px', width: 'fit-content' }}>
+                  Manage Visibility →
+                </button>
               </div>
-
-              {/* Skills & Portfolio Card */}
-              <div className="section-card-mindease">
-                <div className="section-card-header">
-                  <div className="section-card-header-icon">
-                    <Code size={20} />
-                  </div>
-                  <div>
-                    <h3 className="section-card-header-title">Skills & Portfolio</h3>
-                    <p className="section-card-header-subtext">Showcase your skills and projects</p>
-                  </div>
-                </div>
-
-                <div className="mindease-list-group">
-                  <div className="mindease-list-row" onClick={() => setActiveTab('skills')}>
-                    <div className="mindease-row-left">
-                      <Code size={18} className="mindease-row-icon" />
-                      <div>
-                        <span className="mindease-row-title" style={{ display: 'block' }}>Skills</span>
-                        <span className="mindease-row-detail">{p.skills.length} skills added</span>
-                      </div>
-                    </div>
-                    <ChevronRight size={18} className="mindease-row-arrow" />
-                  </div>
-
-                  <div className="mindease-list-row" onClick={() => setActiveTab('skills')}>
-                    <div className="mindease-row-left">
-                      <FolderGit2 size={18} className="mindease-row-icon" />
-                      <div>
-                        <span className="mindease-row-title" style={{ display: 'block' }}>Portfolio Projects</span>
-                        <span className="mindease-row-detail">{p.projects.length} projects • Add links to your projects</span>
-                      </div>
-                    </div>
-                    <ChevronRight size={18} className="mindease-row-arrow" />
-                  </div>
-                </div>
-              </div>
-
             </div>
 
-            {/* Row 3: Access & Security & Resume Upload Dropzone */}
-            <div className="profile-sections-grid-2col" id="resume">
-              
-              {/* Access & Security Card */}
-              <div className="section-card-mindease">
-                <div className="section-card-header">
-                  <div className="section-card-header-icon">
-                    <ShieldCheck size={20} />
-                  </div>
-                  <div>
-                    <h3 className="section-card-header-title">Access & Security</h3>
-                    <p className="section-card-header-subtext">Manage your account security and access</p>
-                  </div>
+            {/* Work Experience & Education Card */}
+            <div className="section-card-mindease">
+              <div className="section-card-header">
+                <div className="section-card-header-icon">
+                  <Briefcase size={20} />
                 </div>
+                <div>
+                  <h3 className="section-card-header-title">Work Experience & Education</h3>
+                  <p className="section-card-header-subtext">Academic & professional background</p>
+                </div>
+              </div>
 
-                <div className="mindease-list-group">
-                  <div className="mindease-list-row" onClick={() => setActiveTab('security')}>
+              <div className="mindease-list-group">
+                <div className="mindease-list-row" onClick={() => setActiveTab('experience')}>
+                  <div className="mindease-row-left">
+                    <Briefcase size={18} className="mindease-row-icon" />
                     <div>
-                      <span className="mindease-row-title" style={{ display: 'block' }}>Password</span>
-                      <span className="mindease-row-detail">Last updated 2 months ago</span>
+                      <span className="mindease-row-title" style={{ display: 'block' }}>Work Experience</span>
+                      <span className="mindease-row-detail">{p.experience.length} entries recorded</span>
                     </div>
-                    <ChevronRight size={18} className="mindease-row-arrow" />
                   </div>
+                  <ChevronRight size={18} className="mindease-row-arrow" />
+                </div>
 
-                  <div className="mindease-list-row" onClick={() => setActiveTab('security')}>
+                <div className="mindease-list-row" onClick={() => setActiveTab('experience')}>
+                  <div className="mindease-row-left">
+                    <GraduationCap size={18} className="mindease-row-icon" />
                     <div>
-                      <span className="mindease-row-title" style={{ display: 'block' }}>Connected Accounts</span>
-                      <span className="mindease-row-detail">Google, GitHub</span>
+                      <span className="mindease-row-title" style={{ display: 'block' }}>Education</span>
+                      <span className="mindease-row-detail">{p.education.length} entries recorded</span>
                     </div>
-                    <ChevronRight size={18} className="mindease-row-arrow" />
                   </div>
+                  <ChevronRight size={18} className="mindease-row-arrow" />
+                </div>
+              </div>
+            </div>
 
-                  <div className="mindease-list-row" onClick={() => setActiveTab('security')}>
-                    <div>
-                      <span className="mindease-row-title" style={{ display: 'block' }}>Two-Factor Authentication</span>
-                      <span className="mindease-row-detail">Not enabled</span>
-                    </div>
-                    <ChevronRight size={18} className="mindease-row-arrow" />
-                  </div>
+            {/* Skills & Portfolio Card */}
+            <div className="section-card-mindease">
+              <div className="section-card-header">
+                <div className="section-card-header-icon">
+                  <Code size={20} />
+                </div>
+                <div>
+                  <h3 className="section-card-header-title">Skills & Portfolio</h3>
+                  <p className="section-card-header-subtext">Technical skills & projects</p>
                 </div>
               </div>
 
-              {/* Resume Upload Card */}
-              <div className="section-card-mindease">
-                <div className="section-card-header">
-                  <div className="section-card-header-icon">
-                    <FileText size={20} />
+              <div className="mindease-list-group">
+                <div className="mindease-list-row" onClick={() => setActiveTab('skills')}>
+                  <div className="mindease-row-left">
+                    <Code size={18} className="mindease-row-icon" />
+                    <div>
+                      <span className="mindease-row-title" style={{ display: 'block' }}>Skills</span>
+                      <span className="mindease-row-detail">{p.skills.length} skills listed</span>
+                    </div>
                   </div>
+                  <ChevronRight size={18} className="mindease-row-arrow" />
+                </div>
+
+                <div className="mindease-list-row" onClick={() => setActiveTab('skills')}>
+                  <div className="mindease-row-left">
+                    <FolderGit2 size={18} className="mindease-row-icon" />
+                    <div>
+                      <span className="mindease-row-title" style={{ display: 'block' }}>Portfolio Projects</span>
+                      <span className="mindease-row-detail">{p.projects.length} projects linked</span>
+                    </div>
+                  </div>
+                  <ChevronRight size={18} className="mindease-row-arrow" />
+                </div>
+              </div>
+            </div>
+
+          </div>
+
+          {/* Row 3: Access & Security & Resume View Card */}
+          <div className="profile-sections-grid-2col" id="resume">
+            
+            {/* Access & Security Card */}
+            <div className="section-card-mindease">
+              <div className="section-card-header">
+                <div className="section-card-header-icon">
+                  <ShieldCheck size={20} />
+                </div>
+                <div>
+                  <h3 className="section-card-header-title">Access & Security</h3>
+                  <p className="section-card-header-subtext">Security status & audit history</p>
+                </div>
+              </div>
+
+              <div className="mindease-list-group">
+                <div className="mindease-list-row" onClick={() => setActiveTab('security')}>
                   <div>
-                    <h3 className="section-card-header-title">Resume</h3>
-                    <p className="section-card-header-subtext">Upload your latest resume (PDF, DOC, DOCX)</p>
+                    <span className="mindease-row-title" style={{ display: 'block' }}>Password</span>
+                    <span className="mindease-row-detail">Protected</span>
                   </div>
+                  <ChevronRight size={18} className="mindease-row-arrow" />
                 </div>
 
-                <div className="mindease-dropzone">
-                  <div className="mindease-dropzone-icon">
-                    <Download size={24} />
+                <div className="mindease-list-row" onClick={() => setActiveTab('security')}>
+                  <div>
+                    <span className="mindease-row-title" style={{ display: 'block' }}>Access Logs</span>
+                    <span className="mindease-row-detail">{totalAccessEvents} audit events recorded</span>
                   </div>
-                  <span className="mindease-dropzone-text">Drag & drop your resume here or</span>
-                  
-                  <UploadControl
-                    entityType="candidate-profile"
-                    entityId={p.id}
-                    category="resume"
-                    path="/documents/me/resume"
-                    onDone={() => q.refetch()}
-                  />
+                  <ChevronRight size={18} className="mindease-row-arrow" />
+                </div>
+              </div>
+            </div>
 
-                  <span className="mindease-dropzone-subtext">PDF, DOC, DOCX • Max 10MB</span>
+            {/* Resume Viewer Card (Read-Only - View Resume Only) */}
+            <div className="section-card-mindease">
+              <div className="section-card-header">
+                <div className="section-card-header-icon">
+                  <FileText size={20} />
+                </div>
+                <div style={{ flex: 1 }}>
+                  <h3 className="section-card-header-title">Resume Document</h3>
+                  <p className="section-card-header-subtext">Attached candidate resume</p>
                 </div>
               </div>
 
-            </div>
-
-            {(validationError || mutation.isError) && (
-              <Alert tone="danger" title="Profile was not saved">
-                {validationError || message(mutation.error)}
-              </Alert>
-            )}
-
-              <div className="profile-floating-save-bar">
-              <div className="save-bar-info">
-                <CheckCircle2 size={18} color="#10b981" />
-                <span>Review and save your updated candidate profile details</span>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '8px' }}>
+                {resume.data?.url || p.resumeDocument ? (
+                  <div style={{ padding: '16px', borderRadius: '12px', background: '#f8fafc', border: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                      <div style={{ padding: '10px', borderRadius: '10px', background: '#e0e7ff', color: '#4338ca' }}>
+                        <FileText size={20} />
+                      </div>
+                      <div>
+                        <strong style={{ display: 'block', fontSize: '14px', color: '#0f172a' }}>
+                          {resume.data?.displayName || resume.data?.originalFileName || 'Candidate_Resume.pdf'}
+                        </strong>
+                        <span style={{ fontSize: '11px', color: '#10b981', fontWeight: 600 }}>Verified document ✓</span>
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                      <button
+                        type="button"
+                        className="btn-pill-dark"
+                        onClick={() => {
+                          if (resume.data?.url) {
+                            setPreviewResume(true);
+                          } else {
+                            void safeDownload('/documents/me/resume').catch(() => {
+                              setActiveTab('documents');
+                            });
+                          }
+                        }}
+                      >
+                        <Eye size={15} />
+                        <span>View Resume</span>
+                      </button>
+                      <button
+                        type="button"
+                        className="btn-pill-light"
+                        onClick={() => void safeDownload('/documents/me/resume')}
+                        title="Download resume"
+                      >
+                        <Download size={15} />
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div style={{ padding: '16px', borderRadius: '12px', background: '#f8fafc', border: '1px dashed #cbd5e1', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
+                    <span style={{ fontSize: '13px', color: '#64748b' }}>No resume document uploaded yet.</span>
+                    <button type="button" className="btn-pill-dark" onClick={() => setActiveTab('documents')}>
+                      Upload Resume in Documents
+                    </button>
+                  </div>
+                )}
               </div>
-              <Button type="submit" loading={mutation.isPending}>
-                Save profile
-              </Button>
             </div>
-          </form>
 
-          <ProfileCollections profile={p} />
-        </>
+          </div>
+
+          {/* Read-Only Candidate Collections View (Without Add/Edit/Remove buttons) */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginTop: '8px' }}>
+            <h3 style={{ margin: '8px 0 0 0', fontSize: '16px', fontWeight: 600, color: '#0f172a' }}>Candidate Details & Background</h3>
+            <ProfileCollections profile={p} readOnly={true} />
+          </div>
+
+        </div>
       )}
 
       {/* Tab: Personal Info */}
@@ -1251,45 +1284,111 @@ function DomainSummaryCard({
               <User size={20} />
             </div>
             <div>
-              <h3 className="section-card-header-title">Personal Info & Social Links</h3>
-              <p className="section-card-header-subtext">Update your professional headline, bio, location, and social links</p>
+              <h3 className="section-card-header-title">Personal Info & Settings</h3>
+              <p className="section-card-header-subtext">Update your professional summary, demographics, and visibility settings</p>
             </div>
           </div>
 
           <form id="profile-form-personal" onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
             <FormField label="Professional headline">
               {({ id, ...control }) => (
-                <TextField id={id} {...control} name="headline" defaultValue={p.headline} />
+                <TextField
+                  id={id}
+                  {...control}
+                  name="headline"
+                  value={draft.headline ?? ''}
+                  onChange={(e) => updateDraft('headline', e.target.value)}
+                  placeholder="e.g. Full-Stack Developer | IoT & AI Enthusiast"
+                />
               )}
             </FormField>
 
             <FormField label="About you">
               {({ id, ...control }) => (
-                <TextArea id={id} {...control} name="bio" defaultValue={p.bio} rows={4} />
+                <TextArea
+                  id={id}
+                  {...control}
+                  name="bio"
+                  value={draft.bio ?? ''}
+                  onChange={(e) => updateDraft('bio', e.target.value)}
+                  placeholder="Write a brief professional summary..."
+                  rows={4}
+                />
               )}
             </FormField>
 
             <div className="candidate-form-grid">
               <FormField label="Phone number">
                 {({ id, ...control }) => (
-                  <TextField id={id} {...control} name="phone" defaultValue={p.phone} />
+                  <TextField
+                    id={id}
+                    {...control}
+                    name="phone"
+                    value={draft.phone ?? ''}
+                    onChange={(e) => updateDraft('phone', e.target.value)}
+                    placeholder="+919876543210"
+                  />
                 )}
               </FormField>
+
+              <FormField label="Email Address">
+                {({ id, ...control }) => (
+                  <TextField
+                    id={id}
+                    {...control}
+                    readOnly
+                    disabled
+                    value={user?.email || 'geo@example.com'}
+                  />
+                )}
+              </FormField>
+
               <FormField label="City">
                 {({ id, ...control }) => (
-                  <TextField id={id} {...control} name="city" defaultValue={p.location?.city} />
+                  <TextField
+                    id={id}
+                    {...control}
+                    name="city"
+                    value={draft.city ?? ''}
+                    onChange={(e) => updateDraft('city', e.target.value)}
+                  />
                 )}
               </FormField>
 
               <FormField label="State">
                 {({ id, ...control }) => (
-                  <TextField id={id} {...control} name="state" defaultValue={p.location?.state} />
+                  <TextField
+                    id={id}
+                    {...control}
+                    name="state"
+                    value={draft.state ?? ''}
+                    onChange={(e) => updateDraft('state', e.target.value)}
+                  />
                 )}
               </FormField>
 
               <FormField label="Country">
                 {({ id, ...control }) => (
-                  <TextField id={id} {...control} name="country" defaultValue={p.location?.country} />
+                  <TextField
+                    id={id}
+                    {...control}
+                    name="country"
+                    value={draft.country ?? ''}
+                    onChange={(e) => updateDraft('country', e.target.value)}
+                  />
+                )}
+              </FormField>
+
+              <FormField label="Date of Birth">
+                {({ id, ...control }) => (
+                  <TextField
+                    id={id}
+                    {...control}
+                    name="dateOfBirth"
+                    type="date"
+                    value={draft.dateOfBirth ?? ''}
+                    onChange={(e) => updateDraft('dateOfBirth', e.target.value)}
+                  />
                 )}
               </FormField>
             </div>
@@ -1297,19 +1396,60 @@ function DomainSummaryCard({
             <div className="candidate-form-grid">
               <FormField label="GitHub Profile">
                 {({ id, ...control }) => (
-                  <TextField id={id} {...control} name="github" type="url" placeholder="https://github.com/..." defaultValue={p.socialLinks.github} />
+                  <TextField
+                    id={id}
+                    {...control}
+                    name="github"
+                    type="url"
+                    placeholder="https://github.com/..."
+                    value={draft.github ?? ''}
+                    onChange={(e) => updateDraft('github', e.target.value)}
+                  />
                 )}
               </FormField>
 
               <FormField label="LinkedIn Profile">
                 {({ id, ...control }) => (
-                  <TextField id={id} {...control} name="linkedin" type="url" placeholder="https://linkedin.com/in/..." defaultValue={p.socialLinks.linkedin} />
+                  <TextField
+                    id={id}
+                    {...control}
+                    name="linkedin"
+                    type="url"
+                    placeholder="https://linkedin.com/in/..."
+                    value={draft.linkedin ?? ''}
+                    onChange={(e) => updateDraft('linkedin', e.target.value)}
+                  />
                 )}
               </FormField>
 
               <FormField label="Portfolio URL">
                 {({ id, ...control }) => (
-                  <TextField id={id} {...control} name="portfolio" type="url" placeholder="https://..." defaultValue={p.socialLinks.portfolio} />
+                  <TextField
+                    id={id}
+                    {...control}
+                    name="portfolio"
+                    type="url"
+                    placeholder="https://..."
+                    value={draft.portfolio ?? ''}
+                    onChange={(e) => updateDraft('portfolio', e.target.value)}
+                  />
+                )}
+              </FormField>
+
+              <FormField label="Profile Visibility">
+                {({ id, ...control }) => (
+                  <Select
+                    id={id}
+                    {...control}
+                    name="profileVisibility"
+                    value={draft.profileVisibility ?? 'recruiters-only'}
+                    onChange={(e) => updateDraft('profileVisibility', e.target.value)}
+                    options={[
+                      { value: 'recruiters-only', label: 'Recruiters Only' },
+                      { value: 'public', label: 'Public within Talvix' },
+                      { value: 'private', label: 'Private' },
+                    ]}
+                  />
                 )}
               </FormField>
             </div>
@@ -1332,7 +1472,10 @@ function DomainSummaryCard({
       {/* Tab: Work & Education / Skills */}
       {(activeTab === 'experience' || activeTab === 'skills') && (
         <div className="delay-3 animated-entrance" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-          <ProfileCollections profile={p} />
+          <ProfileCollections
+            profile={p}
+            filterPaths={activeTab === 'experience' ? ['experience', 'education'] : ['skills', 'projects', 'certifications']}
+          />
         </div>
       )}
 
@@ -1364,16 +1507,18 @@ function DomainSummaryCard({
               </div>
             ) : null}
 
-            <UploadControl
-              entityType="candidate-profile"
-              entityId={p.id}
-              category="profile-photo"
-              path={photo.data ? '/documents/me/profile-photo/replace' : '/documents/me/profile-photo'}
-              onDone={() => {
-                q.refetch();
-                photo.refetch();
-              }}
-            />
+            <div className="mindease-upload-wrapper">
+              <UploadControl
+                entityType="candidate-profile"
+                entityId={p.id}
+                category="profile-photo"
+                path={photo.data ? '/documents/me/profile-photo/replace' : '/documents/me/profile-photo'}
+                onDone={() => {
+                  q.refetch();
+                  photo.refetch();
+                }}
+              />
+            </div>
           </div>
 
           <div className="section-card-mindease">
@@ -1387,13 +1532,18 @@ function DomainSummaryCard({
               </div>
             </div>
 
-            <UploadControl
-              entityType="candidate-profile"
-              entityId={p.id}
-              category="resume"
-              path="/documents/me/resume"
-              onDone={() => q.refetch()}
-            />
+            <div className="mindease-upload-wrapper">
+              <UploadControl
+                entityType="candidate-profile"
+                entityId={p.id}
+                category="resume"
+                path={resume.data ? '/documents/me/resume/replace' : '/documents/me/resume'}
+                onDone={() => {
+                  q.refetch();
+                  resume.refetch();
+                }}
+              />
+            </div>
           </div>
         </div>
       )}
@@ -1402,6 +1552,24 @@ function DomainSummaryCard({
       {activeTab === 'security' && (
         <div className="delay-3 animated-entrance" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
           <CandidateProfileAccessSection />
+        </div>
+      )}
+
+      {Object.keys(dirtyFields).length > 0 && (
+        <div className="profile-floating-save-bar delay-1 animated-entrance">
+          <div className="save-bar-info">
+            <CheckCircle2 size={18} color="#10b981" />
+            <span>
+              Unsaved changes ({Object.keys(dirtyFields).length} field{Object.keys(dirtyFields).length === 1 ? '' : 's'} modified). Click Save profile to update your profile.
+            </span>
+          </div>
+          <Button
+            type="button"
+            loading={mutation.isPending}
+            onClick={() => submit()}
+          >
+            Save profile
+          </Button>
         </div>
       )}
 
@@ -1416,6 +1584,16 @@ function DomainSummaryCard({
           setPendingProfile(null);
           setConfirm(false);
         }}
+      />
+
+      <DocumentPreviewDialog
+        open={previewResume}
+        onOpenChange={setPreviewResume}
+        title={resume.data?.displayName || resume.data?.originalFileName || 'Candidate Resume'}
+        url={resume.data?.url}
+        mimeType={resume.data?.mimeType || 'application/pdf'}
+        downloadPath="/documents/me/resume"
+        category="resume"
       />
     </div>
   );
@@ -1483,7 +1661,7 @@ function CandidateProfileAccessSection() {
           </div>
           {pagination && pagination.pages > 1 && (
             <Pagination
-              currentPage={page}
+              page={page}
               totalPages={pagination.pages}
               onPageChange={setPage}
             />
@@ -1584,8 +1762,12 @@ function ProfileItemContent({
 
 function ProfileCollections({
   profile,
+  filterPaths,
+  readOnly = false,
 }: {
   profile: ReturnType<typeof useCandidateProfile>['data'];
+  filterPaths?: string[];
+  readOnly?: boolean;
 }) {
   const mutation = useCandidateProfileMutation();
   const [remove, setRemove] = useState<{ path: string; label: string } | null>(
@@ -1595,13 +1777,17 @@ function ProfileCollections({
     null,
   );
   if (!profile) return null;
-  const groups = [
+  const allGroups = [
     { label: 'Skills', items: profile.skills, path: 'skills', icon: <Wrench size={18} /> },
     { label: 'Experience', items: profile.experience, path: 'experience', icon: <Briefcase size={18} /> },
     { label: 'Education', items: profile.education, path: 'education', icon: <GraduationCap size={18} /> },
     { label: 'Projects', items: profile.projects, path: 'projects', icon: <FolderGit2 size={18} /> },
     { label: 'Certifications', items: profile.certifications, path: 'certifications', icon: <Award size={18} /> },
   ] as const;
+
+  const groups = filterPaths
+    ? allGroups.filter((g) => filterPaths.includes(g.path))
+    : allGroups;
 
   return (
     <>
@@ -1615,14 +1801,16 @@ function ProfileCollections({
               <h2 className="collection-title">{label}</h2>
               <span className="collection-count-badge">{items.length}</span>
             </div>
-            <button
-              type="button"
-              className="btn-pill-dark"
-              onClick={() => setEditor({ kind: path })}
-            >
-              <Plus size={15} />
-              <span>Add {label.toLowerCase()}</span>
-            </button>
+            {!readOnly && (
+              <button
+                type="button"
+                className="btn-pill-dark"
+                onClick={() => setEditor({ kind: path })}
+              >
+                <Plus size={15} />
+                <span>Add {label.toLowerCase()}</span>
+              </button>
+            )}
           </div>
 
           {items.length ? (
@@ -1630,25 +1818,27 @@ function ProfileCollections({
               {items.map((item) => (
                 <li key={item.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', background: '#f8fafc', borderBottom: '1px solid #f1f5f9' }}>
                   <ProfileItemContent item={item} path={path} />
-                  <div style={{ display: 'flex', gap: '8px' }}>
-                    <Button
-                      variant="quiet"
-                      onClick={() => setEditor({ kind: path, id: item.id })}
-                    >
-                      Edit
-                    </Button>
-                    <Button
-                      variant="quiet"
-                      onClick={() =>
-                        setRemove({
-                          path: `/candidates/me/${path}/${item.id}`,
-                          label,
-                        })
-                      }
-                    >
-                      Remove
-                    </Button>
-                  </div>
+                  {!readOnly && (
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                      <Button
+                        variant="quiet"
+                        onClick={() => setEditor({ kind: path, id: item.id })}
+                      >
+                        Edit
+                      </Button>
+                      <Button
+                        variant="quiet"
+                        onClick={() =>
+                          setRemove({
+                            path: `/candidates/me/${path}/${item.id}`,
+                            label,
+                          })
+                        }
+                      >
+                        Remove
+                      </Button>
+                    </div>
+                  )}
                 </li>
               ))}
             </ul>
@@ -1656,7 +1846,7 @@ function ProfileCollections({
             <p style={{ fontSize: '13px', color: '#64748b', margin: '4px 0 0 0' }}>No {label.toLowerCase()} added yet.</p>
           )}
 
-          {editor && editor.kind === path && (
+          {!readOnly && editor && editor.kind === path && (
             <div style={{ marginTop: '16px' }}>
               <CollectionEditor
                 kind={editor.kind}
@@ -1673,18 +1863,20 @@ function ProfileCollections({
           )}
         </div>
       ))}
-      <ConfirmDialog
-        open={Boolean(remove)}
-        onOpenChange={(open) => !open && setRemove(null)}
-        title={`Remove ${remove?.label.toLowerCase()} entry?`}
-        description="This cannot be undone."
-        confirmLabel="Remove"
-        variant="destructive"
-        onConfirm={() => {
-          if (remove) mutation.mutate({ path: remove.path, method: 'DELETE' });
-          setRemove(null);
-        }}
-      />
+      {!readOnly && (
+        <ConfirmDialog
+          open={Boolean(remove)}
+          onOpenChange={(open) => !open && setRemove(null)}
+          title={`Remove ${remove?.label.toLowerCase()} entry?`}
+          description="This cannot be undone."
+          confirmLabel="Remove"
+          variant="destructive"
+          onConfirm={() => {
+            if (remove) mutation.mutate({ path: remove.path, method: 'DELETE' });
+            setRemove(null);
+          }}
+        />
+      )}
     </>
   );
 }
@@ -2093,6 +2285,12 @@ export function CandidateJobsPage() {
   const [params, setParams] = useSearchParams();
   const query = params.toString() || 'page=1&limit=20';
   const q = useJobs(query);
+  const applications = useApplications('limit=100');
+  const appliedJobMap = new Map(
+    (applications.data?.items ?? [])
+      .filter((a) => a.jobId)
+      .map((a) => [a.jobId, a]),
+  );
   return (
     <div className="candidate-page candidate-domain-container">
       <div className="candidate-hero-banner-mindease">
@@ -2158,6 +2356,12 @@ export function CandidateJobsPage() {
             'html',
             'git',
           ].map((value) => ({ value, label: value }))}
+        />
+        <TextField
+          name="q"
+          aria-label="Keywords"
+          placeholder="Keywords"
+          defaultValue={params.get('q') ?? ''}
         />
         <TextField
           name="company"
@@ -2241,27 +2445,41 @@ export function CandidateJobsPage() {
         <ErrorState title="Jobs unavailable" detail={message(q.error)} />
       ) : q.data.items.length ? (
         <ul className="candidate-job-list">
-          {q.data.items.map((job) => (
-            <li key={job.id}>
-              <div>
-                <span className="candidate-eyebrow">
-                  {job.workMode || job.employmentType || 'Opportunity'}
-                </span>
-                <h2>
-                  <Link to={`/candidate/jobs/${job.id}`} style={{ color: 'var(--color-primary-strong)', textDecoration: 'underline' }}>{job.title}</Link>
-                </h2>
-                <p>
-                  {job.companyName} · {job.location || 'Location flexible'}
-                </p>
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', justifyContent: 'center', gap: '8px' }}>
-                {job.closingDate && <span style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)' }}>Closes {date(job.closingDate)}</span>}
-                <Link to={`/candidate/jobs/${job.id}`}>
-                  <Button>Apply now</Button>
-                </Link>
-              </div>
-            </li>
-          ))}
+          {q.data.items.map((job) => {
+            const isApplied = appliedJobMap.has(job.id);
+            return (
+              <li key={job.id}>
+                <div>
+                  <span className="candidate-eyebrow">
+                    {job.workMode || job.employmentType || 'Opportunity'}
+                  </span>
+                  <h2>
+                    <Link to={`/candidate/jobs/${job.id}`} style={{ color: 'var(--color-primary-strong)', textDecoration: 'underline' }}>{job.title}</Link>
+                  </h2>
+                  <p>
+                    {job.companyName} · {job.location || 'Location flexible'}
+                  </p>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', justifyContent: 'center', gap: '8px' }}>
+                  {job.closingDate && <span style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)' }}>Closes {date(job.closingDate)}</span>}
+                  <Link to={`/candidate/jobs/${job.id}`}>
+                    {isApplied ? (
+                      <button
+                        type="button"
+                        className="notif-pill-btn"
+                        style={{ background: '#f0fdf4', color: '#15803d', borderColor: '#bbf7d0', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+                      >
+                        <CheckCircle2 size={14} />
+                        <span>Applied</span>
+                      </button>
+                    ) : (
+                      <Button>Apply now</Button>
+                    )}
+                  </Link>
+                </div>
+              </li>
+            );
+          })}
         </ul>
       ) : (
         <EmptyState
@@ -2285,10 +2503,13 @@ export function CandidateJobsPage() {
     </div>
   );
 }
+
 export function CandidateJobDetailPage() {
   const { jobId = '' } = useParams();
   const q = useJob(jobId);
   const profile = useCandidateProfile();
+  const resume = useCandidateProfileResume();
+  const applications = useApplications('limit=100');
   const mutation = useApplicationMutation();
   const [confirm, setConfirm] = useState(false);
   const draftKey = `talvix:candidate:application:${jobId}`;
@@ -2310,6 +2531,24 @@ export function CandidateJobDetailPage() {
   if (q.isError)
     return <ErrorState title="Job unavailable" detail={message(q.error)} />;
   const job = q.data;
+
+  const existingApp = applications.data?.items.find((app) => app.jobId && String(app.jobId) === String(jobId))
+    || (mutation.isSuccess ? { id: jobId, appliedAt: new Date().toISOString(), status: 'Submitted' } : undefined);
+
+  const hasResume = Boolean(
+    resume.data ||
+    profile.data?.resumeDocument ||
+    profile.data?.resume?.url ||
+    profile.data?.resume?.displayName
+  );
+
+  const resumeDisplayName =
+    resume.data?.displayName ||
+    resume.data?.originalFileName ||
+    profile.data?.resume?.displayName ||
+    profile.data?.resume?.originalFileName ||
+    'resume.pdf';
+
   return (
     <div className="candidate-page">
       <PageHeader
@@ -2334,108 +2573,144 @@ export function CandidateJobDetailPage() {
           )}
         </Card>
         <aside>
-          <Card>
-            <h2>Ready to apply?</h2>
-            <p>
-              Keep your profile and resume current. The server makes the final
-              eligibility decision.
-            </p>
-            {job.resumeRequired && (
-              <div style={{ marginTop: '12px', marginBottom: '16px', padding: '12px', border: '1px dashed var(--color-border)', borderRadius: '6px' }}>
-                <h3 style={{ fontSize: '0.95rem', fontWeight: 'bold', marginBottom: '8px' }}>Resume required</h3>
-                {profile.isPending ? (
-                  <LoadingState label="Checking profile resume..." />
-                ) : profile.isError ? (
-                  <p style={{ color: 'var(--color-danger)' }}>Could not check profile resume status.</p>
-                ) : profile.data?.resumeDocument || profile.data?.resume?.url ? (
-                  <div>
-                    <p style={{ color: 'var(--color-success)', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                      ✓ Resume ready: <strong>{profile.data.resume?.displayName || 'resume.pdf'}</strong>
-                    </p>
-                    <p style={{ fontSize: '0.85rem', marginTop: '4px' }}>
-                      You can replace it in your <Link to="/candidate/profile" style={{ textDecoration: 'underline' }}>Profile</Link>.
-                    </p>
-                  </div>
-                ) : (
-                  <div>
-                    <p style={{ color: 'var(--color-warning)', marginBottom: '8px', fontSize: '0.85rem' }}>
-                      A resume is required to apply for this job. Please upload one here:
-                    </p>
-                    <UploadControl
-                      entityType="candidate-profile"
-                      entityId={profile.data?.id}
-                      category="resume"
-                      path="/documents/me/resume"
-                      onDone={() => {
-                        void profile.refetch();
-                      }}
-                    />
-                  </div>
-                )}
+          {existingApp ? (
+            <Card style={{ background: '#ffffff', border: '1px solid #eaecef', borderRadius: '20px', padding: '24px', boxShadow: '0 4px 20px -2px rgba(0,0,0,0.03)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
+                <div style={{ background: '#dcfce7', color: '#15803d', width: '40px', height: '40px', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <CheckCircle2 size={22} />
+                </div>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '18px', color: '#0f172a', fontWeight: 600 }}>Already Applied</h3>
+                  <span style={{ fontSize: '13px', color: '#64748b' }}>
+                    {existingApp.appliedAt ? `Submitted on ${date(existingApp.appliedAt)}` : 'Application submitted'}
+                  </span>
+                </div>
               </div>
-            )}
-            <form
-              onSubmit={(event) => {
-                event.preventDefault();
-                setConfirm(true);
-              }}
-            >
-              <FormField
-                label="Cover letter"
-                hint="Optional, up to 5,000 characters"
+              
+              <div style={{ marginBottom: '16px' }}>
+                <span className="status-badge-available" style={{ background: '#e0e7ff', color: '#4338ca', borderColor: '#c7d2fe', textTransform: 'capitalize', fontSize: '12px', fontWeight: 600 }}>
+                  Status: {existingApp.status || 'Submitted'}
+                </span>
+              </div>
+
+              <p style={{ fontSize: '14px', color: '#64748b', lineHeight: '1.5', marginBottom: '20px' }}>
+                You have already submitted an application for this position. You can track your status, view updates, or manage assessments in your applications workspace.
+              </p>
+
+              <Link
+                to={existingApp.id && existingApp.id !== jobId ? `/candidate/applications/${existingApp.id}` : '/candidate/applications'}
+                className="btn-pill-dark"
+                style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', width: '100%', textDecoration: 'none' }}
               >
-                {({ id, ...control }) => (
-                  <TextArea
-                    id={id}
-                    {...control}
-                    maxLength={5000}
-                    value={draft.coverLetter ?? ''}
-                    onChange={(event) =>
-                      setDraft((current) => ({
-                        ...current,
-                        coverLetter: event.target.value,
-                      }))
-                    }
-                  />
-                )}
-              </FormField>
-              {job.questions.map((question) => (
+                <span>View Application Details</span>
+                <ChevronRight size={16} />
+              </Link>
+            </Card>
+          ) : (
+            <Card>
+              <h2>Ready to apply?</h2>
+              <p>
+                Keep your profile and resume current. The server makes the final
+                eligibility decision.
+              </p>
+              {job.resumeRequired && (
+                <div style={{ marginTop: '12px', marginBottom: '16px', padding: '12px', border: '1px dashed var(--color-border)', borderRadius: '6px' }}>
+                  <h3 style={{ fontSize: '0.95rem', fontWeight: 'bold', marginBottom: '8px' }}>Resume required</h3>
+                  {profile.isPending || resume.isPending ? (
+                    <LoadingState label="Checking profile resume..." />
+                  ) : profile.isError ? (
+                    <p style={{ color: 'var(--color-danger)' }}>Could not check profile resume status.</p>
+                  ) : hasResume ? (
+                    <div>
+                      <p style={{ color: 'var(--color-success)', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        ✓ Resume ready: <strong>{resumeDisplayName}</strong>
+                      </p>
+                      <p style={{ fontSize: '0.85rem', marginTop: '4px' }}>
+                        You can replace it in your <Link to="/candidate/profile" style={{ textDecoration: 'underline' }}>Profile</Link>.
+                      </p>
+                    </div>
+                  ) : (
+                    <div>
+                      <p style={{ color: 'var(--color-warning)', marginBottom: '8px', fontSize: '0.85rem' }}>
+                        A resume is required to apply for this job. Please upload one here:
+                      </p>
+                      <UploadControl
+                        entityType="candidate-profile"
+                        entityId={profile.data?.id}
+                        category="resume"
+                        path="/documents/me/resume"
+                        onDone={() => {
+                          void profile.refetch();
+                          void resume.refetch();
+                        }}
+                      />
+                    </div>
+                  )}
+                </div>
+              )}
+              <form
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  setConfirm(true);
+                }}
+              >
                 <FormField
-                  key={question.id}
-                  label={question.question}
-                  required={question.required}
+                  label="Cover letter"
+                  hint="Optional, up to 5,000 characters"
                 >
                   {({ id, ...control }) => (
                     <TextArea
                       id={id}
                       {...control}
-                      required={question.required}
-                      value={draft[question.id] ?? ''}
+                      maxLength={5000}
+                      value={draft.coverLetter ?? ''}
                       onChange={(event) =>
                         setDraft((current) => ({
                           ...current,
-                          [question.id]: event.target.value,
+                          coverLetter: event.target.value,
                         }))
                       }
                     />
                   )}
                 </FormField>
-              ))}
-               <Button type="submit" disabled={mutation.isPending || (job.resumeRequired && !profile.isPending && !(profile.data?.resumeDocument || profile.data?.resume?.url))}>
-                Apply now
-              </Button>
-            </form>
-            {mutation.isSuccess && (
-              <Alert tone="success" title="Application submitted">
-                Your application is now in your workspace.
-              </Alert>
-            )}
-            {mutation.isError && (
-              <Alert tone="danger" title="Application not submitted">
-                {message(mutation.error)}
-              </Alert>
-            )}
-          </Card>
+                {job.questions.map((question) => (
+                  <FormField
+                    key={question.id}
+                    label={question.question}
+                    required={question.required}
+                  >
+                    {({ id, ...control }) => (
+                      <TextArea
+                        id={id}
+                        {...control}
+                        required={question.required}
+                        value={draft[question.id] ?? ''}
+                        onChange={(event) =>
+                          setDraft((current) => ({
+                            ...current,
+                            [question.id]: event.target.value,
+                          }))
+                        }
+                      />
+                    )}
+                  </FormField>
+                ))}
+                <Button type="submit" disabled={mutation.isPending || (job.resumeRequired && !profile.isPending && !resume.isPending && !hasResume)}>
+                  {mutation.isPending ? 'Submitting...' : 'Apply now'}
+                </Button>
+              </form>
+              {mutation.isSuccess && (
+                <Alert tone="success" title="Application submitted">
+                  Your application is now in your workspace.
+                </Alert>
+              )}
+              {mutation.isError && (
+                <Alert tone="danger" title="Application not submitted">
+                  {message(mutation.error)}
+                </Alert>
+              )}
+            </Card>
+          )}
         </aside>
       </div>
       <ConfirmDialog
@@ -2461,7 +2736,12 @@ export function CandidateJobDetailPage() {
                   })),
               },
             },
-            { onSuccess: () => localStorage.removeItem(draftKey) },
+            {
+              onSuccess: () => {
+                localStorage.removeItem(draftKey);
+                void applications.refetch();
+              },
+            },
           );
           setConfirm(false);
         }}
@@ -2473,11 +2753,24 @@ export function CandidateJobDetailPage() {
 export function CandidateApplicationsPage() {
   const q = useApplications();
   return (
-    <div className="candidate-page">
-      <PageHeader
-        title="Applications"
-        description="A private record of roles you have applied for."
-      />
+    <div className="candidate-page candidate-domain-container">
+      <div className="candidate-hero-banner-mindease">
+        <div className="banner-left-content">
+          <div className="banner-icon-badge theme-purple">
+            <Briefcase size={22} />
+          </div>
+          <div className="banner-text-details">
+            <h1 className="banner-title">Applications</h1>
+            <p className="banner-subtext">A private record of roles you have applied for.</p>
+          </div>
+        </div>
+        <div className="banner-right-actions">
+          <Link className="banner-action-pill" to="/candidate/jobs">
+            <span>Browse jobs</span>
+            <ArrowRight size={14} />
+          </Link>
+        </div>
+      </div>
       {q.isPending ? (
         <LoadingState label="Loading applications" />
       ) : q.isError ? (
@@ -2486,17 +2779,29 @@ export function CandidateApplicationsPage() {
           detail={message(q.error)}
         />
       ) : q.data.items.length ? (
-        <ul className="candidate-list">
+        <ul className="applications-mindease-list">
           {q.data.items.map((a) => (
-            <li key={a.id}>
-              <div>
-                <strong>{a.jobTitle || 'Application'}</strong>
-                <span>
-                  {a.companyName} · Applied {date(a.appliedAt)}
-                </span>
+            <li key={a.id} className="application-item-card">
+              <div className="application-left-info">
+                <div className="application-icon-box">
+                  <Briefcase size={20} />
+                </div>
+                <div className="application-title-group">
+                  <h3 className="application-job-title">{a.jobTitle || 'Application'}</h3>
+                  <p className="application-meta-text">
+                    <span>{a.companyName}</span>
+                    <span>•</span>
+                    <span>Applied {date(a.appliedAt)}</span>
+                  </p>
+                </div>
               </div>
-              <StatusTag>{a.status}</StatusTag>
-              <Link to={`/candidate/applications/${a.id}`}>Details</Link>
+              <div className="application-right-actions">
+                <StatusTag>{a.status}</StatusTag>
+                <Link className="application-detail-btn" to={`/candidate/applications/${a.id}`}>
+                  <span>Details</span>
+                  <ArrowRight size={14} />
+                </Link>
+              </div>
             </li>
           ))}
         </ul>
@@ -2514,11 +2819,13 @@ export function CandidateApplicationsPage() {
     </div>
   );
 }
+
 export function CandidateApplicationDetailPage() {
   const { applicationId = '' } = useParams();
   const q = useApplication(applicationId),
     timeline = useApplicationTimeline(applicationId),
-    mutation = useApplicationMutation();
+    mutation = useApplicationMutation(),
+    offers = useSafeCandidateOffers();
   const [confirm, setConfirm] = useState(false);
   const [withdrawalReason, setWithdrawalReason] = useState('');
   if (q.isPending) return <LoadingState label="Loading application" />;
@@ -2528,7 +2835,7 @@ export function CandidateApplicationDetailPage() {
     );
   const a = q.data;
   return (
-    <div className="candidate-page">
+    <div className="candidate-page candidate-domain-container">
       <PageHeader
         title={a.jobTitle || 'Application detail'}
         description={a.companyName}
@@ -2542,6 +2849,60 @@ export function CandidateApplicationDetailPage() {
             <Link to={`/candidate/documents/applications/${a.id}`}>
               Application documents
             </Link>
+            {a.status === 'interview-scheduled' && (
+              <Link to="/candidate/interviews" style={{ fontWeight: 600, color: 'var(--color-primary)' }}>
+                Go to Interview Hub & Join Meeting ↗
+              </Link>
+            )}
+            {['offer-sent', 'offer-created', 'offer-pending', 'offer-accepted', 'hired'].includes(a.status) && (() => {
+              const matchingOffer = offers.data?.find(
+                (o) => o.applicationId === a.id || (o as any).application === a.id || (o as any).applicationId === a.id,
+              );
+              if (matchingOffer) {
+                return (
+                  <Link
+                    to={`/candidate/offers/${matchingOffer.id}`}
+                    style={{
+                      fontWeight: 600,
+                      color: '#047857',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      background: '#ecfdf5',
+                      padding: '8px 12px',
+                      borderRadius: '6px',
+                      border: '1px solid #a7f3d0',
+                      marginTop: '8px',
+                      textDecoration: 'none',
+                    }}
+                  >
+                    🎉 View Job Offer & Respond 📄↗
+                  </Link>
+                );
+              }
+              if (a.status === 'offer-pending') {
+                return (
+                  <span
+                    style={{
+                      fontWeight: 500,
+                      color: '#92400e',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      background: '#fef3c7',
+                      padding: '8px 12px',
+                      borderRadius: '6px',
+                      border: '1px solid #fde68a',
+                      marginTop: '8px',
+                      fontSize: '0.9rem',
+                    }}
+                  >
+                    ⏳ An official job offer is currently being prepared by the company.
+                  </span>
+                );
+              }
+              return null;
+            })()}
           </div>
           <Button
             variant="secondary"
@@ -2636,56 +2997,70 @@ export function CandidateNotificationsPage() {
     navigate = useNavigate();
   const [selected, setSelected] = useState<string[]>([]);
   return (
-    <div className="candidate-page">
-      <PageHeader
-        title="Notifications"
-        description="Updates from your candidate activity, with safe Talvix destinations only."
-        secondaryActions={
-          <div className="candidate-inline-links">
-            <Button
-              variant="secondary"
-              onClick={() => m.mutate({ path: '/notifications/read-all' })}
-            >
-              Mark all read
-            </Button>
-            <Button
-              variant="secondary"
-              disabled={m.isPending}
-              onClick={() => m.mutate({ path: '/notifications/archive-all' })}
-            >
-              Archive all
-            </Button>
-            {selected.length > 0 && (
-              <>
-                <Button
-                  variant="secondary"
-                  disabled={m.isPending}
-                  onClick={() =>
-                    m.mutate({
-                      path: '/notifications/bulk/read',
-                      body: { notificationIds: selected },
-                    })
-                  }
-                >
-                  Mark selected read
-                </Button>
-                <Button
-                  variant="secondary"
-                  disabled={m.isPending}
-                  onClick={() =>
-                    m.mutate({
-                      path: '/notifications/bulk/archive',
-                      body: { notificationIds: selected },
-                    })
-                  }
-                >
-                  Archive selected
-                </Button>
-              </>
-            )}
+    <div className="candidate-page candidate-domain-container">
+      <div className="candidate-hero-banner-mindease">
+        <div className="banner-left-content">
+          <div className="banner-icon-badge theme-blue">
+            <Bell size={22} />
           </div>
-        }
-      />
+          <div className="banner-text-details">
+            <h1 className="banner-title">Notifications</h1>
+            <p className="banner-subtext">Updates from your candidate activity, with safe destinations.</p>
+          </div>
+        </div>
+        <div className="banner-right-actions">
+          <button
+            type="button"
+            className="banner-action-pill secondary"
+            onClick={() => m.mutate({ path: '/notifications/read-all' })}
+          >
+            Mark all read
+          </button>
+          <button
+            type="button"
+            className="banner-action-pill secondary"
+            disabled={m.isPending}
+            onClick={() => m.mutate({ path: '/notifications/archive-all' })}
+          >
+            Archive all
+          </button>
+        </div>
+      </div>
+
+      {selected.length > 0 && (
+        <div className="notifications-bulk-bar">
+          <span className="bulk-count-badge">{selected.length} selected</span>
+          <div className="bulk-actions-group">
+            <button
+              type="button"
+              className="bulk-action-btn"
+              disabled={m.isPending}
+              onClick={() =>
+                m.mutate({
+                  path: '/notifications/bulk/read',
+                  body: { notificationIds: selected },
+                })
+              }
+            >
+              Mark selected read
+            </button>
+            <button
+              type="button"
+              className="bulk-action-btn"
+              disabled={m.isPending}
+              onClick={() =>
+                m.mutate({
+                  path: '/notifications/bulk/archive',
+                  body: { notificationIds: selected },
+                })
+              }
+            >
+              Archive selected
+            </button>
+          </div>
+        </div>
+      )}
+
       {q.isPending ? (
         <LoadingState label="Loading notifications" />
       ) : q.isError ? (
@@ -2694,79 +3069,89 @@ export function CandidateNotificationsPage() {
           detail={message(q.error)}
         />
       ) : q.data.items.length ? (
-        <ul className="candidate-notifications">
+        <ul className="notifications-mindease-list">
           {q.data.items.map((n) => (
-            <li key={n.id} className={n.read ? '' : 'is-unread'}>
-              <input
-                type="checkbox"
-                aria-label={`Select ${n.title}`}
-                checked={selected.includes(n.id)}
-                onChange={(event) =>
-                  setSelected((current) =>
-                    event.target.checked
-                      ? [...current, n.id]
-                      : current.filter((id) => id !== n.id),
-                  )
-                }
-              />
-              <div>
-                <span className="candidate-eyebrow">
-                  {n.category || n.type}
-                </span>
-                <h2>{n.title}</h2>
-                <p>{n.message}</p>
-                <small>{date(n.createdAt)}</small>
+            <li key={n.id} className={`notification-item-card ${n.read ? '' : 'is-unread'}`}>
+              <div className="notification-checkbox-col">
+                <input
+                  type="checkbox"
+                  aria-label={`Select ${n.title}`}
+                  checked={selected.includes(n.id)}
+                  onChange={(event) =>
+                    setSelected((current) =>
+                      event.target.checked
+                        ? [...current, n.id]
+                        : current.filter((id) => id !== n.id),
+                    )
+                  }
+                />
               </div>
-              <div>
-                <Button
-                  variant="secondary"
-                  onClick={() => navigate(`/candidate/notifications/${n.id}`)}
-                >
-                  Details
-                </Button>
-                {n.target && (
-                  <Button
-                    variant="secondary"
-                    onClick={() => {
-                      if (!n.read)
-                        m.mutate({ path: `/notifications/${n.id}/read` });
-                      if (n.target) navigate(n.target);
-                    }}
+              <div className="notification-body-col">
+                <div className="notification-header-row">
+                  <span className="notification-category-badge">
+                    {n.category || n.type}
+                  </span>
+                  <span className="notification-date-stamp">{date(n.createdAt)}</span>
+                </div>
+                <h2 className="notification-title">{n.title}</h2>
+                <p className="notification-message">{n.message}</p>
+
+                <div className="notification-actions-row">
+                  <button
+                    type="button"
+                    className="notif-pill-btn primary"
+                    onClick={() => navigate(`/candidate/notifications/${n.id}`)}
                   >
-                    Open
-                  </Button>
-                )}
-                <Button
-                  variant="quiet"
-                  onClick={() =>
-                    m.mutate({
-                      path: `/notifications/${n.id}/${n.read ? 'unread' : 'read'}`,
-                    })
-                  }
-                >
-                  Mark {n.read ? 'unread' : 'read'}
-                </Button>
-                <Button
-                  variant="quiet"
-                  onClick={() =>
-                    m.mutate({
-                      path: `/notifications/${n.id}/${n.archived ? 'unarchive' : 'archive'}`,
-                    })
-                  }
-                >
-                  {n.archived ? 'Restore' : 'Archive'}
-                </Button>
-                <Button
-                  variant="danger"
-                  onClick={() =>
-                    m.mutate({
-                      path: `/notifications/${n.id}`,
-                      method: 'DELETE',
-                    })
-                  }
-                >
-                  Delete
-                </Button>
+                    Details
+                  </button>
+                  {n.target && (
+                    <button
+                      type="button"
+                      className="notif-pill-btn"
+                      onClick={() => {
+                        if (!n.read)
+                          m.mutate({ path: `/notifications/${n.id}/read` });
+                        if (n.target) navigate(n.target);
+                      }}
+                    >
+                      Open
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    className="notif-pill-btn"
+                    onClick={() =>
+                      m.mutate({
+                        path: `/notifications/${n.id}/${n.read ? 'unread' : 'read'}`,
+                      })
+                    }
+                  >
+                    Mark {n.read ? 'unread' : 'read'}
+                  </button>
+                  <button
+                    type="button"
+                    className="notif-pill-btn"
+                    onClick={() =>
+                      m.mutate({
+                        path: `/notifications/${n.id}/${n.archived ? 'unarchive' : 'archive'}`,
+                      })
+                    }
+                  >
+                    {n.archived ? 'Restore' : 'Archive'}
+                  </button>
+                  <button
+                    type="button"
+                    className="notif-pill-btn danger"
+                    onClick={() =>
+                      m.mutate({
+                        path: `/notifications/${n.id}`,
+                        method: 'DELETE',
+                      })
+                    }
+                  >
+                    Delete
+                  </button>
+                </div>
               </div>
             </li>
           ))}

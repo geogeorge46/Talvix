@@ -1,7 +1,8 @@
-import { useEffect, useRef, useState, type FormEvent } from 'react';
-import { Award, FileText } from 'lucide-react';
+import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from 'react';
+import { Award, FileText, Eye, Download, CheckCircle2, Clock, Sparkles, Users, Search, X } from 'lucide-react';
 import {
   Link as RouterLink,
+  NavLink as RouterNavLink,
   useNavigate,
   useParams,
   useSearchParams,
@@ -33,6 +34,7 @@ import {
 import { useAuth } from '../../auth/AuthProvider';
 import {
   createUploadSession,
+  getDocumentUrl,
   safeDownload,
   useApprovals,
   useApproval,
@@ -54,6 +56,9 @@ import {
   useVerificationQueue,
   xhrUpload,
 } from './api';
+import { ApiError } from '../../api/client';
+import { useApplications } from '../ats-workspace/api';
+import { DocumentPreviewDialog } from './DocumentPreviewDialog';
 import {
   activeCandidateActions,
   formatBytes,
@@ -64,8 +69,16 @@ import {
 } from './model';
 import './offers-documents.css';
 const validId = (id?: string) => Boolean(id && /^[a-f\d]{24}$/i.test(id));
-const errorText = (e: unknown) =>
-  e instanceof Error ? e.message : 'Something went wrong.';
+const errorText = (e: unknown) => {
+  if (e instanceof ApiError) {
+    const fields = Object.entries(e.fieldErrors);
+    if (fields.length > 0) {
+      return `${e.message}: ${fields.map(([k, v]) => `${k} (${v})`).join(', ')}`;
+    }
+    return e.message;
+  }
+  return e instanceof Error ? e.message : 'Something went wrong.';
+};
 const date = (v?: string) =>
   v
     ? new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' }).format(
@@ -73,25 +86,133 @@ const date = (v?: string) =>
       )
     : 'Not provided';
 function OfferRow({ offer, to }: { offer: Offer; to: string }) {
+  const codeBadge = `#OFFER-${offer.id.slice(-6).toUpperCase()}`;
+  const statusDotClass =
+    offer.status === 'accepted'
+      ? 'success'
+      : ['pending-approval', 'draft'].includes(offer.status)
+      ? 'warning'
+      : offer.status === 'sent'
+      ? 'info'
+      : 'neutral';
+
   return (
-    <article className="od-record">
-      <div>
-        <strong>
-          <RouterLink to={to}>{offer.title}</RouterLink>
-        </strong>
-        <span>
-          {offer.candidateName} · Revision {offer.revisionNumber ?? 1}
+    <tr className="job-table-row">
+      <td className="job-entity-cell">
+        <div className="job-entity-icon">
+          <Award size={18} />
+        </div>
+        <div className="job-entity-info">
+          <strong className="job-entity-title">
+            <RouterLink to={to}>{offer.title}</RouterLink>
+          </strong>
+          <div className="job-entity-meta">
+            <span>{offer.candidateName || 'Candidate'}</span>
+            <span className="job-code-badge">{codeBadge}</span>
+          </div>
+        </div>
+      </td>
+      <td>
+        <span style={{ fontWeight: 600, color: '#0f172a' }}>
+          {formatMoney(offer)}
         </span>
-      </div>
-      <div>
-        <StatusTag tone={offerTone(offer.status)}>
+      </td>
+      <td>
+        <span style={{ fontSize: '0.8125rem', color: '#64748b' }}>
+          Rev {offer.revisionNumber ?? 1}
+        </span>
+      </td>
+      <td>
+        <span className={`job-status-pill job-status-pill--${statusDotClass}`}>
+          <span className={`job-status-dot job-status-dot--${statusDotClass}`} />
           {offer.status.replaceAll('-', ' ')}
-        </StatusTag>
-        <span>{formatMoney(offer)}</span>
-      </div>
-    </article>
+        </span>
+      </td>
+      <td>
+        <RouterLink
+          to={to}
+          className="tvx-button tvx-button--secondary tvx-button--sm"
+          style={{ height: '30px', borderRadius: '9999px', fontSize: '0.78125rem' }}
+        >
+          View Details
+        </RouterLink>
+      </td>
+    </tr>
   );
 }
+
+function RevisionHistoryItem({ offer, currentOfferId }: { offer: Offer; currentOfferId: string }) {
+  const isCurrent = offer.id === currentOfferId;
+  const statusDotClass =
+    offer.status === 'accepted'
+      ? 'success'
+      : ['pending-approval', 'draft'].includes(offer.status)
+      ? 'warning'
+      : offer.status === 'sent'
+      ? 'info'
+      : 'neutral';
+
+  return (
+    <div
+      style={{
+        padding: '14px',
+        borderRadius: '12px',
+        border: isCurrent ? '1.5px solid #10b981' : '1px solid #e2e8f0',
+        background: isCurrent ? '#f0fdf4' : '#ffffff',
+        marginBottom: '10px',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '10px',
+        boxShadow: isCurrent ? '0 2px 8px rgba(16, 185, 129, 0.08)' : '0 1px 3px rgba(0,0,0,0.02)',
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px' }}>
+        <span
+          style={{
+            fontSize: '0.75rem',
+            fontWeight: 700,
+            padding: '3px 10px',
+            borderRadius: '9999px',
+            background: isCurrent ? '#dcfce7' : '#f1f5f9',
+            color: isCurrent ? '#15803d' : '#475569',
+          }}
+        >
+          {isCurrent ? 'Current revision' : `Revision ${offer.revisionNumber ?? 1}`}
+        </span>
+        <span className={`job-status-pill job-status-pill--${statusDotClass}`}>
+          <span className={`job-status-dot job-status-dot--${statusDotClass}`} />
+          {offer.status.replaceAll('-', ' ')}
+        </span>
+      </div>
+
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+        <div>
+          <strong style={{ display: 'block', fontSize: '0.875rem', color: '#0f172a' }}>
+            {offer.title || 'Offer'}
+          </strong>
+          <span style={{ fontSize: '0.8125rem', color: '#64748b' }}>
+            {formatMoney(offer)} · Rev {offer.revisionNumber ?? 1}
+          </span>
+        </div>
+
+        {isCurrent ? (
+          <span style={{ fontSize: '0.75rem', fontWeight: '600', color: '#059669', background: '#dcfce7', padding: '4px 10px', borderRadius: '9999px' }}>
+            Viewing
+          </span>
+        ) : (
+          <RouterLink
+            to={`/org/offers/${offer.id}`}
+            className="tvx-button tvx-button--secondary tvx-button--sm"
+            style={{ height: '30px', borderRadius: '9999px', fontSize: '0.75rem', textDecoration: 'none', padding: '0 12px', display: 'inline-flex', alignItems: 'center' }}
+          >
+            View Details
+          </RouterLink>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function PageControls({
   page,
   pages,
@@ -215,22 +336,88 @@ export function ManagedOffersPage() {
           ) : undefined
         }
         secondaryActions={
-          <>
-            <RouterLink
-              className="tvx-button tvx-button--secondary tvx-button--regular"
-              to="/org/offers/templates"
-            >
-              Templates
-            </RouterLink>
-            <RouterLink
-              className="tvx-button tvx-button--secondary tvx-button--regular"
-              to="/org/offers/approvals"
-            >
-              Approvals
-            </RouterLink>
-          </>
+          <nav className="ats-nav-tabs-wrapper" aria-label="Offer sections">
+            <div className="ats-nav-tabs">
+              <RouterNavLink to="/org/offers" end className={({ isActive }) => `ats-nav-tab ${isActive ? 'active' : ''}`}>
+                Offers
+              </RouterNavLink>
+              <RouterNavLink to="/org/offers/templates" className={({ isActive }) => `ats-nav-tab ${isActive ? 'active' : ''}`}>
+                Templates
+              </RouterNavLink>
+              <RouterNavLink to="/org/offers/approvals" className={({ isActive }) => `ats-nav-tab ${isActive ? 'active' : ''}`}>
+                Approvals
+              </RouterNavLink>
+            </div>
+          </nav>
         }
       />
+
+      <div className="ats-metrics-grid">
+        <div className="ats-metric-card">
+          <div className="ats-metric-card__header">
+            <div className="ats-metric-icon-box"><FileText size={18} /></div>
+            <span className="ats-metric-badge ats-metric-badge--neutral">All Time</span>
+          </div>
+          <div className="ats-metric-card__body">
+            <span className="ats-metric-card__label">Total Offers</span>
+            <span className="ats-metric-card__val">{q.data?.total ?? q.data?.items.length ?? 0}</span>
+            <span className="ats-metric-card__sub">Created candidate offers</span>
+          </div>
+        </div>
+        <div className="ats-metric-card">
+          <div className="ats-metric-card__header">
+            <div className="ats-metric-icon-box" style={{ background: '#f59e0b' }}><Clock size={18} /></div>
+            <span className="ats-metric-badge ats-metric-badge--warning">Action Needed</span>
+          </div>
+          <div className="ats-metric-card__body">
+            <span className="ats-metric-card__label">Pending Approval</span>
+            <span className="ats-metric-card__val">
+              {q.data?.items.filter((o) => o.status === 'pending-approval').length ?? 0}
+            </span>
+            <span className="ats-metric-card__sub">Awaiting management signoff</span>
+          </div>
+        </div>
+        <div className="ats-metric-card">
+          <div className="ats-metric-card__header">
+            <div className="ats-metric-icon-box" style={{ background: '#0284c7' }}><Sparkles size={18} /></div>
+            <span className="ats-metric-badge ats-metric-badge--info">Out for Signature</span>
+          </div>
+          <div className="ats-metric-card__body">
+            <span className="ats-metric-card__label">Active & Sent</span>
+            <span className="ats-metric-card__val">
+              {q.data?.items.filter((o) => o.status === 'sent').length ?? 0}
+            </span>
+            <span className="ats-metric-card__sub">Delivered to candidates</span>
+          </div>
+        </div>
+        <div className="ats-metric-card">
+          <div className="ats-metric-card__header">
+            <div className="ats-metric-icon-box" style={{ background: '#10b981' }}><CheckCircle2 size={18} /></div>
+            <span className="ats-metric-badge ats-metric-badge--success">Success</span>
+          </div>
+          <div className="ats-metric-card__body">
+            <span className="ats-metric-card__label">Accepted & Hired</span>
+            <span className="ats-metric-card__val">
+              {q.data?.items.filter((o) => o.status === 'accepted').length ?? 0}
+            </span>
+            <span className="ats-metric-card__sub">Signed offer agreements</span>
+          </div>
+        </div>
+        <div className="ats-metric-card">
+          <div className="ats-metric-card__header">
+            <div className="ats-metric-icon-box" style={{ background: '#64748b' }}><Award size={18} /></div>
+            <span className="ats-metric-badge ats-metric-badge--neutral">Inactive</span>
+          </div>
+          <div className="ats-metric-card__body">
+            <span className="ats-metric-card__label">Expired / Declined</span>
+            <span className="ats-metric-card__val">
+              {q.data?.items.filter((o) => ['expired', 'rejected', 'withdrawn', 'superseded'].includes(o.status)).length ?? 0}
+            </span>
+            <span className="ats-metric-card__sub">Closed without hire</span>
+          </div>
+        </div>
+      </div>
+
       <Toolbar
         label="Offer filters"
         start={
@@ -262,13 +449,26 @@ export function ManagedOffersPage() {
           retry={() => void q.refetch()}
         />
       ) : q.data?.items.length ? (
-        <Card>
-          <div className="od-list">
-            {q.data.items.map((o) => (
-              <OfferRow key={o.id} offer={o} to={`/org/offers/${o.id}`} />
-            ))}
+        <div className="ats-table-card">
+          <div className="job-table-wrapper">
+            <table className="job-modern-table" aria-label="Managed offers table">
+              <thead>
+                <tr>
+                  <th>OFFER TITLE & CANDIDATE</th>
+                  <th>COMPENSATION</th>
+                  <th>REVISION</th>
+                  <th>STATUS</th>
+                  <th>ACTIONS</th>
+                </tr>
+              </thead>
+              <tbody>
+                {q.data.items.map((o) => (
+                  <OfferRow key={o.id} offer={o} to={`/org/offers/${o.id}`} />
+                ))}
+              </tbody>
+            </table>
           </div>
-        </Card>
+        </div>
       ) : (
         <EmptyState
           title="No offers found"
@@ -312,7 +512,11 @@ const baseForm = {
 };
 export function OfferFormPage({ mode }: { mode: 'create' | 'edit' }) {
   const { offerId } = useParams(),
+    [sp] = useSearchParams(),
     nav = useNavigate(),
+    initialAppId = sp.get('applicationId') || '',
+    [selectedAppId, setSelectedAppId] = useState(initialAppId),
+    applicationsQuery = useApplications('limit=50', mode === 'create'),
     offerQ = useManagedOffer(
       offerId ?? '',
       mode === 'edit' && validId(offerId),
@@ -321,6 +525,19 @@ export function OfferFormPage({ mode }: { mode: 'create' | 'edit' }) {
     [form, setForm] = useState(baseForm),
     [seeded, setSeeded] = useState(false),
     [error, setError] = useState('');
+
+  const appItems = (applicationsQuery.data?.items ?? []) as any[];
+  const appOptions = [
+    { value: '', label: '-- Select Candidate Application --' },
+    ...(selectedAppId && !appItems.some((x) => x.id === selectedAppId)
+      ? [{ value: selectedAppId, label: `Selected Application (${selectedAppId})` }]
+      : []),
+    ...appItems.map((x) => ({
+      value: x.id,
+      label: `${x.candidateName || 'Candidate'} — ${x.jobTitle || 'Job'} [Stage: ${x.status ?? 'submitted'}]`,
+    })),
+  ];
+
   if (mode === 'edit' && offerQ.data && !seeded) {
     const o = offerQ.data;
     setForm({
@@ -339,17 +556,41 @@ export function OfferFormPage({ mode }: { mode: 'create' | 'edit' }) {
   const submit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setError('');
+    const targetAppId = selectedAppId || (
+      e.currentTarget.elements.namedItem(
+        'applicationId',
+      ) as HTMLInputElement | null
+    )?.value || '';
+
+    if (mode === 'create' && (!targetAppId || !validId(targetAppId))) {
+      setError('Please select a valid candidate application before creating an offer.');
+      return;
+    }
+    if (!form.title.trim()) {
+      setError('Offer title is required.');
+      return;
+    }
+    if (!form.joiningDate) {
+      setError('Joining date is required.');
+      return;
+    }
+    const joiningDateObj = new Date(form.joiningDate);
+    if (isNaN(joiningDateObj.getTime())) {
+      setError('Please enter a valid joining date.');
+      return;
+    }
+
     try {
       const createBody = {
-        title: form.title,
-        department: form.department || undefined,
-        employmentType: form.employmentType,
-        workMode: form.workMode,
-        joiningDate: form.joiningDate,
+        title: form.title.trim(),
+        department: form.department?.trim() || undefined,
+        employmentType: form.employmentType || 'full-time',
+        workMode: form.workMode || 'onsite',
+        joiningDate: joiningDateObj.toISOString(),
         compensation: {
-          currency: form.currency,
-          period: form.period,
-          base: Number(form.base),
+          currency: (form.currency || 'INR').toUpperCase(),
+          period: form.period || 'yearly',
+          base: Number(form.base) || 0,
           variable: 0,
           bonus: 0,
           joiningBonus: 0,
@@ -360,22 +601,18 @@ export function OfferFormPage({ mode }: { mode: 'create' | 'edit' }) {
         benefits: [],
         terms: [],
         clauses: [],
-        validityDays: Number(form.validityDays),
-        applicationId: (
-          e.currentTarget.elements.namedItem(
-            'applicationId',
-          ) as HTMLInputElement | null
-        )?.value,
+        validityDays: Number(form.validityDays) || 7,
+        applicationId: targetAppId,
       };
       const body =
         mode === 'create'
           ? createBody
           : {
-              title: form.title,
-              department: form.department || undefined,
-              employmentType: form.employmentType,
-              workMode: form.workMode,
-              joiningDate: form.joiningDate,
+              title: form.title.trim(),
+              department: form.department?.trim() || undefined,
+              employmentType: form.employmentType || 'full-time',
+              workMode: form.workMode || 'onsite',
+              joiningDate: joiningDateObj.toISOString(),
             };
       const result = await mutation.mutateAsync({
         path: mode === 'create' ? '/offers' : `/offers/manage/${offerId}`,
@@ -413,12 +650,25 @@ export function OfferFormPage({ mode }: { mode: 'create' | 'edit' }) {
       <Form onSubmit={submit} busy={mutation.isPending}>
         <FormSection legend="Candidate and role">
           {mode === 'create' && (
-            <TextField
-              name="applicationId"
-              label="Application ID"
-              required
-              pattern="[a-fA-F0-9]{24}"
-            />
+            <>
+              {appOptions.length > 1 && (
+                <Select
+                  label="Candidate Application"
+                  value={selectedAppId}
+                  options={appOptions}
+                  onChange={(e) => setSelectedAppId(e.target.value)}
+                />
+              )}
+              <TextField
+                name="applicationId"
+                label="Application ID (raw MongoDB ID)"
+                required
+                pattern="[a-fA-F0-9]{24}"
+                value={selectedAppId}
+                onChange={(e) => setSelectedAppId(e.target.value)}
+                hint="Auto-populated when selecting a candidate above or clicking 'Create Offer' from application/interview pages."
+              />
+            </>
           )}
           <TextField
             label="Offer title"
@@ -574,7 +824,8 @@ export function ManagedOfferDetailPage() {
     );
   const o = q.data,
     manage = Boolean(recruiter?.permissions.includes('offers.manage')),
-    send = Boolean(recruiter?.permissions.includes('offers.send'));
+    send = Boolean(recruiter?.permissions.includes('offers.send')),
+    approve = Boolean(recruiter?.permissions.includes('offers.approve'));
   return (
     <main>
       <PageHeader
@@ -588,6 +839,14 @@ export function ManagedOfferDetailPage() {
         }
         secondaryActions={
           <>
+            {approve && o.status === 'pending-approval' && (
+              <RouterLink
+                className="tvx-button tvx-button--primary tvx-button--regular"
+                to={`/org/offers/approvals/${offerId}`}
+              >
+                Review & Approve
+              </RouterLink>
+            )}
             {manage && ['draft', 'rejected'].includes(o.status) && (
               <RouterLink
                 className="tvx-button tvx-button--secondary tvx-button--regular"
@@ -656,20 +915,21 @@ export function ManagedOfferDetailPage() {
             )}
             {manage && o.status === 'negotiation-requested' && (
               <>
+                <RouterLink
+                  className="tvx-button tvx-button--primary tvx-button--regular"
+                  to={`/org/offers/${offerId}/revise`}
+                >
+                  📄 Create Revision & Increase Salary ↗
+                </RouterLink>
                 <OfferAction
-                  label="Request revision"
+                  label="Reaffirm terms"
                   path={`/offers/manage/${offerId}/negotiation/resolve`}
-                  body={{ resolution: 'revision-required' }}
+                  body={{ resolution: 'reaffirmed' }}
                 />
                 <OfferAction
                   label="Reject negotiation"
                   path={`/offers/manage/${offerId}/negotiation/resolve`}
                   body={{ resolution: 'rejected' }}
-                />
-                <OfferAction
-                  label="Reaffirm terms"
-                  path={`/offers/manage/${offerId}/negotiation/resolve`}
-                  body={{ resolution: 'reaffirmed' }}
                 />
                 <OfferAction
                   label="Withdraw after negotiation"
@@ -682,6 +942,31 @@ export function ManagedOfferDetailPage() {
           </>
         }
       />
+      {o.negotiation && (
+        <Alert
+          tone="warning"
+          title="Candidate Negotiation Request"
+          style={{ marginBottom: '16px' }}
+        >
+          {o.negotiation.message && (
+            <p style={{ marginTop: '4px', fontWeight: 500 }}>
+              💬 Candidate Note: &ldquo;{o.negotiation.message}&rdquo;
+            </p>
+          )}
+          {o.negotiation.requestedChanges && Object.keys(o.negotiation.requestedChanges).length > 0 && (
+            <div style={{ marginTop: '8px', fontSize: '0.9rem' }}>
+              <strong>Requested Changes:</strong>
+              <ul style={{ margin: '4px 0 0 16px', padding: 0 }}>
+                {Object.entries(o.negotiation.requestedChanges).map(([k, v]) => (
+                  <li key={k}>
+                    <strong>{k.replace(/([A-Z])/g, ' $1').toLowerCase()}</strong>: {typeof v === 'object' ? JSON.stringify(v) : String(v)}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </Alert>
+      )}
       <div className="od-split">
         <Card heading="Offer terms">
           <OfferTerms offer={o} />
@@ -691,14 +976,9 @@ export function ManagedOfferDetailPage() {
           description="Attachments remain on the exact revision where they were uploaded."
         >
           {history.data?.map((x) => (
-            <div key={x.id}>
-              <StatusTag tone={x.id === o.id ? 'success' : 'neutral'}>
-                {x.id === o.id ? 'Current revision' : 'Previous revision'}
-              </StatusTag>
-              <OfferRow offer={x} to={`/org/offers/${x.id}`} />
-            </div>
+            <RevisionHistoryItem key={x.id} offer={x} currentOfferId={o.id} />
           ))}
-          {!history.data?.length && <p>This is the only revision.</p>}
+          {!history.data?.length && <p style={{ fontSize: '0.875rem', color: '#64748b' }}>This is the only revision.</p>}
           {manage &&
             [
               'rejected',
@@ -708,7 +988,21 @@ export function ManagedOfferDetailPage() {
               'negotiation-requested',
               'declined',
             ].includes(o.status) && (
-              <RouterLink to={`/org/offers/${offerId}/revise`}>
+              <RouterLink
+                to={`/org/offers/${offerId}/revise`}
+                className="btn-pill-dark"
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justify: 'center',
+                  gap: '6px',
+                  width: '100%',
+                  marginTop: '12px',
+                  textDecoration: 'none',
+                  fontSize: '0.875rem',
+                  padding: '10px 16px'
+                }}
+              >
                 Create a revision
               </RouterLink>
             )}
@@ -769,6 +1063,7 @@ export function ApprovalQueuePage() {
 }
 export function ApprovalDetailPage() {
   const { offerId = '' } = useParams(),
+    navigate = useNavigate(),
     q = useApproval(offerId),
     m = useOfferMutation(),
     [reason, setReason] = useState('');
@@ -805,12 +1100,13 @@ export function ApprovalDetailPage() {
             title="Approve offer?"
             description="The offer becomes eligible to send."
             confirmLabel="Approve"
-            onConfirm={() =>
-              m.mutateAsync({
+            onConfirm={async () => {
+              await m.mutateAsync({
                 path: `/offers/approvals/${offerId}/approve`,
                 body: {},
-              })
-            }
+              });
+              navigate(`/org/offers/${offerId}`);
+            }}
             trigger={<Button>Approve</Button>}
           />
           <ConfirmDialog
@@ -818,12 +1114,13 @@ export function ApprovalDetailPage() {
             description="The draft returns for changes."
             confirmLabel="Reject"
             variant="destructive"
-            onConfirm={() =>
-              m.mutateAsync({
+            onConfirm={async () => {
+              await m.mutateAsync({
                 path: `/offers/approvals/${offerId}/reject`,
                 body: { reason },
-              })
-            }
+              });
+              navigate(`/org/offers/${offerId}`);
+            }}
             trigger={
               <Button variant="danger" disabled={reason.trim().length < 1}>
                 Reject
@@ -973,7 +1270,17 @@ export function OfferRevisionPage() {
     m = useOfferMutation(),
     nav = useNavigate(),
     [reason, setReason] = useState(''),
-    [title, setTitle] = useState(''),
+    [form, setForm] = useState({
+      title: '',
+      department: '',
+      employmentType: 'full-time',
+      workMode: 'onsite',
+      joiningDate: '',
+      currency: 'INR',
+      period: 'yearly',
+      base: '',
+    }),
+    [seeded, setSeeded] = useState(false),
     [error, setError] = useState('');
   if (q.isLoading) return <LoadingState />;
   if (
@@ -993,10 +1300,47 @@ export function OfferRevisionPage() {
         description="Only an eligible current offer can be revised."
       />
     );
+  if (q.data && !seeded) {
+    const o = q.data;
+    setForm({
+      title: o.title ?? '',
+      department: o.department ?? '',
+      employmentType: o.employmentType ?? 'full-time',
+      workMode: o.workMode ?? 'onsite',
+      joiningDate: o.joiningDate ? o.joiningDate.slice(0, 10) : '',
+      currency: o.compensation?.currency ?? 'INR',
+      period: o.compensation?.period ?? 'yearly',
+      base: String(o.compensation?.base ?? 0),
+    });
+    setSeeded(true);
+  }
   const submit = async (e: FormEvent) => {
     e.preventDefault();
+    setError('');
+    if (!reason.trim()) {
+      setError('Revision reason is required.');
+      return;
+    }
     try {
-      const body = { reason, ...(title.trim() ? { title } : {}) };
+      const joiningDateObj = form.joiningDate ? new Date(form.joiningDate) : undefined;
+      const body: Record<string, any> = {
+        reason: reason.trim(),
+        ...(form.title.trim() ? { title: form.title.trim() } : {}),
+        ...(form.department.trim() ? { department: form.department.trim() } : {}),
+        ...(form.employmentType ? { employmentType: form.employmentType } : {}),
+        ...(form.workMode ? { workMode: form.workMode } : {}),
+        ...(joiningDateObj && !isNaN(joiningDateObj.getTime())
+          ? { joiningDate: joiningDateObj.toISOString() }
+          : {}),
+        compensation: {
+          currency: (form.currency || 'INR').toUpperCase(),
+          period: form.period || 'yearly',
+          base: Number(form.base) || 0,
+          variable: 0,
+          joiningBonus: 0,
+          allowances: [],
+        },
+      };
       const v = (await m.mutateAsync({
         path: `/offers/manage/${offerId}/revise`,
         method: 'POST',
@@ -1011,21 +1355,98 @@ export function OfferRevisionPage() {
     <main>
       <PageHeader
         title="Create offer revision"
-        description="The existing revision becomes superseded. Attachments are not copied to the new revision."
+        description="The existing revision becomes superseded. Update salary, compensation, or role terms below."
       />
       <Form onSubmit={submit} busy={m.isPending}>
-        <TextArea
-          label="Revision reason"
-          required
-          value={reason}
-          onChange={(e) => setReason(e.target.value)}
-        />
-        <TextField
-          label="Updated title"
-          aria-label="Updated title (optional)"
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-        />
+        <FormSection legend="Revision justification">
+          <TextArea
+            label="Revision reason"
+            required
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            hint="Describe why this offer is being revised (e.g., salary increase following candidate negotiation)."
+          />
+        </FormSection>
+
+        <FormSection legend="Compensation & Salary Improvement">
+          <div className="od-form-grid">
+            <TextField
+              label="Base compensation / Salary"
+              type="number"
+              min="0"
+              required
+              value={form.base}
+              onChange={(e) => setForm({ ...form, base: e.target.value })}
+              hint="Increase base salary per candidate negotiation."
+            />
+            <TextField
+              label="Currency"
+              required
+              maxLength={3}
+              value={form.currency}
+              onChange={(e) =>
+                setForm({ ...form, currency: e.target.value.toUpperCase() })
+              }
+            />
+            <Select
+              label="Pay period"
+              value={form.period}
+              options={['yearly', 'monthly', 'hourly', 'one-time'].map(
+                (x) => ({
+                  value: x,
+                  label: x,
+                }),
+              )}
+              onChange={(e) => setForm({ ...form, period: e.target.value })}
+            />
+          </div>
+        </FormSection>
+
+        <FormSection legend="Role & Working Terms">
+          <TextField
+            label="Offer title"
+            value={form.title}
+            onChange={(e) => setForm({ ...form, title: e.target.value })}
+          />
+          <TextField
+            label="Department"
+            value={form.department}
+            onChange={(e) => setForm({ ...form, department: e.target.value })}
+          />
+          <div className="od-form-grid">
+            <Select
+              label="Employment type"
+              value={form.employmentType}
+              options={[
+                'full-time',
+                'part-time',
+                'contract',
+                'internship',
+                'freelance',
+              ].map((x) => ({ value: x, label: x }))}
+              onChange={(e) =>
+                setForm({ ...form, employmentType: e.target.value })
+              }
+            />
+            <Select
+              label="Work mode"
+              value={form.workMode}
+              options={['onsite', 'remote', 'hybrid'].map((x) => ({
+                value: x,
+                label: x,
+              }))}
+              onChange={(e) => setForm({ ...form, workMode: e.target.value })}
+            />
+            <DateField
+              label="Joining date"
+              value={form.joiningDate}
+              onChange={(e) =>
+                setForm({ ...form, joiningDate: e.target.value })
+              }
+            />
+          </div>
+        </FormSection>
+
         {error && (
           <Alert tone="danger">
             <p>{error}</p>
@@ -1034,7 +1455,7 @@ export function OfferRevisionPage() {
         <FormActions>
           <ConfirmDialog
             title="Create revision?"
-            description="The current offer revision will be superseded."
+            description="The current offer revision will be superseded and updated terms will be submitted."
             confirmLabel="Create revision"
             onConfirm={() => {
               const form = document.querySelector('form');
@@ -1042,7 +1463,7 @@ export function OfferRevisionPage() {
             }}
             trigger={
               <Button disabled={reason.trim().length < 1}>
-                Create revision
+                Create revision & update salary
               </Button>
             }
           />
@@ -1156,9 +1577,6 @@ export function CandidateOffersPage() {
           description="Offers sent to you will appear here."
         />
       )}
-      <Alert tone="neutral" title="List limitation">
-        <p>The candidate offer API currently returns one unpaginated list.</p>
-      </Alert>
     </div>
   );
 }
@@ -1171,7 +1589,10 @@ export function CandidateOfferDetailPage() {
     viewMutation = useOfferMutation(),
     viewedRef = useRef(false),
     [message, setMessage] = useState(''),
-    [decline, setDecline] = useState('');
+    [decline, setDecline] = useState(''),
+    [declineCategory, setDeclineCategory] = useState('compensation'),
+    [acceptComments, setAcceptComments] = useState(''),
+    [responseAction, setResponseAction] = useState<'accept' | 'decline' | 'negotiate'>('accept');
   useEffect(() => {
     if (q.data?.status === 'sent' && !viewedRef.current) {
       viewedRef.current = true;
@@ -1200,6 +1621,16 @@ export function CandidateOfferDetailPage() {
           <p>This revision can no longer be accepted or declined.</p>
         </Alert>
       )}
+      {m.isError && (
+        <Alert tone="danger" title="Action failed" style={{ marginBottom: '16px' }}>
+          <p>{errorText(m.error)}</p>
+        </Alert>
+      )}
+      {m.isSuccess && (
+        <Alert tone="success" title="Response recorded" style={{ marginBottom: '16px' }}>
+          <p>Your offer response has been successfully saved and communicated to the employer.</p>
+        </Alert>
+      )}
       <div className="od-split">
         <Card heading="Offer terms">
           <OfferTerms offer={o} />
@@ -1208,68 +1639,146 @@ export function CandidateOfferDetailPage() {
             electronic signature.
           </p>
           {active && (
-            <FormActions align="start">
-              <ConfirmDialog
-                title="Accept this offer?"
-                description="Your acceptance is final for this revision. This is not an electronic signature."
-                confirmLabel="Accept offer"
-                onConfirm={() =>
-                  m.mutateAsync({
-                    path: `/offers/me/${offerId}/accept`,
-                    body: {},
-                  })
-                }
-                trigger={<Button>Accept</Button>}
-              />
-              <ConfirmDialog
-                title="Decline this offer?"
-                description="Your response is consequential and cannot be undone here."
-                confirmLabel="Decline offer"
-                variant="destructive"
-                onConfirm={() =>
-                  m.mutateAsync({
-                    path: `/offers/me/${offerId}/decline`,
-                    body: { category: 'other', reason: decline },
-                  })
-                }
-                trigger={
-                  <Button variant="danger" disabled={decline.trim().length < 1}>
-                    Decline
-                  </Button>
-                }
-              />
-            </FormActions>
-          )}
-          {active && (
-            <>
-              <TextArea
-                label="Reason for declining"
-                value={decline}
-                onChange={(e) => setDecline(e.target.value)}
-              />
-              <TextArea
-                label="Negotiation request"
-                hint="Describe the changes you would like the recruiter to consider."
-                value={message}
-                onChange={(e) => setMessage(e.target.value)}
-              />
-              <ConfirmDialog
-                title="Request negotiation?"
-                description="This sends your request to the recruiter and pauses the current decision."
-                confirmLabel="Send request"
-                onConfirm={() =>
-                  m.mutateAsync({
-                    path: `/offers/me/${offerId}/negotiate`,
-                    body: { message, requestedChanges: { comments: message } },
-                  })
-                }
-                trigger={
-                  <Button variant="secondary" disabled={!message.trim()}>
-                    Request changes
-                  </Button>
-                }
-              />
-            </>
+            <div style={{ marginTop: '24px', paddingTop: '20px', borderTop: '1px solid var(--color-border)' }}>
+              <h3 style={{ margin: '0 0 12px 0', fontSize: '1.05rem', fontWeight: 600 }}>Respond to Job Offer</h3>
+              
+              <div style={{ display: 'flex', gap: '8px', marginBottom: '16px', flexWrap: 'wrap' }}>
+                <Button
+                  variant={responseAction === 'accept' ? 'primary' : 'quiet'}
+                  onClick={() => setResponseAction('accept')}
+                >
+                  Accept Offer
+                </Button>
+                <Button
+                  variant={responseAction === 'decline' ? 'danger' : 'quiet'}
+                  onClick={() => setResponseAction('decline')}
+                >
+                  Decline Offer
+                </Button>
+                <Button
+                  variant={responseAction === 'negotiate' ? 'secondary' : 'quiet'}
+                  onClick={() => setResponseAction('negotiate')}
+                >
+                  Request Changes / Negotiate
+                </Button>
+              </div>
+
+              {responseAction === 'accept' && (
+                <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '8px', padding: '16px' }}>
+                  <p style={{ margin: '0 0 12px 0', color: '#166534', fontWeight: 500 }}>
+                    Confirm your acceptance of this offer.
+                  </p>
+                  <TextArea
+                    label="Optional acceptance note / comments"
+                    hint="Share any message or preferred start date notes with the recruiter."
+                    value={acceptComments}
+                    onChange={(e) => setAcceptComments(e.target.value)}
+                  />
+                  <div style={{ marginTop: '12px' }}>
+                    <ConfirmDialog
+                      title="Accept this offer?"
+                      description="Your acceptance is final for this revision. This is not an electronic signature."
+                      confirmLabel="Confirm & Accept Offer"
+                      onConfirm={() =>
+                        m.mutateAsync({
+                          path: `/offers/me/${offerId}/accept`,
+                          body: { comments: acceptComments },
+                        })
+                      }
+                      trigger={<Button disabled={m.isPending}>Confirm Acceptance</Button>}
+                    />
+                  </div>
+                </div>
+              )}
+
+              {responseAction === 'decline' && (
+                <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '8px', padding: '16px' }}>
+                  <p style={{ margin: '0 0 12px 0', color: '#991b1b', fontWeight: 500 }}>
+                    Please select a reason for declining this offer.
+                  </p>
+                  <Select
+                    label="Primary reason for declining"
+                    value={declineCategory}
+                    options={[
+                      { value: 'compensation', label: 'Compensation & Benefits' },
+                      { value: 'joining-date', label: 'Start Date Conflict' },
+                      { value: 'role', label: 'Role & Responsibilities' },
+                      { value: 'location', label: 'Location / Relocation' },
+                      { value: 'work-mode', label: 'Work Mode (Remote / Onsite)' },
+                      { value: 'accepted-other-offer', label: 'Accepted Another Offer' },
+                      { value: 'personal', label: 'Personal Circumstances' },
+                      { value: 'other', label: 'Other Reason' },
+                    ]}
+                    onChange={(e) => setDeclineCategory(e.target.value)}
+                  />
+                  <div style={{ marginTop: '12px' }}>
+                    <TextArea
+                      label="Additional details / explanation"
+                      hint={declineCategory === 'other' ? 'Please provide a brief reason.' : 'Optional explanation for the recruiter.'}
+                      value={decline}
+                      onChange={(e) => setDecline(e.target.value)}
+                    />
+                  </div>
+                  <div style={{ marginTop: '12px' }}>
+                    <ConfirmDialog
+                      title="Decline this offer?"
+                      description="Your response will mark the offer as declined and notify the recruiter."
+                      confirmLabel="Confirm Decline"
+                      variant="destructive"
+                      onConfirm={() =>
+                        m.mutateAsync({
+                          path: `/offers/me/${offerId}/decline`,
+                          body: { category: declineCategory, reason: decline },
+                        })
+                      }
+                      trigger={
+                        <Button
+                          variant="danger"
+                          disabled={m.isPending || (declineCategory === 'other' && !decline.trim())}
+                        >
+                          Confirm Decline
+                        </Button>
+                      }
+                    />
+                  </div>
+                </div>
+              )}
+
+              {responseAction === 'negotiate' && (
+                <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '8px', padding: '16px' }}>
+                  <p style={{ margin: '0 0 12px 0', color: '#1e40af', fontWeight: 500 }}>
+                    Submit a request for terms negotiation to the recruiter.
+                  </p>
+                  <TextArea
+                    label="Negotiation request & desired changes"
+                    hint="Describe the specific compensation, start date, or terms you would like reconsidered."
+                    value={message}
+                    onChange={(e) => setMessage(e.target.value)}
+                  />
+                  <div style={{ marginTop: '12px' }}>
+                    <ConfirmDialog
+                      title="Submit negotiation request?"
+                      description="This sends your proposed changes to the recruiter and pauses decision timeout."
+                      confirmLabel="Send Request"
+                      onConfirm={() =>
+                        m.mutateAsync({
+                          path: `/offers/me/${offerId}/negotiate`,
+                          body: { message, requestedChanges: { comments: message } },
+                        })
+                      }
+                      trigger={
+                        <Button
+                          variant="secondary"
+                          disabled={m.isPending || !message.trim()}
+                        >
+                          Send Negotiation Request
+                        </Button>
+                      }
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
           )}
         </Card>
         <Card heading="Offer timeline">
@@ -1297,11 +1806,13 @@ export function CandidateOfferDetailPage() {
 function DocumentRow({
   doc,
   onDownload,
+  onView,
   actions,
   detailTo,
 }: {
   doc: DocumentRecord;
   onDownload: () => void;
+  onView?: () => void;
   actions?: React.ReactNode;
   detailTo?: string;
 }) {
@@ -1336,7 +1847,7 @@ function DocumentRow({
           {doc.verification.reason && `Reason: ${doc.verification.reason}`}
         </span>
       </div>
-      <div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
         <StatusTag
           tone={
             doc.verification.status === 'verified'
@@ -1348,11 +1859,22 @@ function DocumentRow({
         >
           {doc.verification.status.replaceAll('-', ' ')}
         </StatusTag>
+        {onView && (
+          <Button
+            variant="secondary"
+            disabled={!downloadable}
+            onClick={onView}
+            leadingIcon={<Eye size={14} />}
+          >
+            View
+          </Button>
+        )}
         <Button
           variant="secondary"
           disabled={!downloadable}
           loading={downloading}
           onClick={() => void download()}
+          leadingIcon={<Download size={14} />}
         >
           {!downloadable
             ? 'Download unavailable'
@@ -1387,25 +1909,42 @@ export function UploadControl({
   category?: string;
   access?: string;
 }) {
-  const input = useRef<HTMLInputElement>(null),
-    [state, setState] = useState<
-      'idle' | 'preparing' | 'uploading' | 'success' | 'error'
-    >('idle'),
-    [progress, setProgress] = useState(0),
-    [error, setError] = useState(''),
-    [selectedAccess, setSelectedAccess] = useState(access ?? 'company-private'),
-    [constraints, setConstraints] = useState<{
-      maximumBytes: number;
-      allowedMimeTypes: string[];
-    } | null>(null);
-  const defaultAccept = ['profile-photo', 'company-logo'].includes(category)
-    ? 'image/jpeg,image/png,image/webp'
-    : category === 'resume'
-      ? 'application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain'
-      : undefined;
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [state, setState] = useState<'idle' | 'preparing' | 'uploading' | 'success' | 'error'>('idle');
+  const [progress, setProgress] = useState(0);
+  const [error, setError] = useState('');
+  const [selectedAccess, setSelectedAccess] = useState(access ?? 'company-private');
+
+  const computedAccept =
+    category === 'resume'
+      ? '.pdf,.doc,.docx'
+      : ['profile-photo', 'company-logo'].includes(category)
+        ? '.jpg,.jpeg,.png,.webp'
+        : '.pdf,.doc,.docx,.txt,.jpg,.jpeg,.png,.webp';
+
+  const busy = state === 'preparing' || state === 'uploading';
+
+  const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0] ?? null;
+    setSelectedFile(file);
+    if (state === 'error' || state === 'success') {
+      setState('idle');
+      setError('');
+    }
+  };
+
   const run = async () => {
-    const file = input.current?.files?.[0];
-    if (!file) return;
+    if (!selectedFile) {
+      setError('Please select a file first.');
+      setState('error');
+      return;
+    }
+    if (selectedFile.size === 0) {
+      setError('The selected file is empty.');
+      setState('error');
+      return;
+    }
     setState('preparing');
     setError('');
     try {
@@ -1415,15 +1954,9 @@ export function UploadControl({
         entityId,
         purpose: 'Supporting document',
       });
-      setConstraints(session);
-      if (!session.allowedMimeTypes.includes(file.type))
-        throw new Error(
-          `Unsupported file type. Accepted: ${session.allowedMimeTypes.join(', ')}`,
-        );
-      if (file.size > session.maximumBytes)
-        throw new Error(
-          `File is too large. Maximum size is ${formatBytes(session.maximumBytes)}.`,
-        );
+      if (selectedFile.size > session.maximumBytes)
+        throw new Error(`File too large. Max ${formatBytes(session.maximumBytes)}.`);
+
       setState('uploading');
       const isProfileUpload = path.includes('/me/');
       const integratedOffer = path.includes('/manage/offers/');
@@ -1432,31 +1965,44 @@ export function UploadControl({
         {
           uploadSessionId: session.id,
           purpose: 'Supporting document',
-          displayName: file.name,
+          displayName: selectedFile.name,
           ...(integratedOffer ? { access: selectedAccess } : {}),
           ...(!integratedOffer && !isProfileUpload ? { category } : {}),
         },
-        file,
+        selectedFile,
         setProgress,
       );
       setState('success');
+      setSelectedFile(null);
+      if (fileInputRef.current) fileInputRef.current.value = '';
       onDone();
     } catch (x) {
       setError(errorText(x));
       setState('error');
     }
   };
+
   return (
     <div className="od-upload">
-      <label className="tvx-form-field">
-        <span>{replaceId ? 'Replacement file' : 'Choose document'}</span>
+      <div>
+        <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, marginBottom: '4px' }}>
+          Select attachment (PDF, Word, TXT, JPG, PNG, WebP)
+        </label>
         <input
-          ref={input}
-          className="tvx-input"
+          ref={fileInputRef}
           type="file"
-          accept={constraints?.allowedMimeTypes.join(',') || defaultAccept}
+          accept={computedAccept}
+          disabled={busy}
+          onChange={handleFileChange}
+          style={{ display: 'block', marginBottom: '6px' }}
         />
-      </label>
+        {selectedFile && (
+          <p style={{ color: '#059669', fontSize: '13px', margin: '2px 0 0 0', fontWeight: 500 }}>
+            ✓ {selectedFile.name} ({formatBytes(selectedFile.size)})
+          </p>
+        )}
+      </div>
+
       {path.includes('/manage/offers/') && !replaceId && (
         <Select
           label="Candidate access"
@@ -1468,24 +2014,12 @@ export function UploadControl({
           onChange={(e) => setSelectedAccess(e.target.value)}
         />
       )}
-      {constraints && (
-        <p>
-          Accepted: {constraints.allowedMimeTypes.join(', ')} · Maximum{' '}
-          {formatBytes(constraints.maximumBytes)}
-        </p>
-      )}
-      {state === 'uploading' && (
-        <Progress value={progress} label="Upload progress" />
-      )}
-      {state === 'preparing' && (
-        <p role="status">Checking upload constraints…</p>
-      )}
+
+      {state === 'uploading' && <Progress value={progress} label="Upload progress" />}
+      {state === 'preparing' && <p role="status">Preparing upload…</p>}
       {state === 'success' && (
         <Alert tone="success" title="Upload complete">
-          <p>
-            The document is processing and will be available according to its
-            scan state.
-          </p>
+          <p>Document uploaded and is being processed.</p>
         </Alert>
       )}
       {state === 'error' && (
@@ -1493,15 +2027,9 @@ export function UploadControl({
           <p>{error}</p>
         </Alert>
       )}
-      <Button
-        onClick={() => void run()}
-        loading={state === 'preparing' || state === 'uploading'}
-      >
-        {state === 'error'
-          ? 'Retry with a new upload session'
-          : replaceId
-            ? 'Replace'
-            : 'Upload'}
+
+      <Button onClick={() => void run()} loading={busy} disabled={busy || !selectedFile}>
+        {replaceId ? 'Replace' : 'Upload'}
       </Button>
     </div>
   );
@@ -1581,6 +2109,13 @@ export function CandidateDocumentsPage() {
       `page=${sp.get('page') ?? '1'}&limit=20${sp.get('status') ? `&status=${sp.get('status')}` : ''}`,
     ),
     m = useDocumentMutation();
+  const [previewDoc, setPreviewDoc] = useState<{
+    title: string;
+    url?: string;
+    mimeType?: string;
+    downloadPath?: string;
+    category?: string;
+  } | null>(null);
   return (
     <div className="candidate-page candidate-documents-compact candidate-domain-container">
       <div className="candidate-hero-banner-mindease">
@@ -1628,6 +2163,22 @@ export function CandidateDocumentsPage() {
               onDownload={() =>
                 void safeDownload(`/documents/${d.id}/download`)
               }
+              onView={async () => {
+                try {
+                  const url = await getDocumentUrl(
+                    `/documents/${d.id}/download?inline=true`,
+                  );
+                  setPreviewDoc({
+                    title: d.displayName,
+                    url,
+                    mimeType: d.mimeType,
+                    downloadPath: `/documents/${d.id}/download`,
+                    category: d.category,
+                  });
+                } catch {
+                  void safeDownload(`/documents/${d.id}/download`);
+                }
+              }}
               actions={
                 <>
                   {['active', 'archived'].includes(d.status) &&
@@ -1698,6 +2249,17 @@ export function CandidateDocumentsPage() {
           cannot be deleted from this manager.
         </p>
       </Alert>
+      <DocumentPreviewDialog
+        open={Boolean(previewDoc)}
+        onOpenChange={(open) => {
+          if (!open) setPreviewDoc(null);
+        }}
+        title={previewDoc?.title || ''}
+        url={previewDoc?.url}
+        mimeType={previewDoc?.mimeType}
+        downloadPath={previewDoc?.downloadPath}
+        category={previewDoc?.category}
+      />
     </div>
   );
 }
@@ -1807,6 +2369,13 @@ export function CandidateDocumentDetailPage() {
 export function CandidateApplicationDocumentsPage() {
   const { applicationId = '' } = useParams(),
     q = useApplicationDocuments(applicationId);
+  const [previewDoc, setPreviewDoc] = useState<{
+    title: string;
+    url?: string;
+    mimeType?: string;
+    downloadPath?: string;
+    category?: string;
+  } | null>(null);
   return (
     <main>
       <PageHeader
@@ -1824,6 +2393,22 @@ export function CandidateApplicationDocumentsPage() {
               key={d.id}
               doc={d}
               onDownload={() => safeDownload(`/documents/${d.id}/download`)}
+              onView={async () => {
+                try {
+                  const url = await getDocumentUrl(
+                    `/documents/${d.id}/download?inline=true`,
+                  );
+                  setPreviewDoc({
+                    title: d.displayName,
+                    url,
+                    mimeType: d.mimeType,
+                    downloadPath: `/documents/${d.id}/download`,
+                    category: d.category,
+                  });
+                } catch {
+                  void safeDownload(`/documents/${d.id}/download`);
+                }
+              }}
               actions={
                 <UploadControl
                   entityType="application"
@@ -1858,6 +2443,17 @@ export function CandidateApplicationDocumentsPage() {
           available only while the application is writable.
         </p>
       </Alert>
+      <DocumentPreviewDialog
+        open={Boolean(previewDoc)}
+        onOpenChange={(open) => {
+          if (!open) setPreviewDoc(null);
+        }}
+        title={previewDoc?.title || ''}
+        url={previewDoc?.url}
+        mimeType={previewDoc?.mimeType}
+        downloadPath={previewDoc?.downloadPath}
+        category={previewDoc?.category}
+      />
     </main>
   );
 }

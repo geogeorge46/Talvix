@@ -24,6 +24,28 @@ export const generateAssessment = handle(async (request, response) => {
   return ok(response, 'Assessment generated successfully', { assessment }, 201);
 });
 
+export const generateQuestions = handle(async (request, response) => {
+  const { topic, skills, difficulty, type, count } = request.body;
+
+  const questions = await service.generateQuestionsForBank({
+    topic,
+    skills,
+    difficulty,
+    type,
+    count,
+    companyId: companyId(request),
+    userId: request.user.id,
+    context: {
+      userId: request.user.id,
+      companyId: companyId(request),
+      ipAddress: request.ip || 'Unknown',
+      userAgent: request.headers['user-agent'] || 'Unknown'
+    }
+  });
+
+  return ok(response, 'Questions generated and added to bank successfully', { questions }, 201);
+});
+
 export const generateKit = handle(async (request, response) => {
   const { jobDetails, candidateDetails } = request.body;
   if (!jobDetails || !candidateDetails) throw new AppError('jobDetails and candidateDetails are required', 400);

@@ -144,16 +144,18 @@ describe('integrated RTL candidate journey (mocked contracts, not browser E2E)',
     ).toBeVisible();
     expect((await axe(container)).violations).toEqual([]);
     await user.click(screen.getByRole('link', { name: /^profile$/i }));
+    await user.click(await screen.findByText('Personal Info'));
     await user.clear(await screen.findByLabelText(/professional headline/i));
     await user.type(
       screen.getByLabelText(/professional headline/i),
       'Senior product designer',
     );
-    await user.click(screen.getByRole('button', { name: 'Save profile' }));
+    await user.click(screen.getByRole('button', { name: /Save Personal Info/i }));
     await waitFor(() =>
       expect(calls.some((x) => x === 'PATCH /api/v1/candidates/me')).toBe(true),
     );
-    await user.click(screen.getByRole('button', { name: 'Add skills' }));
+    await user.click(await screen.findByText('Skills & Portfolio'));
+    await user.click(await screen.findByRole('button', { name: /Add skill/i }));
     await user.type(screen.getByLabelText('Skill name'), 'Research');
     await user.click(screen.getByRole('button', { name: 'Add entry' }));
     await waitFor(() =>

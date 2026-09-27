@@ -1183,12 +1183,84 @@ export function AdminRecordDetailPage() {
         );
       })()}
       {type === 'applications' && Array.isArray(query.data.notes) && query.data.notes.length > 0 && <section className="sys-notes"><h2>Administrative notes</h2>{(query.data.notes as AdminRecord[]).map((note) => <article key={recordId(note)}><p>{displayValue(note.note ?? note.text)}</p><button onClick={() => setPending({ title: 'Delete this application note?', path: `${path}/notes/${recordId(note)}`, method: 'DELETE' })}>Delete note</button></article>)}</section>}
-      <section className="sys-action-strip"><div><ShieldAlert size={18} /><span><strong>Corrective actions</strong><small>Current status: {displayValue(query.data.status ?? query.data.verificationStatus ?? query.data.approvalStatus)} · every intervention is recorded.</small></span></div>{config.actions.map(([title, action, needsReason, options]) => {
-        const actionPath = (config as any).actionBase
-          ? `${(config as any).actionBase}/${id}/${action}`
-          : `${path}/${action}`;
-        return <button key={action} onClick={() => setPending({ title: `${title}?`, path: actionPath, reason: needsReason, field: options ? { name: 'status', label: 'New status', options: [...options].filter((status) => status !== query.data?.status) } : undefined })}>{title}</button>;
-      })}</section></>}
+      <section className="sys-action-strip">
+        <div>
+          <ShieldAlert size={18} />
+          <span>
+            <strong>Corrective actions</strong>
+            <small>Current status: {displayValue(query.data.status ?? query.data.verificationStatus ?? query.data.approvalStatus)} · every intervention is recorded.</small>
+          </span>
+        </div>
+        {config.actions
+          .filter(([, action]) => {
+            const status = query.data.status ?? query.data.verificationStatus ?? query.data.approvalStatus;
+            const isFeatured = Boolean(query.data.isFeatured || query.data.featured);
+            if (type === 'jobs') {
+              if (action === 'approve' && (status === 'published' || status === 'approved')) return false;
+              if (action === 'reject' && status === 'rejected') return false;
+              if (action === 'feature' && isFeatured) return false;
+              if (action === 'unfeature' && !isFeatured) return false;
+            }
+            if (type === 'recruiters') {
+              const isApproved = status === 'approved' || query.data.isApproved;
+              if (action === 'approve' && isApproved) return false;
+              if (action === 'reject' && status === 'rejected') return false;
+              if (action === 'suspend' && status === 'suspended') return false;
+              if (action === 'restore' && !status) return false;
+            }
+            if (type === 'companies') {
+              const isVerified = status === 'verified' || status === 'approved';
+              if (action === 'verify' && isVerified) return false;
+              if (action === 'reject' && status === 'rejected') return false;
+              if (action === 'suspend' && status === 'suspended') return false;
+            }
+            return true;
+          })
+          .map(([title, action, needsReason, options]) => {
+            const actionPath = (config as any).actionBase
+              ? `${(config as any).actionBase}/${id}/${action}`
+              : `${path}/${action}`;
+            return (
+              <button
+                key={action}
+                onClick={() =>
+                  setPending({
+                    title: `${title}?`,
+                    path: actionPath,
+                    reason: needsReason,
+                    field: options
+                      ? {
+                          name: 'status',
+                          label: 'New status',
+                          options: [...options].filter((s) => s !== query.data?.status),
+                        }
+                      : undefined,
+                  })
+                }
+              >
+                {title}
+              </button>
+            );
+          })}
+        {type === 'jobs' && (query.data.status === 'published' || query.data.status === 'approved') && (
+          <span
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '6px 14px',
+              borderRadius: '9999px',
+              background: '#f0fdf4',
+              color: '#166534',
+              fontWeight: 600,
+              fontSize: '0.8125rem',
+              border: '1px solid #bbf7d0'
+            }}
+          >
+            <CheckCircle2 size={14} /> Approved & Published
+          </span>
+        )}
+      </section></>}
     {pending && <ActionDialog action={pending} onClose={() => setPending(null)} onDone={() => query.refetch()} />}
   </main>;
 }

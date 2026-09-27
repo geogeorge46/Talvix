@@ -1,5 +1,6 @@
 import { archiveJob, closeJob, cloneJob, createJob, getManagedJob, getPublicJob, listManagedJobs, pauseJob, recruiterPublishJob, resumeJob, searchPublicJobs, submitJob, updateJob, getCandidateComparison } from '../services/job.service.js';
 import { generateJobDescription, suggestSkills, performScamCheck } from '../services/ai.service.js';
+import { Company } from '../models/Company.js';
 export const createCompanyJob = async (request, response, next) => { try { const job = await createJob(request.company, request.user.id, request.body); return response.status(201).json({ success: true, message: 'Job created successfully', data: { job } }); } catch (error) { return next(error); } };
 export const managedJobs = async (request, response, next) => { try { const data = await listManagedJobs(request.company.id, request.validatedQuery); return response.json({ success: true, message: 'Managed jobs retrieved successfully', data }); } catch (error) { return next(error); } };
 export const managedJob = async (request, response, next) => { try { const job = await getManagedJob(request.company.id, request.params.jobId); return response.json({ success: true, message: 'Job retrieved successfully', data: { job } }); } catch (error) { return next(error); } };
@@ -18,9 +19,16 @@ export const publicJob = async (request, response, next) => { try { const job = 
 
 export const aiGenerateJobDescription = async (request, response, next) => {
   try {
-    const { title, keyRequirements } = request.body;
-    const description = await generateJobDescription(title, keyRequirements, {
-      companyId: request.company?.id || request.tenantCompanyId,
+    const companyId = request.company?.id || request.tenantCompanyId;
+    let company = null;
+    if (companyId) {
+      company = await Company.findById(companyId)
+        .select('name description industry headquarters benefits technologies companySize website')
+        .lean();
+    }
+    const description = await generateJobDescription(request.body, {
+      company,
+      companyId,
       userId: request.user?.id,
       ipAddress: request.ip,
       userAgent: request.get('User-Agent')
@@ -34,6 +42,7 @@ export const aiGenerateJobDescription = async (request, response, next) => {
     return next(error);
   }
 };
+
 
 export const aiSuggestJobSkills = async (request, response, next) => {
   try {

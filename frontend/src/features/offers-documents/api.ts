@@ -212,11 +212,23 @@ export function useDocumentMutation() {
     onSuccess: () => invalidate(qc),
   });
 }
-export async function safeDownload(path: string) {
+export async function getDocumentUrl(path: string): Promise<string> {
   const v = await apiRequest<unknown>(path);
-  const url = rec(v).url;
+  const data = rec(rec(v).data);
+  const doc = rec(rec(v).document);
+  const dataDoc = rec(data.document);
+  const url =
+    (typeof rec(v).url === 'string' ? rec(v).url : undefined) ||
+    (typeof data.url === 'string' ? data.url : undefined) ||
+    (typeof data.downloadUrl === 'string' ? data.downloadUrl : undefined) ||
+    (typeof doc.url === 'string' ? doc.url : undefined) ||
+    (typeof dataDoc.url === 'string' ? dataDoc.url : undefined);
   if (typeof url !== 'string' || !/^https?:\/\//.test(url))
     throw new Error('A secure download is not available.');
+  return url;
+}
+export async function safeDownload(path: string) {
+  const url = await getDocumentUrl(path);
   window.open(url, '_blank', 'noopener,noreferrer');
 }
 export interface UploadSession {

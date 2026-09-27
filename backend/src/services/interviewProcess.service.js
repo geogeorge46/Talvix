@@ -189,7 +189,7 @@ export const finalizeProcess = async (c, id, u, b, reqMeta = {}) => {
   await p.save();
 
   const app = await Application.findById(p.application);
-  if (app && app.status === 'interview-scheduled') {
+  if (app && ['shortlisted', 'assessment-completed', 'interview-scheduled'].includes(app.status)) {
     changeApplicationStatus(app, 'interview-completed', u, 'Interview process finalized');
     await app.save();
   }

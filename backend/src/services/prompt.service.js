@@ -4,10 +4,11 @@ import { AppError } from '../shared/errors/AppError.js';
 // Central registry of system default prompt templates
 const DEFAULT_PROMPTS = {
   generate_job_description: {
-    template: 'Write a professional job description for the title: "{{title}}". Requirements to include: "{{keyRequirements}}". Format output in clean Markdown.',
-    requiredVariables: ['title', 'keyRequirements'],
-    description: 'Generates a markdown formatted job description.'
+    template: 'Write a comprehensive, professional job description in clean Markdown for the position "{{title}}".\nCompany: {{companyName}}\nIndustry: {{companyIndustry}}\nAbout Company: {{companyAbout}}\nCompany Benefits: {{companyBenefits}}\nTech Stack: {{companyTechnologies}}\nLocation: {{companyLocation}}\nDepartment: {{department}}\nEmployment Type: {{employmentType}}\nWork Mode: {{workMode}}\nExperience: {{experience}}\nSkills: {{skills}}\nKey Requirements: {{keyRequirements}}.\n\nStructure the job description with:\n# [Role Title] — [Company Name]\n### About Us\n### Role Overview\n### Key Responsibilities\n### Qualifications & Required Skills\n### What We Offer (Benefits & Perks)',
+    requiredVariables: ['title'],
+    description: 'Generates a markdown formatted job description enriched with company context.'
   },
+
   suggest_skills: {
     template: 'Based on the job title "{{title}}" and description "{{description}}", suggest a list of 5-8 highly relevant technical skill tags. Return ONLY a comma-separated list of skills (e.g. React, Node.js, TypeScript).',
     requiredVariables: ['title', 'description'],
@@ -84,9 +85,14 @@ const DEFAULT_PROMPTS = {
     description: 'Generates pipeline insights matrices.'
   },
   assessment_generation: {
-    template: 'Generate assessment questions for job: {{jobDetails}}.\nReturn JSON: {"questions": [{"type": "single-choice" | "multiple-choice" | "coding" | "sql", "prompt": string, "defaultMarks": number, "difficulty": "easy" | "medium" | "hard", "options": [{"id": "a", "text": "choice"}], "correctAnswer": string, "coding": {"starterCode": {"javascript": "code"}, "testCases": [{"input": "inp", "expectedOutput": "out", "weight": number}]}}]}',
+    template: 'Generate realistic, comprehensive assessment questions covering the requirements in job description: {{jobDetails}}. Include practical scenario-based questions across relevant categories (e.g., Coding, System Design, Architecture Work-Sample, Multiple-Choice). Tag every question with its competency category name in the "category" field. Return clean JSON matching format: {"questions": [{"type": "single-choice" | "multiple-choice" | "coding" | "work-sample" | "short-answer", "prompt": string, "defaultMarks": number, "difficulty": "easy" | "medium" | "hard", "category": string, "options": [{"id": "a", "text": "choice"}], "correctAnswer": string | null, "coding": {"starterCode": {"javascript": "code"}, "testCases": [{"input": "inp", "expectedOutput": "out", "weight": number}]}, "deliverable": {"type": "file" | "url" | "mixed", "instructions": "instructions", "allowedFormats": [".pdf"], "maxFiles": 2}, "rubric": {"criteria": [{"name": "Execution", "description": "Details", "maxMarks": 50, "weight": 50}], "evaluationNotes": "Notes"}}]}',
     requiredVariables: ['jobDetails'],
-    description: 'Generates assessment blueprints.'
+    description: 'Generates comprehensive assessment blueprints.'
+  },
+  question_bank_generation: {
+    template: 'Generate {{count}} realistic, production-ready assessment questions on topic: "{{topic}}" with skills: "{{skills}}", difficulty: "{{difficulty}}", and type: "{{type}}". Tag every question with its skill category name in the "category" field. For coding questions, provide realistic starterCode in JavaScript/Python and testCases including edge cases. For work-sample questions, provide clear deliverable instructions and a structured rubric with criteria. Return clean JSON: {"questions": [{"type": string, "prompt": string, "defaultMarks": number, "difficulty": "easy" | "medium" | "hard", "category": string, "skills": string[], "options": [{"id": "a", "text": "choice"}], "correctAnswer": string | null, "coding": {"starterCode": {"javascript": "code"}, "testCases": [{"input": "inp", "expectedOutput": "out", "weight": number}]}, "deliverable": {"type": "file" | "url" | "mixed", "instructions": "instructions", "allowedFormats": [".pdf"], "maxFiles": 2}, "rubric": {"criteria": [{"name": "Execution", "description": "Details", "maxMarks": 50, "weight": 50}], "evaluationNotes": "Notes"}}]}',
+    requiredVariables: ['topic', 'difficulty', 'type', 'count'],
+    description: 'Generates targeted reusable questions for the Question Bank.'
   },
   interview_generation: {
     template: 'Generate dynamic interview questions for job: {{jobDetails}} and candidate: {{candidateDetails}}.\nReturn JSON: {"questions": [{"prompt": string, "expectedAnswer": string, "hints": string[], "difficulty": "easy" | "medium" | "hard", "estimatedTimeSeconds": number}]}',

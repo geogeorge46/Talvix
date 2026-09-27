@@ -3,6 +3,7 @@ import * as plagiarismService from '../services/plagiarism.service.js';
 import * as reportService from '../services/report.service.js';
 import * as questionService from '../services/question.service.js';
 import * as analyticsService from '../services/assessmentAnalytics.service.js';
+import * as promotionService from '../services/assessmentPromotion.service.js';
 import { AssessmentAttempt } from '../models/AssessmentAttempt.js';
 
 const handle = (action) => async (request, response, next) => {
@@ -190,9 +191,24 @@ export const getAssessmentLeaderboard = handle(async (r, s) => {
   });
 });
 
+export const getCohortLeaderboard = handle(async (r, s) => {
+  return s.json({
+    success: true,
+    data: await analyticsService.getCohortLeaderboard(r.company.id, r.params.assessmentId, r.validatedQuery || r.query)
+  });
+});
+
 export const getAssessmentBenchmarking = handle(async (r, s) => {
   return s.json({
     success: true,
     data: await analyticsService.getBenchmarking(r.company.id, r.query)
+  });
+});
+
+export const promoteCandidates = handle(async (r, s) => {
+  return s.json({
+    success: true,
+    message: 'Candidate promotion request processed successfully',
+    data: await promotionService.promoteCohortCandidates(r.company.id, r.user.id, r.params.assessmentId, r.body)
   });
 });

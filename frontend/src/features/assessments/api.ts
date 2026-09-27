@@ -1,17 +1,27 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { apiRequest } from '../../api/client';
+import { apiRequest, tokenStore } from '../../api/client';
 import {
   toAssessment,
   toAssignment,
   toAttempt,
   toQuestion,
+  toEligibilityCheckResult,
+  toBulkAssignResult,
   safeResult,
+  type EligibilityCheckResult,
+  type BulkAssignPayload,
+  type BulkAssignResult,
+  type CohortLeaderboardResult,
+  type PromoteCandidatesPayload,
+  type PromoteCandidatesResult,
+  type GenerateQuestionsPayload,
+  type GenerateQuestionsResult,
 } from './model';
-const page = (v: unknown, key: string, mapper: (x: unknown) => unknown) => {
+const page = <T>(v: unknown, key: string, mapper: (x: unknown) => T) => {
   const x = v as Record<string, unknown>;
   const p = (x.pagination ?? {}) as Record<string, number>;
   return {
-    items: Array.isArray(x[key]) ? x[key].map(mapper) : [],
+    items: Array.isArray(x[key]) ? (x[key].map(mapper) as T[]) : ([] as T[]),
     page: p.page ?? 1,
     pages: p.pages ?? p.totalPages ?? 1,
     total: p.total ?? 0,
@@ -44,6 +54,27 @@ export const useQuestionSave = (id?: string) => {
       ),
     onSuccess: () =>
       void qc.invalidateQueries({ queryKey: ['assessment-questions'] }),
+  });
+};
+export const useGenerateQuestions = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (
+      body: GenerateQuestionsPayload,
+    ): Promise<GenerateQuestionsResult> => {
+      const response = await apiRequest<{ questions: unknown[]; count: number }>(
+        '/assessments/intelligence/generate-questions',
+        { method: 'POST', body },
+      );
+      return {
+        questions: Array.isArray(response?.questions)
+          ? response.questions.map(toQuestion)
+          : [],
+      };
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['assessment-questions'] });
+    },
   });
 };
 export const useComposition = (id: string) => {
@@ -151,6 +182,16 @@ export const useCreateAssignment = () =>
         body,
       }),
   });
+
+export interface EligibilityCandidate {
+  applicationId: string;
+  candidateName?: string;
+  candidateEmail?: string;
+  status: 'eligible' | 'already-assigned' | 'ineligible';
+  reason?: string;
+  assignmentId?: string;
+}
+
 export const useStart = () =>
   useMutation({
     mutationFn: (id: string) =>
@@ -215,6 +256,7 @@ export const useReviewAction = (id: string) => {
       questionId?: string;
       awardedMarks?: number;
       feedback?: string;
+      rubricScores?: { criterionName: string; awardedMarks: number; feedback?: string }[];
       complete?: boolean;
     }) =>
       apiRequest(
@@ -225,11 +267,106 @@ export const useReviewAction = (id: string) => {
           method: 'PATCH',
           body: input.complete
             ? {}
-            : { awardedMarks: input.awardedMarks, feedback: input.feedback },
+            : {
+                awardedMarks: input.awardedMarks,
+                feedback: input.feedback,
+                rubricScores: input.rubricScores,
+              },
         },
       ),
     onSettled: () =>
       void qc.invalidateQueries({ queryKey: ['assessment-review', id] }),
+  });
+};
+export const useAttemptDocuments = (
+  attemptId: string,
+  enabled = true,
+  isRecruiter = false,
+) =>
+  useQuery({
+    queryKey: ['attempt-documents', attemptId, isRecruiter],
+    enabled: Boolean(attemptId) && enabled,
+    queryFn: () =>
+      apiRequest<{ documents?: unknown[] }>(
+        isRecruiter
+          ? `/documents/manage/assessments/attempts/${attemptId}`
+          : `/documents/assessments/attempts/${attemptId}`,
+      ),
+    select: (v) => (v.documents ?? []) as Record<string, unknown>[],
+    retry: false,
+  });
+
+export const downloadAttemptDocument = async (
+  attemptId: string,
+  documentId: string,
+  isRecruiter = false,
+) => {
+  const res = await apiRequest<{ url: string }>(
+    isRecruiter
+      ? `/documents/manage/assessments/attempts/${attemptId}/${documentId}/download`
+      : `/documents/assessments/attempts/${attemptId}/${documentId}/download`,
+  );
+  return res.url;
+};
+
+export const uploadAttemptDeliverable = async (
+  attemptId: string,
+  file: File,
+  purpose = 'Work sample deliverable',
+  onProgress?: (pct: number) => void,
+) => {
+  const sessionRes = await apiRequest<{ uploadSession?: { id?: string } }>(
+    '/documents/upload-session',
+    {
+      method: 'POST',
+      body: {
+        category: 'assessment-attachment',
+        entityType: 'assessment-attempt',
+        entityId: attemptId,
+        purpose,
+      },
+    },
+  );
+  const sessionId = sessionRes.uploadSession?.id;
+  if (!sessionId) throw new Error('Failed to establish upload session');
+
+  return new Promise<Record<string, unknown>>((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    const data = new FormData();
+    data.append('uploadSessionId', sessionId);
+    data.append('purpose', purpose);
+    data.append('file', file);
+
+    const baseUrl =
+      import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:5000/api/v1';
+    xhr.open('POST', `${baseUrl}/documents/assessments/attempts/${attemptId}`);
+    const token = tokenStore.get();
+    if (token) xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+
+    xhr.upload.onprogress = (e) => {
+      if (e.lengthComputable && onProgress) {
+        onProgress(Math.round((e.loaded / e.total) * 100));
+      }
+    };
+    xhr.onerror = () => reject(new Error('Network error during file upload'));
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        try {
+          const res = JSON.parse(xhr.responseText);
+          resolve(res.data?.document || res);
+        } catch {
+          resolve({});
+        }
+      } else {
+        try {
+          const err = JSON.parse(xhr.responseText);
+          reject(new Error(err.message || 'File upload failed'));
+        } catch {
+          reject(new Error(`Upload failed with status ${xhr.status}`));
+        }
+      }
+    };
+    xhr.send(data);
   });
 };
 export const useGenerateAIAssessment = () => {
@@ -243,6 +380,97 @@ export const useGenerateAIAssessment = () => {
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ['assessments'] });
       void qc.invalidateQueries({ queryKey: ['questions'] });
+    },
+  });
+};
+
+export const useCheckEligibility = () => {
+  return useMutation({
+    mutationFn: async (body: { assessmentId: string; applicationIds: string[] }) => {
+      const res = await apiRequest<unknown>('/assessments/assignments/check-eligibility', {
+        method: 'POST',
+        body,
+      });
+      return toEligibilityCheckResult(res);
+    },
+  });
+};
+
+export const useBulkAssignAssessment = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (body: BulkAssignPayload) => {
+      const res = await apiRequest<unknown>('/assessments/assignments/bulk', {
+        method: 'POST',
+        body,
+      });
+      return toBulkAssignResult(res);
+    },
+    onSettled: async () => {
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ['ats-applications'] }),
+        qc.invalidateQueries({ queryKey: ['ats-pipeline'] }),
+        qc.invalidateQueries({ queryKey: ['assessments'] }),
+        qc.invalidateQueries({ queryKey: ['assessment-assignments'] }),
+      ]);
+    },
+  });
+};
+
+export const useCohortLeaderboard = (
+  assessmentId: string,
+  params?:
+    | {
+        jobId?: string;
+        status?: string;
+        category?: string;
+        sortBy?: string;
+        sortOrder?: 'asc' | 'desc';
+      }
+    | string,
+  enabled = true,
+) => {
+  let queryStr = '';
+  if (typeof params === 'string') {
+    queryStr = params.startsWith('?') ? params.slice(1) : params;
+  } else if (params) {
+    const q = new URLSearchParams();
+    if (params.jobId) q.set('jobId', params.jobId);
+    if (params.status) q.set('status', params.status);
+    if (params.category) q.set('category', params.category);
+    if (params.sortBy) q.set('sortBy', params.sortBy);
+    if (params.sortOrder) q.set('sortOrder', params.sortOrder);
+    queryStr = q.toString();
+  }
+
+  return useQuery({
+    queryKey: ['cohort-leaderboard', assessmentId, queryStr],
+    enabled: enabled && Boolean(assessmentId),
+    queryFn: () =>
+      apiRequest<CohortLeaderboardResult>(
+        `/assessments/manage/${assessmentId}/cohort-leaderboard${queryStr ? `?${queryStr}` : ''}`,
+      ),
+    retry: false,
+  });
+};
+
+export const usePromoteCandidates = (assessmentId: string) => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: PromoteCandidatesPayload) =>
+      apiRequest<PromoteCandidatesResult>(
+        `/assessments/manage/${assessmentId}/promote`,
+        {
+          method: 'POST',
+          body,
+        },
+      ),
+    onSettled: async () => {
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ['cohort-leaderboard', assessmentId] }),
+        qc.invalidateQueries({ queryKey: ['ats-applications'] }),
+        qc.invalidateQueries({ queryKey: ['ats-pipeline'] }),
+      ]);
     },
   });
 };

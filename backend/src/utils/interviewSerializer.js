@@ -65,11 +65,23 @@ export const serializeRecruiterRound = (value, schedule) => {
 export const serializeRecruiterProcess = (value, rounds, schedules) => {
   const x = plain(value);
   const scheduleByRound = new Map(schedules.map((s) => [String(s.round), s]));
+  const cand = x.candidate && typeof x.candidate === 'object' ? x.candidate : {};
+  const app = x.application && typeof x.application === 'object' ? x.application : {};
+  const j = x.job && typeof x.job === 'object' ? x.job : {};
+  const candidateName = cand.fullName || app.candidateName || undefined;
+  const candidateEmail = cand.email || undefined;
+  const jobTitle = j.title || undefined;
+  const applicationNumber = app.applicationNumber || undefined;
+
   return {
     id: id(x),
     applicationId: id(x.application),
     candidateId: id(x.candidate),
+    candidateName,
+    candidateEmail,
     jobId: id(x.job),
+    jobTitle,
+    applicationNumber,
     templateId: id(x.template),
     status: x.status,
     feedbackReleased: Boolean(x.feedbackReleased),

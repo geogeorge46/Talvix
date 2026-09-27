@@ -12,13 +12,158 @@ import { buildPagination } from '../utils/pagination.js';
 import { DOMAIN_EVENTS } from '../constants/domainEvents.js';
 import { publishOptionalDomainEvent } from './domainEvent.service.js';
 import { createAssessmentReminders, cancelReminders } from './reminderEvent.service.js';
+import { processOutboxBatch } from './notificationOutbox.service.js';
 const companyAssignment = async (company, id) => { const assignment = await AssessmentAssignment.findOne({ _id: id, company }).populate('latestAttempt').populate('bestAttempt'); if (!assignment) throw new AppError('Assessment assignment not found', 404); return assignment; };
 const supportsTransactions = () => ['ReplicaSetWithPrimary', 'Sharded'].includes(mongoose.connection.client?.topology?.description?.type);
-const createRecords = async (company, actor, input, session) => { const assessment = await Assessment.findOne({ _id: input.assessmentId, company, status: 'published' }).session(session); if (!assessment) throw new AppError('Published assessment not found', 404); const application = await Application.findOne({ _id: input.applicationId, company, isArchived: false }).session(session); if (!application) throw new AppError('Application not found', 404); if (!ASSESSMENT_COMPATIBLE_APPLICATION_STATUSES.includes(application.status)) throw new AppError('Application is not eligible for assessment assignment', 409); const questions = await Question.find({ _id: { $in: assessment.questions.map((item) => item.question) }, company }).select('+correctAnswer +explanation').session(session); if (questions.length !== assessment.questions.length) throw new AppError('Assessment contains unavailable questions', 409); const snapshot = createAssessmentSnapshot(assessment, new Map(questions.map((question) => [question.id, question]))); const [assignment] = await AssessmentAssignment.create([{ assessment: assessment.id, assessmentVersion: assessment.version, assessmentSnapshot: snapshot, application: application.id, candidate: application.candidate, company, assignedBy: actor, availableFrom: input.availableFrom, expiresAt: input.expiresAt, status: input.availableFrom <= new Date() ? 'available' : 'assigned' }], { session }); if (application.status === 'shortlisted') { changeApplicationStatus(application, 'assessment-pending', actor, 'Assessment assigned'); await application.save({ session }); } await publishOptionalDomainEvent({ type: DOMAIN_EVENTS.ASSESSMENT_ASSIGNED, actor: String(actor), company: String(company), recipientIds: [String(application.candidate)], payload: { assessmentId: String(assessment.id), assignmentId: String(assignment.id), assessmentTitle: assessment.title, applicationId: String(application.id), candidateId: String(application.candidate), availableFrom: assignment.availableFrom, expiresAt: assignment.expiresAt, actionUrl: `/candidate/assessments/${assignment.id}` }, deduplicationKey: `assessment.assigned:${assignment.id}` }, { session }); await createAssessmentReminders(assignment, application.candidate, session); return assignment; };
-export const assignAssessment = async (company, actor, input) => { try { if (input.expiresAt <= new Date()) throw new AppError('Assignment expiry must be in the future', 400); if (!supportsTransactions()) { const application = await Application.findOne({ _id: input.applicationId, company }); const previousStatus = application?.status; let assignment; try { assignment = await createRecords(company, actor, input); return assignment; } catch (error) { if (assignment) await AssessmentAssignment.deleteOne({ _id: assignment.id }); if (application && application.status !== previousStatus) { application.status = previousStatus; application.statusHistory.pop(); await application.save(); } throw error; } } const session = await mongoose.startSession(); let assignment; try { await session.withTransaction(async () => { assignment = await createRecords(company, actor, input, session); }); return assignment; } finally { await session.endSession(); } } catch (error) { if (error.code === 11000) throw new AppError('An active assignment already exists for this assessment version', 409); throw error; } };
-export const listManagedAssignments = async (company, query) => { const filter = { company }; for (const [queryKey, dbKey] of [['assessmentId', 'assessment'], ['applicationId', 'application'], ['candidate', 'candidate'], ['status', 'status'], ['passed', 'passed']]) if (query[queryKey] !== undefined) filter[dbKey] = query[queryKey]; if (query.availableFrom) filter.availableFrom = { $gte: query.availableFrom }; if (query.expiresBefore) filter.expiresAt = { $lte: query.expiresBefore }; const sorts = { newest: { createdAt: -1 }, oldest: { createdAt: 1 }, expiry: { expiresAt: 1 } }; const [assignments, total] = await Promise.all([AssessmentAssignment.find(filter).sort(sorts[query.sort]).skip((query.page - 1) * query.limit).limit(query.limit), AssessmentAssignment.countDocuments(filter)]); return { assignments, pagination: buildPagination(query.page, query.limit, total) }; };
+const createRecords = async (company, actor, input, session) => { const assessment = await Assessment.findOne({ _id: input.assessmentId, company, status: 'published' }).session(session); if (!assessment) throw new AppError('Published assessment not found', 404); const application = await Application.findOne({ _id: input.applicationId, company, isArchived: false }).session(session); if (!application) throw new AppError('Application not found', 404); if (!ASSESSMENT_COMPATIBLE_APPLICATION_STATUSES.includes(application.status)) throw new AppError('Application is not eligible for assessment assignment', 409); const questions = await Question.find({ _id: { $in: assessment.questions.map((item) => item.question) }, company }).select('+correctAnswer +explanation').session(session); if (questions.length !== assessment.questions.length) throw new AppError('Assessment contains unavailable questions', 409); const snapshot = createAssessmentSnapshot(assessment, new Map(questions.map((question) => [question.id, question]))); const [assignment] = await AssessmentAssignment.create([{ assessment: assessment.id, assessmentVersion: assessment.version, assessmentSnapshot: snapshot, application: application.id, candidate: application.candidate, company, assignedBy: actor, availableFrom: input.availableFrom, expiresAt: input.expiresAt, status: input.availableFrom <= new Date() ? 'available' : 'assigned' }], { session }); if (application.status === 'shortlisted') { changeApplicationStatus(application, 'assessment-pending', actor, 'Assessment assigned'); await application.save({ session }); } await publishOptionalDomainEvent({ type: DOMAIN_EVENTS.ASSESSMENT_ASSIGNED, actor: String(actor), company: String(company), recipientIds: [String(application.candidate)], payload: { assessmentId: String(assessment.id), assignmentId: String(assignment.id), assessmentTitle: assessment.title, applicationId: String(application.id), candidateId: String(application.candidate), companyName: application.jobSnapshot?.companyName, jobTitle: application.jobSnapshot?.title, availableFrom: assignment.availableFrom, expiresAt: assignment.expiresAt, actionUrl: `/candidate/assessments/${assignment.id}` }, deduplicationKey: `assessment.assigned:${assignment.id}` }, { session }); await createAssessmentReminders(assignment, application.candidate, session); return assignment; };
+export const assignAssessment = async (company, actor, input) => { try { if (input.expiresAt <= new Date()) throw new AppError('Assignment expiry must be in the future', 400); if (!supportsTransactions()) { const application = await Application.findOne({ _id: input.applicationId, company }); const previousStatus = application?.status; let assignment; try { assignment = await createRecords(company, actor, input); processOutboxBatch(10).catch(() => {}); return assignment; } catch (error) { if (assignment) await AssessmentAssignment.deleteOne({ _id: assignment.id }); if (application && application.status !== previousStatus) { application.status = previousStatus; application.statusHistory.pop(); await application.save(); } throw error; } } const session = await mongoose.startSession(); let assignment; try { await session.withTransaction(async () => { assignment = await createRecords(company, actor, input, session); }); processOutboxBatch(10).catch(() => {}); return assignment; } finally { await session.endSession(); } } catch (error) { if (error.code === 11000) throw new AppError('An active assignment already exists for this assessment version', 409); throw error; } };
+export const listManagedAssignments = async (company, query) => { const filter = { company }; for (const [queryKey, dbKey] of [['assessmentId', 'assessment'], ['applicationId', 'application'], ['candidate', 'candidate'], ['status', 'status'], ['passed', 'passed']]) if (query[queryKey] !== undefined) filter[dbKey] = query[queryKey]; if (query.availableFrom) filter.availableFrom = { $gte: query.availableFrom }; if (query.expiresBefore) filter.expiresAt = { $lte: query.expiresBefore }; const sorts = { newest: { createdAt: -1 }, oldest: { createdAt: 1 }, expiry: { expiresAt: 1 } }; const [assignments, total] = await Promise.all([AssessmentAssignment.find(filter).populate('latestAttempt').populate('bestAttempt').sort(sorts[query.sort]).skip((query.page - 1) * query.limit).limit(query.limit), AssessmentAssignment.countDocuments(filter)]); return { assignments, pagination: buildPagination(query.page, query.limit, total) }; };
 export const getManagedAssignment = (company, id) => companyAssignment(company, id);
 export const cancelAssignment = async (company, id, actor, reason) => { const assignment = await companyAssignment(company, id); if (['completed', 'expired', 'cancelled'].includes(assignment.status)) throw new AppError('Assignment can no longer be cancelled', 409); assignment.status = 'cancelled'; assignment.cancelledAt = new Date(); assignment.cancellationReason = reason; assignment.audit.push({ action: 'cancelled', reason, actor }); await assignment.save(); await cancelReminders(`assessment.reminder:${assignment.id}:`); return assignment; };
 export const extendAssignment = async (company, id, actor, input) => { const assignment = await companyAssignment(company, id); if (['completed', 'cancelled'].includes(assignment.status) || input.expiresAt <= new Date() || input.expiresAt <= assignment.expiresAt) throw new AppError('A later future expiry is required', 400); assignment.expiresAt = input.expiresAt; assignment.audit.push({ action: 'extended', reason: input.reason, actor }); await assignment.save(); return assignment; };
 export const listMyAssignments = async (candidate, query) => { const filter = { candidate }; if (query.status) filter.status = query.status; const [rows, total] = await Promise.all([AssessmentAssignment.find(filter).sort({ createdAt: -1 }).skip((query.page - 1) * query.limit).limit(query.limit), AssessmentAssignment.countDocuments(filter)]); return { assignments: rows.map(serializeCandidateAssignment), pagination: buildPagination(query.page, query.limit, total) }; };
 export const getMyAssignment = async (candidate, id) => { const assignment = await AssessmentAssignment.findOne({ _id: id, candidate }); if (!assignment) throw new AppError('Assessment assignment not found', 404); return serializeCandidateAssignment(assignment); };
+
+export const checkAssignmentEligibility = async (company, input) => {
+  const assessment = await Assessment.findOne({ _id: input.assessmentId, company, status: 'published' });
+  if (!assessment) throw new AppError('Published assessment not found', 404);
+
+  const applications = await Application.find({
+    _id: { $in: input.applicationIds },
+    company,
+  }).select('_id status isArchived candidate company').populate('candidate', 'fullName email').lean();
+
+  const appMap = new Map(applications.map((app) => [app._id.toString(), app]));
+
+  // Find any active assignments for these applications and this assessment
+  const activeAssignments = await AssessmentAssignment.find({
+    assessment: assessment._id,
+    application: { $in: input.applicationIds },
+    company,
+    status: { $in: ['assigned', 'available', 'in-progress', 'submitted', 'evaluating', 'completed'] },
+  }).lean();
+
+  const activeAppIds = new Set(activeAssignments.map((a) => a.application.toString()));
+
+  const results = input.applicationIds.map((appId) => {
+    const app = appMap.get(appId.toString());
+    if (!app) {
+      return {
+        applicationId: appId,
+        status: 'ineligible',
+        reason: 'Application not found for this company',
+      };
+    }
+    if (app.isArchived) {
+      return {
+        applicationId: appId,
+        candidateName: app.candidate?.fullName,
+        candidateEmail: app.candidate?.email,
+        status: 'ineligible',
+        reason: 'Application is archived',
+      };
+    }
+    if (app.status === 'withdrawn') {
+      return {
+        applicationId: appId,
+        candidateName: app.candidate?.fullName,
+        candidateEmail: app.candidate?.email,
+        status: 'ineligible',
+        reason: 'Application has been withdrawn',
+      };
+    }
+    if (!ASSESSMENT_COMPATIBLE_APPLICATION_STATUSES.includes(app.status)) {
+      return {
+        applicationId: appId,
+        candidateName: app.candidate?.fullName,
+        candidateEmail: app.candidate?.email,
+        status: 'ineligible',
+        reason: `Application stage "${app.status}" is not eligible for assessment`,
+      };
+    }
+    if (activeAppIds.has(app._id.toString())) {
+      const existing = activeAssignments.find((a) => a.application.toString() === app._id.toString());
+      return {
+        applicationId: appId,
+        candidateName: app.candidate?.fullName,
+        candidateEmail: app.candidate?.email,
+        status: 'already-assigned',
+        reason: `Active assignment already exists (status: ${existing?.status})`,
+        assignmentId: existing?._id,
+      };
+    }
+    return {
+      applicationId: appId,
+      candidateName: app.candidate?.fullName,
+      candidateEmail: app.candidate?.email,
+      status: 'eligible',
+    };
+  });
+
+  const summary = {
+    total: results.length,
+    eligible: results.filter((r) => r.status === 'eligible').length,
+    alreadyAssigned: results.filter((r) => r.status === 'already-assigned').length,
+    ineligible: results.filter((r) => r.status === 'ineligible').length,
+  };
+
+  return { summary, candidates: results };
+};
+
+export const bulkAssignAssessment = async (company, actor, input) => {
+  if (input.expiresAt <= new Date()) throw new AppError('Assignment expiry must be in the future', 400);
+
+  const eligibility = await checkAssignmentEligibility(company, {
+    assessmentId: input.assessmentId,
+    applicationIds: input.applicationIds,
+  });
+
+  const details = [];
+  let assignedCount = 0;
+  let failedCount = 0;
+
+  for (const candidate of eligibility.candidates) {
+    if (candidate.status !== 'eligible') {
+      details.push(candidate);
+      continue;
+    }
+
+    try {
+      const assignment = await assignAssessment(company, actor, {
+        assessmentId: input.assessmentId,
+        applicationId: candidate.applicationId,
+        availableFrom: input.availableFrom,
+        expiresAt: input.expiresAt,
+      });
+      assignedCount += 1;
+      details.push({
+        applicationId: candidate.applicationId,
+        candidateName: candidate.candidateName,
+        candidateEmail: candidate.candidateEmail,
+        status: 'assigned',
+        assignmentId: assignment.id,
+      });
+    } catch (err) {
+      failedCount += 1;
+      details.push({
+        applicationId: candidate.applicationId,
+        candidateName: candidate.candidateName,
+        candidateEmail: candidate.candidateEmail,
+        status: 'failed',
+        reason: err instanceof Error ? err.message : 'Assignment creation failed',
+      });
+    }
+  }
+
+  return {
+    summary: {
+      requested: input.applicationIds.length,
+      assigned: assignedCount,
+      alreadyAssigned: eligibility.summary.alreadyAssigned,
+      ineligible: eligibility.summary.ineligible,
+      failed: failedCount,
+    },
+    details,
+  };
+};
+

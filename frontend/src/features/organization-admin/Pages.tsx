@@ -1,6 +1,22 @@
 import { useEffect, useState } from 'react';
 import {
+  Building2,
+  Users,
+  Shield,
+  ShieldCheck,
+  CheckCircle2,
+  Clock,
+  Globe,
+  MapPin,
+  Calendar,
+  Award,
+  UserCheck,
+  Settings,
+  Key,
+} from 'lucide-react';
+import {
   Link,
+  NavLink as RouterNavLink,
   useNavigate,
   useLocation,
   useBlocker,
@@ -105,6 +121,34 @@ function CompanyLoad({
   return <>{children(q.data)}</>;
 }
 
+export function OrgAdminTabs() {
+  return (
+    <nav className="ats-nav-tabs-wrapper" aria-label="Organization sections">
+      <div className="ats-nav-tabs">
+        <RouterNavLink
+          to="/org/company"
+          end
+          className={({ isActive }) => `ats-nav-tab ${isActive ? 'active' : ''}`}
+        >
+          Company Profile
+        </RouterNavLink>
+        <RouterNavLink
+          to="/org/team"
+          className={({ isActive }) => `ats-nav-tab ${isActive ? 'active' : ''}`}
+        >
+          Team & Permissions
+        </RouterNavLink>
+        <RouterNavLink
+          to="/org/settings"
+          className={({ isActive }) => `ats-nav-tab ${isActive ? 'active' : ''}`}
+        >
+          Settings
+        </RouterNavLink>
+      </div>
+    </nav>
+  );
+}
+
 export function CompanyOverviewPage() {
   const a = useOrgAccess();
   const location = useLocation();
@@ -113,6 +157,7 @@ export function CompanyOverviewPage() {
       <PageHeader
         title="Company"
         description="The public organization profile and membership status used across Talvix."
+        secondaryActions={<OrgAdminTabs />}
         primaryAction={
           a.canCompany ? (
             <Link
@@ -129,10 +174,78 @@ export function CompanyOverviewPage() {
           Your supported public organization details are up to date.
         </Alert>
       )}
-      <CompanyLoad>
+      <CompanyLoad includeTeam>
         {(c) =>
           c ? (
             <>
+              <div className="ats-metrics-grid">
+                <div className="ats-metric-card">
+                  <div className="ats-metric-card__header">
+                    <div className="ats-metric-icon-box"><Building2 size={18} /></div>
+                    <span className={`ats-metric-badge ats-metric-badge--${c.verificationStatus === 'verified' ? 'success' : 'warning'}`}>
+                      {c.verificationStatus}
+                    </span>
+                  </div>
+                  <div className="ats-metric-card__body">
+                    <span className="ats-metric-card__label">Verification</span>
+                    <span className="ats-metric-card__val" style={{ textTransform: 'capitalize' }}>
+                      {c.verificationStatus}
+                    </span>
+                    <span className="ats-metric-card__sub">{c.isActive ? 'Active Status' : 'Inactive'}</span>
+                  </div>
+                </div>
+                <div className="ats-metric-card">
+                  <div className="ats-metric-card__header">
+                    <div className="ats-metric-icon-box" style={{ background: '#0284c7' }}><Globe size={18} /></div>
+                    <span className="ats-metric-badge ats-metric-badge--info">Domain Policy</span>
+                  </div>
+                  <div className="ats-metric-card__body">
+                    <span className="ats-metric-card__label">Auto-Approve</span>
+                    <span className="ats-metric-card__val">
+                      {c.autoApproveDomainMembers ? 'Enabled' : 'Disabled'}
+                    </span>
+                    <span className="ats-metric-card__sub">{c.officialEmailDomain || 'No domain configured'}</span>
+                  </div>
+                </div>
+                <div className="ats-metric-card">
+                  <div className="ats-metric-card__header">
+                    <div className="ats-metric-icon-box" style={{ background: '#10b981' }}><Users size={18} /></div>
+                    <span className="ats-metric-badge ats-metric-badge--success">Members</span>
+                  </div>
+                  <div className="ats-metric-card__body">
+                    <span className="ats-metric-card__label">Active Members</span>
+                    <span className="ats-metric-card__val">{c.team?.length ?? 1}</span>
+                    <span className="ats-metric-card__sub">Recruiters on workspace</span>
+                  </div>
+                </div>
+                <div className="ats-metric-card">
+                  <div className="ats-metric-card__header">
+                    <div className="ats-metric-icon-box" style={{ background: '#6366f1' }}><MapPin size={18} /></div>
+                    <span className="ats-metric-badge ats-metric-badge--neutral">HQ Location</span>
+                  </div>
+                  <div className="ats-metric-card__body">
+                    <span className="ats-metric-card__label">Headquarters</span>
+                    <span className="ats-metric-card__val" style={{ fontSize: '1.25rem', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>
+                      {c.headquarters?.city || c.headquarters?.country || 'Not set'}
+                    </span>
+                    <span className="ats-metric-card__sub">
+                      {[c.headquarters?.state, c.headquarters?.country].filter(Boolean).join(', ') || 'Primary Office'}
+                    </span>
+                  </div>
+                </div>
+                <div className="ats-metric-card">
+                  <div className="ats-metric-card__header">
+                    <div className="ats-metric-icon-box" style={{ background: '#64748b' }}><Calendar size={18} /></div>
+                    <span className="ats-metric-badge ats-metric-badge--neutral">EST.</span>
+                  </div>
+                  <div className="ats-metric-card__body">
+                    <span className="ats-metric-card__label">Founded Year</span>
+                    <span className="ats-metric-card__val">{c.foundedYear || 'N/A'}</span>
+                    <span className="ats-metric-card__sub">{c.companySize ? `${c.companySize} employees` : 'Company profile'}</span>
+                  </div>
+                </div>
+              </div>
+
               <div className="org-admin-summary">
                 <Card
                   heading={c.name}
@@ -558,7 +671,67 @@ export function OrganizationSettingsPage() {
       <PageHeader
         title="Organization settings"
         description="Settings backed by the current company-profile contract."
+        secondaryActions={<OrgAdminTabs />}
       />
+
+      <div className="ats-metrics-grid">
+        <div className="ats-metric-card">
+          <div className="ats-metric-card__header">
+            <div className="ats-metric-icon-box"><Building2 size={18} /></div>
+            <span className="ats-metric-badge ats-metric-badge--success">Active</span>
+          </div>
+          <div className="ats-metric-card__body">
+            <span className="ats-metric-card__label">Identity Profile</span>
+            <span className="ats-metric-card__val" style={{ fontSize: '1.25rem' }}>Public Profile</span>
+            <span className="ats-metric-card__sub">Company details & branding</span>
+          </div>
+        </div>
+        <div className="ats-metric-card">
+          <div className="ats-metric-card__header">
+            <div className="ats-metric-icon-box" style={{ background: '#0284c7' }}><ShieldCheck size={18} /></div>
+            <span className="ats-metric-badge ats-metric-badge--info">Security</span>
+          </div>
+          <div className="ats-metric-card__body">
+            <span className="ats-metric-card__label">Security & Access</span>
+            <span className="ats-metric-card__val" style={{ fontSize: '1.25rem' }}>RBAC Enabled</span>
+            <span className="ats-metric-card__sub">Permission-gated endpoints</span>
+          </div>
+        </div>
+        <div className="ats-metric-card">
+          <div className="ats-metric-card__header">
+            <div className="ats-metric-icon-box" style={{ background: '#10b981' }}><CheckCircle2 size={18} /></div>
+            <span className="ats-metric-badge ats-metric-badge--success">Verified</span>
+          </div>
+          <div className="ats-metric-card__body">
+            <span className="ats-metric-card__label">Verification State</span>
+            <span className="ats-metric-card__val" style={{ fontSize: '1.25rem' }}>Verified Org</span>
+            <span className="ats-metric-card__sub">Official Recruiter status</span>
+          </div>
+        </div>
+        <div className="ats-metric-card">
+          <div className="ats-metric-card__header">
+            <div className="ats-metric-icon-box" style={{ background: '#6366f1' }}><Users size={18} /></div>
+            <span className="ats-metric-badge ats-metric-badge--neutral">Team</span>
+          </div>
+          <div className="ats-metric-card__body">
+            <span className="ats-metric-card__label">Team Control</span>
+            <span className="ats-metric-card__val" style={{ fontSize: '1.25rem' }}>Managed</span>
+            <span className="ats-metric-card__sub">Domain & direct additions</span>
+          </div>
+        </div>
+        <div className="ats-metric-card">
+          <div className="ats-metric-card__header">
+            <div className="ats-metric-icon-box" style={{ background: '#64748b' }}><Settings size={18} /></div>
+            <span className="ats-metric-badge ats-metric-badge--neutral">Core</span>
+          </div>
+          <div className="ats-metric-card__body">
+            <span className="ats-metric-card__label">Integration</span>
+            <span className="ats-metric-card__val" style={{ fontSize: '1.25rem' }}>ATS Monolith</span>
+            <span className="ats-metric-card__sub">Centralized workflow</span>
+          </div>
+        </div>
+      </div>
+
       <Card heading="Public company profile" headingLevel={2}>
         <p>
           Manage identity, contact information, locations, public branding URLs,
@@ -587,62 +760,80 @@ export function OrganizationSettingsPage() {
 
 function TeamTable({ rows }: { rows: TeamMember[] }) {
   return (
-    <DataTable
-      caption="Organization team"
-      rows={rows}
-      rowKey={(m) => m.id}
-      columns={[
-        {
-          id: 'name',
-          header: 'Recruiter',
-          render: (m) => (
-            <>
-              <strong>{m.fullName || 'Recruiter'}</strong>
-              <small>{m.email}</small>
-            </>
-          ),
-        },
-        { id: 'role', header: 'Membership role', accessor: (m) => m.role },
-        {
-          id: 'status',
-          header: 'Status',
-          render: (m) => (
-            <StatusTag tone={m.status === 'active' ? 'success' : 'neutral'}>
-              {title(m.status)}
-            </StatusTag>
-          ),
-        },
-        {
-          id: 'permissions',
-          header: 'Permissions',
-          render: (m) => `${m.permissions.length} granted`,
-        },
-      ]}
-      renderNarrow={(m) => (
-        <div className="org-member-card">
-          <div>
-            <strong>{m.fullName || 'Recruiter'}</strong>
-            <small>{m.email}</small>
-          </div>
-          <StatusTag tone={m.status === 'active' ? 'success' : 'neutral'}>
-            {title(m.status)}
-          </StatusTag>
-          <p>
-            {m.role} · {m.permissions.length} permissions
-          </p>
-        </div>
-      )}
-      rowActions={(m) => (
-        <Link
-          className="tvx-button tvx-button--secondary tvx-button--md"
-          to={`/org/team/${m.id}`}
-        >
-          Manage
-        </Link>
-      )}
-    />
+    <div className="ats-table-card">
+      <div className="job-table-wrapper">
+        <table className="job-modern-table" aria-label="Organization team">
+          <thead>
+            <tr>
+              <th>RECRUITER & ID</th>
+              <th>MEMBERSHIP ROLE</th>
+              <th>STATUS</th>
+              <th>PERMISSIONS</th>
+              <th>ACTIONS</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((m) => {
+              const initials = (m.fullName || m.email || 'R')
+                .split(' ')
+                .map((n) => n[0])
+                .join('')
+                .toUpperCase()
+                .slice(0, 2);
+              const codeBadge = `#TEAM-${m.id.slice(-6).toUpperCase()}`;
+              const isActive = m.status === 'active';
+
+              return (
+                <tr key={m.id} className="job-table-row">
+                  <td className="job-entity-cell">
+                    <div className="ats-avatar-icon">
+                      {initials}
+                    </div>
+                    <div className="job-entity-info">
+                      <strong className="job-entity-title">
+                        {m.fullName || 'Recruiter'}
+                      </strong>
+                      <div className="job-entity-meta">
+                        <span>{m.email}</span>
+                        <span className="job-code-badge">{codeBadge}</span>
+                      </div>
+                    </div>
+                  </td>
+                  <td>
+                    <span style={{ fontWeight: 600, color: '#0f172a', textTransform: 'capitalize' }}>
+                      {m.role}
+                    </span>
+                  </td>
+                  <td>
+                    <span className={`job-status-pill job-status-pill--${isActive ? 'success' : 'neutral'}`}>
+                      <span className={`job-status-dot job-status-dot--${isActive ? 'success' : 'neutral'}`} />
+                      {title(m.status)}
+                    </span>
+                  </td>
+                  <td>
+                    <span style={{ fontSize: '0.8125rem', color: '#64748b' }}>
+                      {m.permissions.length} granted
+                    </span>
+                  </td>
+                  <td>
+                    <Link
+                      className="tvx-button tvx-button--secondary tvx-button--sm"
+                      to={`/org/team/${m.id}`}
+                      style={{ height: '30px', borderRadius: '9999px', fontSize: '0.78125rem' }}
+                    >
+                      Manage
+                    </Link>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
   );
 }
+
 export function TeamPage() {
   const a = useOrgAccess(),
     [sp, setSp] = useSearchParams(),
@@ -672,6 +863,7 @@ export function TeamPage() {
       <PageHeader
         title="Team & permissions"
         description="Manage active and removed memberships loaded from your organization."
+        secondaryActions={<OrgAdminTabs />}
         primaryAction={
           <Link
             className="tvx-button tvx-button--primary tvx-button--md"
@@ -683,7 +875,8 @@ export function TeamPage() {
       />
       <CompanyLoad includeTeam>
         {(c) => {
-          const rows = (c?.team ?? []).filter(
+          const allTeam = c?.team ?? [];
+          const rows = allTeam.filter(
             (m) =>
               (!q ||
                 `${m.fullName} ${m.email} ${m.role}`
@@ -691,8 +884,72 @@ export function TeamPage() {
                   .includes(q)) &&
               (!status || m.status === status),
           );
+          const activeCount = allTeam.filter((m) => m.status === 'active').length;
+          const pendingRequestsCount = Array.isArray(joinRequestsQuery.data) ? joinRequestsQuery.data.length : 0;
+          const totalPermsCount = allTeam.reduce((acc, m) => acc + (m.permissions?.length ?? 0), 0);
+
           return (
             <>
+              <div className="ats-metrics-grid">
+                <div className="ats-metric-card">
+                  <div className="ats-metric-card__header">
+                    <div className="ats-metric-icon-box"><Users size={18} /></div>
+                    <span className="ats-metric-badge ats-metric-badge--neutral">Roster</span>
+                  </div>
+                  <div className="ats-metric-card__body">
+                    <span className="ats-metric-card__label">Total Members</span>
+                    <span className="ats-metric-card__val">{allTeam.length}</span>
+                    <span className="ats-metric-card__sub">Total team entries</span>
+                  </div>
+                </div>
+                <div className="ats-metric-card">
+                  <div className="ats-metric-card__header">
+                    <div className="ats-metric-icon-box" style={{ background: '#10b981' }}><UserCheck size={18} /></div>
+                    <span className="ats-metric-badge ats-metric-badge--success">Active</span>
+                  </div>
+                  <div className="ats-metric-card__body">
+                    <span className="ats-metric-card__label">Active Recruiters</span>
+                    <span className="ats-metric-card__val">{activeCount}</span>
+                    <span className="ats-metric-card__sub">Has active access</span>
+                  </div>
+                </div>
+                <div className="ats-metric-card">
+                  <div className="ats-metric-card__header">
+                    <div className="ats-metric-icon-box" style={{ background: '#f59e0b' }}><Clock size={18} /></div>
+                    <span className="ats-metric-badge ats-metric-badge--warning">Pending</span>
+                  </div>
+                  <div className="ats-metric-card__body">
+                    <span className="ats-metric-card__label">Join Requests</span>
+                    <span className="ats-metric-card__val">{pendingRequestsCount}</span>
+                    <span className="ats-metric-card__sub">Awaiting approval</span>
+                  </div>
+                </div>
+                <div className="ats-metric-card">
+                  <div className="ats-metric-card__header">
+                    <div className="ats-metric-icon-box" style={{ background: '#0284c7' }}><Shield size={18} /></div>
+                    <span className="ats-metric-badge ats-metric-badge--info">Security</span>
+                  </div>
+                  <div className="ats-metric-card__body">
+                    <span className="ats-metric-card__label">Permissions Granted</span>
+                    <span className="ats-metric-card__val">{totalPermsCount}</span>
+                    <span className="ats-metric-card__sub">Across all members</span>
+                  </div>
+                </div>
+                <div className="ats-metric-card">
+                  <div className="ats-metric-card__header">
+                    <div className="ats-metric-icon-box" style={{ background: '#6366f1' }}><Award size={18} /></div>
+                    <span className="ats-metric-badge ats-metric-badge--neutral">Your Access</span>
+                  </div>
+                  <div className="ats-metric-card__body">
+                    <span className="ats-metric-card__label">Your Role</span>
+                    <span className="ats-metric-card__val" style={{ textTransform: 'capitalize', fontSize: '1.25rem' }}>
+                      {a.recruiter?.role || 'Admin'}
+                    </span>
+                    <span className="ats-metric-card__sub">Full team management</span>
+                  </div>
+                </div>
+              </div>
+
               <Toolbar
                 label="Team filters"
                 start={

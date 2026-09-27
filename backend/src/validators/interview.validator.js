@@ -238,7 +238,7 @@ export const feedbackBody = z
           .strict(),
       )
       .max(30),
-    recommendation: z.enum(RECOMMENDATIONS),
+    recommendation: z.enum(RECOMMENDATIONS).optional(),
     strengths: z.array(text(500)).max(20).default([]),
     concerns: z.array(text(500)).max(20).default([]),
     privateNotes: text(5000).optional(),

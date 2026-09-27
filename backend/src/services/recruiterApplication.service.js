@@ -8,12 +8,12 @@ import { CompanyMember } from '../models/CompanyMember.js';
 import { Comment } from '../models/Comment.js';
 import { CandidateProfile } from '../models/CandidateProfile.js';
 import { AppError } from '../shared/errors/AppError.js';
-import { changeApplicationStatus } from '../utils/applicationStatus.js';
+import { changeApplicationStatus, syncApplicationStatus } from '../utils/applicationStatus.js';
 import { buildPagination, createSafeRegex } from '../utils/pagination.js';
 import { genericApplicationEvent } from '../utils/applicationNotificationPolicy.js';
 import { publishOptionalDomainEvent } from './domainEvent.service.js';
 
-const companyApplication = async (companyId, id) => { const application = await Application.findOne({ _id: id, company: companyId, isArchived: false }).populate('candidateProfile'); if (!application) throw new AppError('Application not found', 404); return application; };
+const companyApplication = async (companyId, id) => { const application = await Application.findOne({ _id: id, company: companyId, isArchived: false }).populate('candidateProfile'); if (!application) throw new AppError('Application not found', 404); await syncApplicationStatus(application); return application; };
 const filterFor = (companyId, query) => {
   const filter = { company: companyId, isArchived: false };
   if (query.jobId) filter.job = query.jobId; if (query.status) filter.status = query.status;
@@ -31,7 +31,7 @@ export const listCompanyApplications = async (companyId, query) => {
   return { applications, pagination: buildPagination(query.page, query.limit, total) };
 };
 export const getCompanyApplication = (companyId, id) => companyApplication(companyId, id);
-export const updateApplicationStatus = async (companyId, id, actorId, input) => { const application = await companyApplication(companyId, id); const previousStatus=application.status; changeApplicationStatus(application, input.status, actorId, input.reason, { rejectionCategory: input.rejectionCategory }); await application.save(); const type=genericApplicationEvent({previousStatus,nextStatus:input.status}); const history=application.statusHistory.at(-1); if(type)await publishOptionalDomainEvent({type,actor:String(actorId),company:String(companyId),recipientIds:[String(application.candidate)],payload:{applicationId:String(application.id),applicationNumber:application.applicationNumber,candidateId:String(application.candidate),companyId:String(companyId),jobId:String(application.job),jobTitle:application.jobSnapshot.title,status:input.status,reason:input.status==='rejected'?String(input.reason??'').slice(0,300):undefined,actionUrl:`/candidate/applications/${application.id}`},deduplicationKey:`${type}:${application.id}:${history.id}`}); return application; };
+export const updateApplicationStatus = async (companyId, id, actorId, input) => { const application = await companyApplication(companyId, id); const previousStatus=application.status; changeApplicationStatus(application, input.status, actorId, input.reason, { rejectionCategory: input.rejectionCategory }); await application.save(); const type=genericApplicationEvent({previousStatus,nextStatus:input.status}); const history=application.statusHistory.at(-1); if(type)await publishOptionalDomainEvent({type,actor:String(actorId),company:String(companyId),recipientIds:[String(application.candidate)],payload:{applicationId:String(application.id),applicationNumber:application.applicationNumber,candidateId:String(application.candidate),companyId:String(companyId),companyName:application.jobSnapshot?.companyName,jobId:String(application.job),jobTitle:application.jobSnapshot?.title,status:input.status,reason:input.status==='rejected'?String(input.reason??'').slice(0,300):undefined,actionUrl:`/candidate/applications/${application.id}`},deduplicationKey:`${type}:${application.id}:${history.id}`}); return application; };
 const parseMentions = async (noteText, companyId) => {
   if (!noteText) return [];
   const words = noteText.split(/\s+/);

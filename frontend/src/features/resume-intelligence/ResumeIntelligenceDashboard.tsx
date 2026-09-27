@@ -50,7 +50,12 @@ export const ResumeIntelligenceDashboard: React.FC = () => {
           <div style={{ background: '#FFF', padding: '20px', borderRadius: '8px', boxShadow: '0 4px 6px rgba(0,0,0,0.05)', marginBottom: '24px' }}>
             <h3 style={{ marginTop: 0, marginBottom: '16px', fontSize: '18px' }}>Upload New Resume Version</h3>
             <form onSubmit={handleUpload} style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
-              <input type="file" onChange={(e) => setSelectedFile(e.target.files?.[0] || null)} />
+              <input
+                type="file"
+                accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
+              />
+
               <button
                 type="submit"
                 disabled={uploading}

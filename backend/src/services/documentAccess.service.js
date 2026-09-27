@@ -10,7 +10,7 @@ export const authorizeDocumentAccess = ({ actor, document, action, context = {} 
   if (actor.role === 'admin') return document;
   if (document.owner.equals(actor.id)) return document;
   if (context.company && document.company?.equals(context.company) && context.recruiter && ['company-private', 'candidate-visible', 'public-profile'].includes(document.access)) return document;
-  if (context.application && context.recruiter && document.category === 'resume' && context.application.resumeDocument?.equals(document.id)) return document;
+  if (context.application && context.recruiter && (document.category === 'resume' || document.entityType === 'candidate-profile' || document.entityType === 'application') && (context.application.resumeDocument?.equals(document.id) || context.application.candidate?.equals(document.owner))) return document;
   if (context.candidate && document.access === 'candidate-visible') {
     if (document.entityType === 'interview-process' && context.interview?.candidate.equals(actor.id)) return document;
     if (document.entityType === 'offer' && context.offer?.candidate.equals(actor.id) && CANDIDATE_VISIBLE_OFFER_STATUSES.includes(context.offer.status) && (context.offer.status !== 'withdrawn' || context.offer.sentAt)) return document;

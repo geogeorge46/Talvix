@@ -32,11 +32,14 @@ export const serializeNotification = (n) => {
       { label: 'Schedule Interview', type: 'link', path: `/org/interviews/new?applicationId=${entityId}` },
       { label: 'Reject Candidate', type: 'action', method: 'PATCH', path: `/api/v1/applications/${entityId}/status`, body: { status: 'rejected' } }
     ];
-  } else if (n.type === 'interview-scheduled' || n.type === 'interview-reminder') {
+  } else if (n.type === 'interview-scheduled' || n.type === 'interview-reminder' || n.type === 'interview-rescheduled') {
+    const actionPath = n.data?.actionUrl || (n.data?.meetingUrl ?? '/candidate/interviews');
     serialized.actions = [
-      { label: 'Join Meeting', type: 'link', path: n.data?.meetingUrl || '#' },
-      { label: 'Reschedule', type: 'link', path: `/org/interviews/${entityId}/reschedule` }
+      { label: 'View Interview Details', type: 'link', path: actionPath }
     ];
+    if (n.data?.meetingUrl) {
+      serialized.actions.unshift({ label: 'Join Meeting', type: 'link', path: n.data.meetingUrl });
+    }
   } else if (n.type === 'company-claim-submitted' || n.type === 'security-alert') {
     serialized.actions = [
       { label: 'View Claim', type: 'link', path: `/admin/claims` }
@@ -45,6 +48,21 @@ export const serializeNotification = (n) => {
     serialized.actions = [
       { label: 'Accept', type: 'action', method: 'POST', path: `/api/v1/companies/invitations/${entityId}/accept` },
       { label: 'Decline', type: 'action', method: 'POST', path: `/api/v1/companies/invitations/${entityId}/decline` }
+    ];
+  } else if (n.type === 'assessment-assigned' || n.type === 'assessment-starting-soon') {
+    const actionPath = n.data?.actionUrl || `/candidate/assessments/${n.data?.assignmentId || ''}`;
+    serialized.actions = [
+      { label: 'Start Assessment', type: 'link', path: actionPath }
+    ];
+  } else if (n.type === 'assessment-result-released' || n.type === 'assessment-result-ready') {
+    const actionPath = n.data?.actionUrl || `/candidate/assessments/${n.data?.assignmentId || ''}`;
+    serialized.actions = [
+      { label: 'View Assessment Result', type: 'link', path: actionPath }
+    ];
+  } else if (n.type === 'offer-sent' || n.type === 'offer-revised') {
+    const actionPath = n.data?.actionUrl || `/candidate/offers/${n.data?.offerId || ''}`;
+    serialized.actions = [
+      { label: 'View Offer', type: 'link', path: actionPath }
     ];
   }
 

@@ -36,7 +36,10 @@ export const get = h(async (r, s) => {
     _id: r.params.processId,
     company: r.company.id,
     isArchived: false,
-  });
+  })
+    .populate('candidate', 'fullName email')
+    .populate('job', 'title department')
+    .populate('application', 'candidateName applicationNumber');
   if (!process) throw new AppError("Interview process not found", 404);
   const [rounds, schedules] = await Promise.all([
     InterviewRound.find({ process: process.id, company: r.company.id }).lean(),

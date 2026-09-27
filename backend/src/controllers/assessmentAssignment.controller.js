@@ -7,3 +7,6 @@ export const cancelManagedAssignment = handle(async (r, s) => s.json({ success: 
 export const extendManagedAssignment = handle(async (r, s) => s.json({ success: true, message: 'Assessment assignment extended successfully', data: { assignment: await service.extendAssignment(r.company.id, r.params.assignmentId, r.user.id, r.body) } }));
 export const myAssignments = handle(async (r, s) => s.json({ success: true, message: 'Assessment assignments retrieved successfully', data: await service.listMyAssignments(r.user.id, r.validatedQuery) }));
 export const myAssignment = handle(async (r, s) => s.json({ success: true, message: 'Assessment assignment retrieved successfully', data: { assignment: await service.getMyAssignment(r.user.id, r.params.assignmentId) } }));
+export const checkEligibility = handle(async (r, s) => s.json({ success: true, message: 'Candidate eligibility evaluated successfully', data: await service.checkAssignmentEligibility(r.company.id, r.body) }));
+export const bulkAssign = handle(async (r, s) => s.status(201).json({ success: true, message: 'Bulk assessment assignments processed successfully', data: await service.bulkAssignAssessment(r.company.id, r.user.id, r.body) }));
+

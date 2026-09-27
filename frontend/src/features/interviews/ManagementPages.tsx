@@ -1,20 +1,35 @@
 import { useEffect, useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import {
+  CheckCircle2,
+  Clock,
+  AlertTriangle,
+  FileText,
+  Layers,
+  Sparkles,
+  Search,
+} from 'lucide-react';
 import {
   Alert,
+  Badge,
   Button,
   Card,
   ConfirmDialog,
   DataTable,
+  DescriptionList,
   EmptyState,
   ErrorState,
+  FilteredEmptyState,
   LoadingState,
+  MetricCard,
   PageHeader,
   PermissionState,
+  SearchField,
   Select,
   StatusTag,
   TextArea,
   TextField,
+  Toolbar,
 } from '../../design-system';
 import { useAuth } from '../../auth/AuthProvider';
 import {
@@ -24,28 +39,139 @@ import {
   useFeedbackAction,
   useTemplates,
 } from './api';
-import { label, type Template } from './model';
-const has = (p: string[], v: string) => p.includes(v),
+import { useApplication } from '../ats-workspace/api';
+import { label, type Process, type Template } from './model';
+import { InterviewTabs } from './Pages';
+
+const has = (items: string[], item: string) => items.includes(item),
   msg = (e: unknown) =>
     e instanceof Error ? e.message : 'The request could not be completed.';
+
+const PRESETS: Record<string, { label: string; rounds: unknown[] }> = {
+  'preset:standard-tech': {
+    label: 'Standard Technical Round (1 Round — 45 mins)',
+    rounds: [
+      {
+        name: 'Technical Round',
+        description: 'Evaluates technical proficiency, problem solving, and role knowledge.',
+        type: 'technical',
+        durationMinutes: 45,
+        order: 1,
+        required: true,
+        scorecardTemplate: {
+          criteria: [
+            { name: 'Technical Skills', category: 'technical', weight: 1, maximumScore: 5, required: true },
+            { name: 'Problem Solving', category: 'problem-solving', weight: 1, maximumScore: 5, required: true },
+            { name: 'Communication', category: 'communication', weight: 1, maximumScore: 5, required: true },
+          ],
+        },
+        defaultInterviewers: [],
+        minimumInterviewers: 1,
+        maximumInterviewers: 3,
+      },
+    ],
+  },
+  'preset:full-loop': {
+    label: 'Full Hiring Loop (Technical Round 45m + HR Round 30m)',
+    rounds: [
+      {
+        name: 'Technical Interview',
+        description: 'Comprehensive technical and problem-solving assessment.',
+        type: 'technical',
+        durationMinutes: 45,
+        order: 1,
+        required: true,
+        scorecardTemplate: {
+          criteria: [
+            { name: 'Technical Depth', category: 'technical', weight: 1, maximumScore: 5, required: true },
+            { name: 'Problem Solving', category: 'problem-solving', weight: 1, maximumScore: 5, required: true },
+          ],
+        },
+        defaultInterviewers: [],
+        minimumInterviewers: 1,
+        maximumInterviewers: 3,
+      },
+      {
+        name: 'HR & Culture Round',
+        description: 'Culture fit, communication, and expectation alignment.',
+        type: 'hr',
+        durationMinutes: 30,
+        order: 2,
+        required: true,
+        scorecardTemplate: {
+          criteria: [
+            { name: 'Communication', category: 'communication', weight: 1, maximumScore: 5, required: true },
+            { name: 'Culture Fit', category: 'culture', weight: 1, maximumScore: 5, required: true },
+          ],
+        },
+        defaultInterviewers: [],
+        minimumInterviewers: 1,
+        maximumInterviewers: 2,
+      },
+    ],
+  },
+  'preset:screening': {
+    label: 'Initial Screening Round (30 mins)',
+    rounds: [
+      {
+        name: 'Initial Screening',
+        description: 'Initial background review, availability, and expectations.',
+        type: 'screening',
+        durationMinutes: 30,
+        order: 1,
+        required: true,
+        scorecardTemplate: {
+          criteria: [
+            { name: 'Role Fit', category: 'role-fit', weight: 1, maximumScore: 5, required: true },
+            { name: 'Communication', category: 'communication', weight: 1, maximumScore: 5, required: true },
+          ],
+        },
+        defaultInterviewers: [],
+        minimumInterviewers: 1,
+        maximumInterviewers: 2,
+      },
+    ],
+  },
+};
+
 export function ProcessCreatePage() {
-  const { recruiter } = useAuth(),
+  const [searchParams] = useSearchParams(),
+    { recruiter } = useAuth(),
     can = has(recruiter?.permissions ?? [], 'interviews.manage'),
     templates = useTemplates('page=1&limit=50&sort=name&active=true', can),
     create = useProcessCreate(),
     nav = useNavigate(),
-    [applicationId, setApplicationId] = useState(''),
-    [templateId, setTemplateId] = useState('');
+    [applicationId, setApplicationId] = useState(searchParams.get('applicationId') || ''),
+    [templateId, setTemplateId] = useState('preset:standard-tech');
+
+  const appQuery = useApplication(applicationId, Boolean(applicationId) && can);
+
   if (!can)
     return (
       <PermissionState description="The interviews.manage permission is required." />
     );
+
+  const customTemplates = ((templates.data?.items ?? []) as Template[]).map((t) => ({
+    value: t.id,
+    label: t.name,
+  }));
+
+  const templateOptions = [
+    { value: 'preset:standard-tech', label: '⚡ Standard Technical Round (1 Round — 45 mins)' },
+    { value: 'preset:full-loop', label: '⚡ Full Loop (Technical Round 45m + HR Round 30m)' },
+    { value: 'preset:screening', label: '⚡ Initial Screening Round (30 mins)' },
+    ...customTemplates,
+  ];
+
   return (
     <form
       className="iv-page"
       onSubmit={(e) => {
         e.preventDefault();
-        void create.mutateAsync({ applicationId, templateId }).then((r) => {
+        const payload = templateId.startsWith('preset:')
+          ? { applicationId, rounds: PRESETS[templateId]?.rounds }
+          : { applicationId, templateId };
+        void create.mutateAsync(payload).then((r) => {
           const x = r as { process?: { _id?: string; id?: string } };
           nav(`/org/interviews/${x.process?.id ?? x.process?._id ?? ''}`);
         });
@@ -53,9 +179,33 @@ export function ProcessCreatePage() {
     >
       <PageHeader
         title="Create interview process"
-        description="Start from an eligible application and an active interview template."
+        description="Start from an eligible application and select an interview round structure."
       />
       <Card heading="Process source" headingLevel={2}>
+        {appQuery.data && (
+          <div
+            style={{
+              padding: '14px 16px',
+              background: '#f8fafc',
+              borderRadius: '8px',
+              border: '1px solid #e2e8f0',
+              marginBottom: '16px',
+            }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div>
+                <strong style={{ fontSize: '1rem', display: 'block', color: '#0f172a' }}>
+                  {appQuery.data.candidateName || 'Candidate Application'}
+                </strong>
+                <span style={{ fontSize: '0.875rem', color: '#64748b' }}>
+                  {appQuery.data.jobTitle ? `${appQuery.data.jobTitle} · ` : ''}
+                  {appQuery.data.candidateEmail || ''}
+                </span>
+              </div>
+              {appQuery.data.status && <StatusTag>{appQuery.data.status}</StatusTag>}
+            </div>
+          </div>
+        )}
         <TextField
           required
           label="Application ID"
@@ -65,14 +215,19 @@ export function ProcessCreatePage() {
         />
         <Select
           required
-          label="Interview template"
+          label="Interview round structure / template"
           value={templateId}
           onChange={(e) => setTemplateId(e.target.value)}
-          options={((templates.data?.items ?? []) as Template[]).map((t) => ({
-            value: t.id,
-            label: t.name,
-          }))}
+          options={templateOptions}
         />
+        {customTemplates.length === 0 && (
+          <small style={{ display: 'block', marginTop: '-8px', marginBottom: '12px', color: '#64748b' }}>
+            Tip: You can use preset round structures above or{' '}
+            <Link to="/org/interviews/templates/new" style={{ color: '#3b82f6', underline: 'always' }}>
+              create custom organization templates
+            </Link>.
+          </small>
+        )}
         {create.isError && (
           <Alert
             tone="danger"
@@ -111,86 +266,237 @@ interface FeedbackRow {
   overdue?: boolean;
 }
 export function FeedbackQueuePage() {
-  const { recruiter } = useAuth(),
-    can = has(recruiter?.permissions ?? [], 'interviews.evaluate'),
-    q = useFeedback(can);
+  const { recruiter } = useAuth();
+  const can = has(recruiter?.permissions ?? [], 'interviews.evaluate');
+  const q = useFeedback(can);
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  const currentSearch = searchParams.get('search') || '';
+  const currentStatus = searchParams.get('status') || '';
+  const [searchDraft, setSearchDraft] = useState(currentSearch);
+
+  useEffect(() => {
+    setSearchDraft(currentSearch);
+  }, [currentSearch]);
+
   if (!can)
     return (
       <PermissionState description="The interviews.evaluate permission is required." />
     );
+
+  const allRows = ((q.data ?? []) as FeedbackRow[]);
+  const totalCount = allRows.length;
+  const pendingCount = allRows.filter((x) => !x.submitted).length;
+  const overdueCount = allRows.filter((x) => x.overdue).length;
+  const submittedCount = allRows.filter((x) => x.submitted).length;
+
+  const filteredRows = allRows.filter((row) => {
+    const nameStr = (row.name || String(row.roundId ?? row.round ?? '')).toLowerCase();
+    const searchMatch = !currentSearch || nameStr.includes(currentSearch.toLowerCase());
+
+    if (!searchMatch) return false;
+    if (currentStatus === 'pending') return !row.submitted;
+    if (currentStatus === 'overdue') return row.overdue;
+    if (currentStatus === 'submitted') return row.submitted;
+    return true;
+  });
+
+  const hasFilters = Boolean(currentSearch || currentStatus);
+
+  const updateFilters = (patch: { search?: string; status?: string }) => {
+    const next = new URLSearchParams(searchParams);
+    if (patch.search !== undefined) {
+      if (patch.search) next.set('search', patch.search);
+      else next.delete('search');
+    }
+    if (patch.status !== undefined) {
+      if (patch.status) next.set('status', patch.status);
+      else next.delete('status');
+    }
+    setSearchParams(next, { replace: true });
+  };
+
   return (
     <div className="iv-page">
       <PageHeader
         title="My interview scorecards"
-        description="Assigned scorecards are ordered with overdue work first."
+        description="Assigned scorecards are ordered with overdue evaluations prioritized."
+        secondaryActions={<InterviewTabs />}
       />
+
+      <section className="org-metrics-grid-5" aria-label="Scorecard summary statistics">
+        <MetricCard
+          label="Total Assigned"
+          value={totalCount}
+          metadata="My scorecards"
+          icon={<FileText />}
+        />
+        <MetricCard
+          label="Pending Review"
+          value={pendingCount}
+          metadata="Draft evaluations"
+          icon={<Clock />}
+          variant="ice"
+        />
+        <MetricCard
+          label="Overdue Attention"
+          value={overdueCount}
+          metadata="Action required"
+          icon={<AlertTriangle />}
+          variant="dark"
+        />
+        <MetricCard
+          label="Submitted"
+          value={submittedCount}
+          metadata="Completed reviews"
+          icon={<CheckCircle2 />}
+        />
+        <MetricCard
+          label="Queue Health"
+          value={`${totalCount > 0 ? Math.round((submittedCount / totalCount) * 100) : 100}%`}
+          metadata="Completion rate"
+          icon={<Sparkles />}
+        />
+      </section>
+
+      <Toolbar
+        label="Scorecard filters"
+        start={
+          <SearchField
+            label="Search scorecards"
+            value={searchDraft}
+            onChange={(e) => setSearchDraft(e.target.value)}
+            onSearch={(value) => updateFilters({ search: value.trim() })}
+          />
+        }
+        end={
+          <div className="tvx-dashboard-filter-actions">
+            <Select
+              aria-label="Filter by evaluation status"
+              value={currentStatus}
+              options={[
+                { value: '', label: 'All scorecards' },
+                { value: 'pending', label: 'Pending / Draft' },
+                { value: 'overdue', label: 'Overdue' },
+                { value: 'submitted', label: 'Submitted' },
+              ]}
+              onChange={(e) => updateFilters({ status: e.target.value })}
+            />
+            {hasFilters && (
+              <Button
+                variant="quiet"
+                onClick={() => {
+                  setSearchDraft('');
+                  setSearchParams({}, { replace: true });
+                }}
+              >
+                Reset filters
+              </Button>
+            )}
+          </div>
+        }
+      />
+
       {q.isError ? (
         <ErrorState detail={msg(q.error)} retry={() => void q.refetch()} />
       ) : (
-        <>
-          <DataTable
-            caption="My scorecards"
-            rows={(q.data ?? []) as FeedbackRow[]}
-            rowKey={(x) => String(x.id ?? x._id)}
-            isLoading={q.isLoading}
-            empty={
+        <DataTable
+          caption="My scorecards"
+          rows={filteredRows}
+          rowKey={(x) => String(x.id ?? x._id)}
+          isLoading={q.isLoading}
+          empty={
+            hasFilters ? (
+              <FilteredEmptyState
+                title="No matching scorecards"
+                description="Try broadening your search term or status filter."
+                onClear={() => {
+                  setSearchDraft('');
+                  setSearchParams({}, { replace: true });
+                }}
+              />
+            ) : (
               <EmptyState
                 title="No scorecards returned"
-                description="You have no pending or overdue assigned scorecards."
+                description="You have no pending or overdue assigned scorecards at this time."
               />
-            }
-            columns={[
-              {
-                id: 'round',
-                header: 'Round ID',
-                render: (x) => (
-                  <span>{x.name || String(x.roundId ?? x.round ?? 'Unavailable')}</span>
-                ),
-              },
-              {
-                id: 'status',
-                header: 'Completion',
-                render: (x) => (
-                  <StatusTag tone={x.submitted ? 'success' : 'warning'}>
-                    {x.submitted ? 'Submitted' : 'Draft'}
-                  </StatusTag>
-                ),
-              },
-              {
-                id: 'overdue',
-                header: 'Due status',
-                render: (x) => (
-                  <StatusTag tone={x.overdue ? 'danger' : 'neutral'}>
-                    {x.overdue
-                      ? 'Overdue'
-                      : x.dueAt
-                        ? new Date(x.dueAt).toLocaleString()
-                        : 'Pending'}
-                  </StatusTag>
-                ),
-              },
-            ]}
-            renderNarrow={(x) => (
-              <article className="iv-record">
-                <strong>{x.name || `Round ${String(x.roundId ?? x.round)}`}</strong>
+            )
+          }
+          columns={[
+            {
+              id: 'round',
+              header: 'Round / Scorecard',
+              render: (x) => (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                  <div
+                    style={{
+                      width: '36px',
+                      height: '36px',
+                      borderRadius: '8px',
+                      background: x.overdue ? '#fef2f2' : '#f0f9ff',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: x.overdue ? '#dc2626' : '#0284c7',
+                      flexShrink: 0,
+                    }}
+                  >
+                    <CheckCircle2 size={18} />
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column' }}>
+                    <strong style={{ fontSize: '0.875rem', color: '#0f172a' }}>
+                      {x.name || `Round ${String(x.roundId ?? x.round ?? 'Evaluation')}`}
+                    </strong>
+                    <small style={{ color: '#64748b', fontSize: '0.75rem' }}>
+                      ID: {String(x.id ?? x._id ?? x.roundId).slice(-8)}
+                    </small>
+                  </div>
+                </div>
+              ),
+            },
+            {
+              id: 'status',
+              header: 'Completion',
+              render: (x) => (
                 <StatusTag tone={x.submitted ? 'success' : 'warning'}>
                   {x.submitted ? 'Submitted' : 'Draft'}
                 </StatusTag>
-                <Link to={`/org/interviews/feedback/${String(x.id ?? x.roundId ?? x.round)}`}>
-                  Review
-                </Link>
-              </article>
-            )}
-            rowActions={(x) => (
-              <Link
-                className="tvx-button tvx-button--secondary tvx-button--compact"
-                to={`/org/interviews/feedback/${String(x.id ?? x.roundId ?? x.round)}`}
-              >
-                Open
+              ),
+            },
+            {
+              id: 'overdue',
+              header: 'Due Status',
+              render: (x) => (
+                <StatusTag tone={x.overdue ? 'danger' : x.submitted ? 'success' : 'neutral'}>
+                  {x.overdue
+                    ? 'Overdue'
+                    : x.dueAt
+                      ? new Date(x.dueAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
+                      : 'Pending'}
+                </StatusTag>
+              ),
+            },
+          ]}
+          renderNarrow={(x) => (
+            <article className="iv-record">
+              <strong>{x.name || `Round ${String(x.roundId ?? x.round)}`}</strong>
+              <StatusTag tone={x.submitted ? 'success' : 'warning'}>
+                {x.submitted ? 'Submitted' : 'Draft'}
+              </StatusTag>
+              <Link to={`/org/interviews/feedback/${String(x.id ?? x.roundId ?? x.round)}`}>
+                Review
               </Link>
-            )}
-          />
-        </>
+            </article>
+          )}
+          rowActions={(x) => (
+            <Link
+              className="tvx-button tvx-button--secondary tvx-button--compact"
+              to={`/org/interviews/feedback/${String(x.id ?? x.roundId ?? x.round)}`}
+            >
+              Open
+            </Link>
+          )}
+        />
       )}
     </div>
   );
@@ -241,7 +547,7 @@ export function FeedbackDetailPage() {
         ...(value.comment.trim() ? { comment: value.comment.trim() } : {}),
       }] : [];
     }),
-    recommendation,
+    ...(recommendation ? { recommendation } : {}),
     strengths: strengths.split('\n').map((x) => x.trim()).filter(Boolean),
     concerns: concerns.split('\n').map((x) => x.trim()).filter(Boolean),
     ...(privateNotes.trim() ? { privateNotes: privateNotes.trim() } : {}),
@@ -278,7 +584,7 @@ export function FeedbackDetailPage() {
         ))}
       </section>
       <Card heading="Overall recommendation" headingLevel={2}>
-        <Select required disabled={immutable} label="Recommendation" value={recommendation} onChange={(e) => setRecommendation(e.target.value)} options={['strong-hire', 'hire', 'neutral', 'no-hire', 'strong-no-hire'].map((value) => ({ value, label: label(value) }))} />
+        <Select required disabled={immutable} label="Recommendation" value={recommendation} onChange={(e) => setRecommendation(e.target.value)} options={['strong-hire', 'hire', 'neutral', 'hold', 'no-hire', 'strong-no-hire'].map((value) => ({ value, label: label(value) }))} />
         <TextArea disabled={immutable} label="Strengths (one per line)" value={strengths} onChange={(e) => setStrengths(e.target.value)} />
         <TextArea disabled={immutable} label="Concerns (one per line)" value={concerns} onChange={(e) => setConcerns(e.target.value)} />
         <TextArea disabled={immutable} label="Private notes" hint="Visible only to you and authorized internal users." value={privateNotes} onChange={(e) => setPrivateNotes(e.target.value)} />

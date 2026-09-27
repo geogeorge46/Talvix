@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { env } from '../config/env.js';
 import { USER_ROLES } from '../constants/roles.js';
 import * as generic from '../controllers/document.controller.js';
 import * as adminController from '../controllers/adminDocument.controller.js';
@@ -7,6 +8,7 @@ import { authenticate } from '../middleware/auth.js';
 import { authorizePermissions } from '../middleware/authorizePermissions.js';
 import { authorizeRoles } from '../middleware/authorizeRoles.js';
 import { acceptSingleFile } from '../middleware/fileUpload.js';
+import { requireCompanyAccess } from '../middleware/companyAccess.js';
 import * as documentValidation from '../validators/document.validator.js';
 import * as integrationValidation from '../validators/documentIntegration.validator.js';
 import { validateBody, validateParams, validateQuery } from '../validators/validate.js';
@@ -15,16 +17,31 @@ import { getMemoryFile } from '../services/fileStorageProvider.service.js';
 export const documentRouter = Router();
 documentRouter.get('/local-view/*publicId', (req, res) => {
   try {
-    const publicId = decodeURIComponent(req.path.split('/local-view/')[1]);
+    const rawParam = req.params.publicId || req.params[0] || req.path.split('/local-view/')[1] || '';
+    const publicId = decodeURIComponent(rawParam);
     const file = getMemoryFile(publicId);
     if (!file) return res.status(404).send('Not Found');
+    res.removeHeader('X-Frame-Options');
+    res.removeHeader('Cross-Origin-Embedder-Policy');
+    res.removeHeader('Cross-Origin-Opener-Policy');
     res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
-    res.setHeader('Content-Type', file.mimeType || 'image/png');
+    const clientOrigins = [env.CLIENT_URL, 'http://localhost:5173', 'http://127.0.0.1:5173'].filter(Boolean).join(' ');
+    res.setHeader('Content-Security-Policy', `frame-ancestors 'self' ${clientOrigins}`);
+    const mimeType = file.mimeType || (
+      publicId.endsWith('.pdf') ? 'application/pdf' :
+      publicId.endsWith('.docx') ? 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' :
+      publicId.endsWith('.doc') ? 'application/msword' :
+      'image/png'
+    );
+    res.setHeader('Content-Type', mimeType);
+    const disposition = req.query.attachment === '1' ? 'attachment' : 'inline';
+    res.setHeader('Content-Disposition', `${disposition}; filename="${file.fileName || publicId.split('/').at(-1) || 'document.pdf'}"`);
     res.send(file.buffer);
-  } catch (error) {
+  } catch {
     res.status(500).send('Error');
   }
 });
+
 documentRouter.use(authenticate);
 const candidate = authorizeRoles(USER_ROLES.CANDIDATE);
 const recruiter = authorizeRoles(USER_ROLES.RECRUITER);
@@ -46,42 +63,43 @@ for (const [path, kind, role] of [['resume', 'resume', candidate], ['profile-pho
   documentRouter.delete(`/me/${path}`, role, integration.profileDelete(kind));
 }
 
-documentRouter.post('/company/logo', recruiter, authorizePermissions('documents.manage'), ...upload(), integration.companyLogoUpload());
-documentRouter.get('/company/logo', recruiter, authorizePermissions('documents.manage'), integration.companyLogoGet);
-documentRouter.post('/company/logo/replace', recruiter, authorizePermissions('documents.manage'), ...upload(), integration.companyLogoUpload(true));
-documentRouter.delete('/company/logo', recruiter, authorizePermissions('documents.manage'), integration.companyLogoDelete);
+documentRouter.post('/company/logo', recruiter, requireCompanyAccess, authorizePermissions('documents.manage'), ...upload(), integration.companyLogoUpload());
+documentRouter.get('/company/logo', recruiter, requireCompanyAccess, authorizePermissions('documents.manage'), integration.companyLogoGet);
+documentRouter.post('/company/logo/replace', recruiter, requireCompanyAccess, authorizePermissions('documents.manage'), ...upload(), integration.companyLogoUpload(true));
+documentRouter.delete('/company/logo', recruiter, requireCompanyAccess, authorizePermissions('documents.manage'), integration.companyLogoDelete);
 
 documentRouter.post('/applications/:applicationId', candidate, params, ...upload(integrationValidation.applicationUpload), integration.applicationUpload);
 documentRouter.get('/applications/:applicationId', candidate, params, integration.applicationList);
 documentRouter.post('/applications/:applicationId/:documentId/replace', candidate, params, ...upload(integrationValidation.applicationUpload), integration.applicationReplace);
-documentRouter.get('/manage/applications/:applicationId', recruiter, authorizePermissions('documents.view'), params, integration.managedApplicationList);
-documentRouter.get('/manage/applications/:applicationId/:documentId', recruiter, authorizePermissions('documents.view'), params, integration.managedApplicationGet);
-documentRouter.get('/manage/applications/:applicationId/:documentId/download', recruiter, authorizePermissions('documents.view'), params, integration.managedApplicationDownload);
+documentRouter.get('/manage/applications/:applicationId', recruiter, requireCompanyAccess, authorizePermissions('documents.view'), params, integration.managedApplicationList);
+documentRouter.get('/manage/applications/:applicationId/:documentId', recruiter, requireCompanyAccess, authorizePermissions('documents.view'), params, integration.managedApplicationGet);
+documentRouter.get('/manage/applications/:applicationId/:documentId/download', recruiter, requireCompanyAccess, authorizePermissions('documents.view'), params, integration.managedApplicationDownload);
 
 documentRouter.post('/assessments/attempts/:attemptId', candidate, params, ...upload(), integration.attemptUpload);
 documentRouter.get('/assessments/attempts/:attemptId', candidate, params, integration.attemptList);
-documentRouter.get('/manage/assessments/attempts/:attemptId', recruiter, authorizePermissions('documents.view', 'assessments.view'), params, integration.managedAttemptList);
-documentRouter.get('/manage/assessments/attempts/:attemptId/:documentId/download', recruiter, authorizePermissions('documents.view', 'assessments.view'), params, integration.managedAttemptDownload);
+documentRouter.get('/assessments/attempts/:attemptId/:documentId/download', candidate, params, integration.candidateAttemptDownload);
+documentRouter.get('/manage/assessments/attempts/:attemptId', recruiter, requireCompanyAccess, authorizePermissions('documents.view', 'assessments.view'), params, integration.managedAttemptList);
+documentRouter.get('/manage/assessments/attempts/:attemptId/:documentId/download', recruiter, requireCompanyAccess, authorizePermissions('documents.view', 'assessments.view'), params, integration.managedAttemptDownload);
 
-documentRouter.post('/manage/interviews/:processId', recruiter, authorizePermissions('documents.manage', 'interviews.manage'), params, ...upload(integrationValidation.sharedUpload), integration.interviewUpload);
-documentRouter.post('/manage/interviews/:processId/:documentId/replace', recruiter, authorizePermissions('documents.manage', 'interviews.manage'), params, ...upload(integrationValidation.sharedReplacement), integration.interviewReplace);
-documentRouter.get('/manage/interviews/:processId', recruiter, authorizePermissions('documents.view', 'interviews.view'), params, integration.interviewList(true));
-documentRouter.get('/manage/interviews/:processId/:documentId/download', recruiter, authorizePermissions('documents.view', 'interviews.view'), params, integration.interviewDownload(true));
-documentRouter.patch('/manage/interviews/:processId/:documentId/access', recruiter, authorizePermissions('documents.manage', 'interviews.manage'), params, validateBody(integrationValidation.access), integration.interviewAccess);
+documentRouter.post('/manage/interviews/:processId', recruiter, requireCompanyAccess, authorizePermissions('documents.manage', 'interviews.manage'), params, ...upload(integrationValidation.sharedUpload), integration.interviewUpload);
+documentRouter.post('/manage/interviews/:processId/:documentId/replace', recruiter, requireCompanyAccess, authorizePermissions('documents.manage', 'interviews.manage'), params, ...upload(integrationValidation.sharedReplacement), integration.interviewReplace);
+documentRouter.get('/manage/interviews/:processId', recruiter, requireCompanyAccess, authorizePermissions('documents.view', 'interviews.view'), params, integration.interviewList(true));
+documentRouter.get('/manage/interviews/:processId/:documentId/download', recruiter, requireCompanyAccess, authorizePermissions('documents.view', 'interviews.view'), params, integration.interviewDownload(true));
+documentRouter.patch('/manage/interviews/:processId/:documentId/access', recruiter, requireCompanyAccess, authorizePermissions('documents.manage', 'interviews.manage'), params, validateBody(integrationValidation.access), integration.interviewAccess);
 documentRouter.get('/interviews/:processId', candidate, params, integration.interviewList());
 documentRouter.get('/interviews/:processId/:documentId/download', candidate, params, integration.interviewDownload());
 
-documentRouter.post('/manage/offers/:offerId', recruiter, authorizePermissions('documents.manage', 'offers.manage'), params, ...upload(integrationValidation.sharedUpload), integration.offerUpload);
-documentRouter.get('/manage/offers/:offerId', recruiter, authorizePermissions('documents.view', 'offers.view'), params, integration.offerList(true));
-documentRouter.get('/manage/offers/:offerId/:documentId/download', recruiter, authorizePermissions('documents.view', 'offers.view'), params, integration.offerDownload(true));
-documentRouter.post('/manage/offers/:offerId/:documentId/replace', recruiter, authorizePermissions('documents.manage', 'offers.manage'), params, ...upload(integrationValidation.sharedUpload), integration.offerReplace);
+documentRouter.post('/manage/offers/:offerId', recruiter, authorizePermissions('documents.manage', 'offers.manage'), requireCompanyAccess, params, ...upload(integrationValidation.sharedUpload), integration.offerUpload);
+documentRouter.get('/manage/offers/:offerId', recruiter, authorizePermissions('documents.view', 'offers.view'), requireCompanyAccess, params, integration.offerList(true));
+documentRouter.get('/manage/offers/:offerId/:documentId/download', recruiter, authorizePermissions('documents.view', 'offers.view'), requireCompanyAccess, params, integration.offerDownload(true));
+documentRouter.post('/manage/offers/:offerId/:documentId/replace', recruiter, authorizePermissions('documents.manage', 'offers.manage'), requireCompanyAccess, params, ...upload(integrationValidation.sharedUpload), integration.offerReplace);
 documentRouter.get('/offers/:offerId', candidate, params, integration.offerList());
 documentRouter.get('/offers/:offerId/:documentId/download', candidate, params, integration.offerDownload());
 
-documentRouter.get('/manage/verification', recruiter, authorizePermissions('documents.verify'), validateQuery(integrationValidation.verificationQuery), integration.verificationList);
-documentRouter.get('/manage/verification/:documentId', recruiter, authorizePermissions('documents.verify'), params, integration.verificationGet);
-documentRouter.patch('/manage/verification/:documentId/approve', recruiter, authorizePermissions('documents.verify'), params, validateBody(integrationValidation.approve), integration.verificationApprove);
-documentRouter.patch('/manage/verification/:documentId/reject', recruiter, authorizePermissions('documents.verify'), params, validateBody(integrationValidation.reject), integration.verificationReject);
+documentRouter.get('/manage/verification', recruiter, requireCompanyAccess, authorizePermissions('documents.verify'), validateQuery(integrationValidation.verificationQuery), integration.verificationList);
+documentRouter.get('/manage/verification/:documentId', recruiter, requireCompanyAccess, authorizePermissions('documents.verify'), params, integration.verificationGet);
+documentRouter.patch('/manage/verification/:documentId/approve', recruiter, requireCompanyAccess, authorizePermissions('documents.verify'), params, validateBody(integrationValidation.approve), integration.verificationApprove);
+documentRouter.patch('/manage/verification/:documentId/reject', recruiter, requireCompanyAccess, authorizePermissions('documents.verify'), params, validateBody(integrationValidation.reject), integration.verificationReject);
 
 documentRouter.post('/upload-session', validateBody(documentValidation.sessionBody), generic.session);
 documentRouter.post('/upload', acceptSingleFile, validateBody(documentValidation.uploadFields), generic.upload);

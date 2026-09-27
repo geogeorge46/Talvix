@@ -78,6 +78,14 @@ describe('Job Recruiter Copilot AI Integration', () => {
     expect(res.body.success).toBe(true);
     expect(res.body.data.skills).toBeInstanceOf(Array);
     expect(res.body.data.skills).toContain('React');
+
+    const angularRes = await auth('post', '/api/v1/jobs/ai/suggest-skills', recruiter.token)
+      .send({ title: 'Angular Developer' })
+      .expect(200);
+
+    expect(angularRes.body.success).toBe(true);
+    expect(angularRes.body.data.skills).toContain('Angular');
+    expect(angularRes.body.data.skills).toContain('RxJS');
   });
 
   it('performs an automated safety/scam verification check', async () => {

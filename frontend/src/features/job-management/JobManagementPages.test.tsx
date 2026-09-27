@@ -177,4 +177,15 @@ describe('job pages rendered integration', () => {
     window.dispatchEvent(event);
     expect(event.defaultPrevented).toBe(true);
   });
+
+  it('renders redesigned jobs page with metric summary cards and modern toolbar', () => {
+    show(<ManagedJobsPage />);
+    expect(screen.getByRole('heading', { name: 'Jobs' })).toBeInTheDocument();
+    expect(screen.getByText('Total Managed Jobs')).toBeInTheDocument();
+    expect(screen.getByText('Published & Open')).toBeInTheDocument();
+    expect(screen.getByText('Draft Roles')).toBeInTheDocument();
+    expect(screen.getByPlaceholderText(/search jobs by title/i)).toBeInTheDocument();
+    expect(screen.getByText('#JOB-234567')).toBeInTheDocument();
+  });
 });
+

@@ -1,6 +1,7 @@
 import mongoose from 'mongoose';
 import { Application } from '../models/Application.js';
 import { Company } from '../models/Company.js';
+import { CompanyMember } from '../models/CompanyMember.js';
 import { InterviewAvailability } from '../models/InterviewAvailability.js';
 import { InterviewProcess } from '../models/InterviewProcess.js';
 import { InterviewRound } from '../models/InterviewRound.js';
@@ -27,15 +28,39 @@ const context = async (c, pid, rid) => {
 };
 
 const validateInterviewers = async (company, ids, round) => {
-  if (ids.length < round.minimumInterviewers || ids.length > round.maximumInterviewers) {
+  const min = Math.max(1, round.minimumInterviewers ?? 1);
+  const max = Math.max(min, round.maximumInterviewers ?? 10);
+  if (!Array.isArray(ids) || ids.length < min || ids.length > max) {
     throw new AppError('Interviewer count is outside configured limits', 400);
   }
-  const [c, profiles] = await Promise.all([
+  const [c, companyMembers, profiles] = await Promise.all([
     Company.findById(company),
-    RecruiterProfile.find({ user: { $in: ids }, company, isApproved: true }),
+    CompanyMember.find({ company, recruiter: { $in: ids }, status: 'active' }),
+    RecruiterProfile.find({ user: { $in: ids } }),
   ]);
-  const members = new Set(c.teamMembers.filter((m) => m.status === 'active').map((m) => m.recruiter.toString()));
-  if (profiles.length !== new Set(ids).size || ids.some((id) => !members.has(id))) {
+  if (!c) throw new AppError('Company not found', 404);
+
+  const activeUserIds = new Set();
+  if (c.owner) activeUserIds.add(c.owner.toString());
+
+  if (Array.isArray(c.teamMembers)) {
+    c.teamMembers
+      .filter((m) => m.status === 'active' && m.recruiter)
+      .forEach((m) => activeUserIds.add(m.recruiter.toString()));
+  }
+
+  companyMembers.forEach((m) => activeUserIds.add(m.recruiter.toString()));
+
+  profiles.forEach((p) => {
+    if (p.isApproved && (p.isCompanyOwner || p.company?.toString() === company.toString())) {
+      activeUserIds.add(p.user.toString());
+    }
+  });
+
+  const uniqueIds = Array.from(new Set(ids));
+  const isValid = uniqueIds.every((id) => activeUserIds.has(String(id)));
+
+  if (!isValid) {
     throw new AppError('One or more interviewers are invalid', 400);
   }
 };
@@ -101,6 +126,7 @@ export const scheduleRound = async (c, pid, rid, u, b) => {
   p.status = 'active';
   p.startedAt ??= new Date();
   p.currentRound = r.id;
+
 
 
   await Promise.all([

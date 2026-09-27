@@ -1,7 +1,11 @@
-export const QUESTION_TYPES = Object.freeze(['single-choice', 'multiple-choice', 'true-false', 'short-answer', 'long-answer', 'coding', 'sql', 'debugging', 'output-prediction', 'file-upload']);
+export const QUESTION_TYPES = Object.freeze(['single-choice', 'multiple-choice', 'true-false', 'short-answer', 'long-answer', 'coding', 'sql', 'debugging', 'output-prediction', 'file-upload', 'work-sample']);
 export const QUESTION_DIFFICULTIES = Object.freeze(['easy', 'medium', 'hard']);
-export const ASSESSMENT_TYPES = Object.freeze(['general', 'technical', 'aptitude', 'coding', 'mixed']);
+export const ASSESSMENT_TYPES = Object.freeze(['general', 'technical', 'aptitude', 'coding', 'mixed', 'work-sample']);
 export const ASSESSMENT_STATUSES = Object.freeze(['draft', 'published', 'archived']);
+export const DELIVERABLE_TYPES = Object.freeze(['file', 'url', 'text', 'mixed']);
+export const MAX_DELIVERABLE_FILES = 10;
+export const MAX_DELIVERABLE_FILE_BYTES = 50 * 1024 * 1024;
+export const MAX_RUBRIC_CRITERIA = 10;
 export const ASSIGNMENT_STATUSES = Object.freeze(['assigned', 'available', 'in-progress', 'submitted', 'evaluating', 'completed', 'expired', 'cancelled']);
 export const ATTEMPT_STATUSES = Object.freeze(['not-started', 'in-progress', 'submitted', 'auto-evaluated', 'review-pending', 'completed', 'expired', 'cancelled']);
 export const SUBMISSION_REASONS = Object.freeze(['candidate-submit', 'time-expired', 'admin-submit', 'system-submit']);

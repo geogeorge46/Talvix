@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Link,
+  NavLink,
   useNavigate,
   useBlocker,
   useParams,
@@ -50,10 +51,58 @@ import {
   workModes,
 } from './model';
 import { useJobAction, useManagedJob, useManagedJobs, useSaveJob, useCloneJob } from './api';
-import { Sparkles, X } from 'lucide-react';
+import {
+  Briefcase,
+  CheckCircle2,
+  FileEdit,
+  Clock,
+  Archive,
+  Plus,
+  Search,
+  X,
+  RotateCcw,
+  ChevronLeft,
+  ChevronRight,
+  Users,
+  MapPin,
+  Building2,
+  Sparkles,
+  Eye,
+  Copy,
+  Send,
+  Pause,
+  Play,
+  XCircle,
+} from 'lucide-react';
 import './job-management.css';
 const label = (s: string) =>
   s.replaceAll('-', ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+
+export function JobTabs({ canCreate = true }: { canCreate?: boolean }) {
+  return (
+    <div className="job-nav-tabs-wrapper">
+      <nav className="job-nav-tabs" aria-label="Job sections">
+        <NavLink
+          to="/org/jobs"
+          end
+          className={({ isActive }) => `job-nav-tab ${isActive ? 'active' : ''}`}
+        >
+          <Briefcase size={15} />
+          <span>All Jobs</span>
+        </NavLink>
+        {canCreate && (
+          <NavLink
+            to="/org/jobs/new"
+            className={({ isActive }) => `job-nav-tab job-nav-tab--create ${isActive ? 'active' : ''}`}
+          >
+            <Plus size={15} />
+            <span>Create job</span>
+          </NavLink>
+        )}
+      </nav>
+    </div>
+  );
+}
 function useAccess() {
   const { user, recruiter } = useAuth();
   const p = recruiter?.permissions ?? [];
@@ -142,6 +191,24 @@ function JobRowActions({
     ['submit', 'pause', 'resume', 'close', 'archive'] as const
   ).filter((x) => allowed[x]);
   const hasCreatePermission = permissions.includes('jobs.create');
+
+  const getActionIcon = (actName: string) => {
+    switch (actName) {
+      case 'submit':
+        return <Send size={13} />;
+      case 'pause':
+        return <Pause size={13} />;
+      case 'resume':
+        return <Play size={13} />;
+      case 'close':
+        return <XCircle size={13} />;
+      case 'archive':
+        return <Archive size={13} />;
+      default:
+        return null;
+    }
+  };
+
   return (
     <div className="job-actions">
       {error && (
@@ -150,14 +217,16 @@ function JobRowActions({
         </Alert>
       )}
       <Link
-        className="tvx-button tvx-button--secondary tvx-button--md"
+        className="job-action-btn job-action-btn--details"
         to={`/org/jobs/${job.id}`}
       >
-        Details
+        <Eye size={13} />
+        <span>Details</span>
       </Link>
       {hasCreatePermission && (
-        <Button
-          variant="quiet"
+        <button
+          type="button"
+          className="job-action-btn job-action-btn--clone"
           disabled={cloneMutation.isPending}
           onClick={async () => {
             try {
@@ -172,18 +241,21 @@ function JobRowActions({
             }
           }}
         >
-          {cloneMutation.isPending ? 'Cloning...' : 'Clone'}
-        </Button>
+          <Copy size={13} />
+          <span>{cloneMutation.isPending ? 'Cloning...' : 'Clone'}</span>
+        </button>
       )}
       {choices.map((x) => (
-        <Button
+        <button
           key={x}
-          variant={x === 'archive' ? 'danger' : 'quiet'}
+          type="button"
+          className={`job-action-btn job-action-btn--${x}`}
           disabled={mutation.isPending}
           onClick={() => setAction(x)}
         >
-          {label(x)}
-        </Button>
+          {getActionIcon(x)}
+          <span>{label(x)}</span>
+        </button>
       ))}
       {action && (
         <ConfirmDialog
@@ -214,190 +286,321 @@ function JobRowActions({
     </div>
   );
 }
+function formatDateParts(dateStr?: string) {
+  if (!dateStr) return { date: 'No deadline', time: '' };
+  try {
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return { date: 'No deadline', time: '' };
+    const dateFormatted = new Intl.DateTimeFormat('en-GB', {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+    }).format(d);
+    return { date: `Closes ${dateFormatted}`, time: '' };
+  } catch {
+    return { date: 'No deadline', time: '' };
+  }
+}
+
 export function ManagedJobsPage() {
   const a = useAccess();
   const [sp, setSp] = useSearchParams();
   const rawPage = Number(sp.get('page'));
-  const page =
-    Number.isFinite(rawPage) && rawPage >= 1 ? Math.floor(rawPage) : 1,
-    q = (sp.get('q') ?? '').trim().slice(0, 100),
-    status = jobStatuses.includes((sp.get('status') ?? '') as never)
-      ? (sp.get('status') ?? '')
-      : '',
-    employment = employmentTypes.includes((sp.get('employment') ?? '') as never)
-      ? (sp.get('employment') ?? '')
-      : '',
-    workMode = workModes.includes((sp.get('workMode') ?? '') as never)
-      ? (sp.get('workMode') ?? '')
-      : '';
+  const page = Number.isFinite(rawPage) && rawPage >= 1 ? Math.floor(rawPage) : 1;
+  const q = (sp.get('q') ?? '').trim().slice(0, 100);
+  const status = jobStatuses.includes((sp.get('status') ?? '') as never)
+    ? (sp.get('status') ?? '')
+    : '';
+  const employment = employmentTypes.includes((sp.get('employment') ?? '') as never)
+    ? (sp.get('employment') ?? '')
+    : '';
+  const workMode = workModes.includes((sp.get('workMode') ?? '') as never)
+    ? (sp.get('workMode') ?? '')
+    : '';
+
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+
   const query = useManagedJobs(page, q, a.has('jobs.update') && !a.blocked);
+
+  const allJobs = (query.data?.jobs ?? []) as JobView[];
   const rows = useMemo(
     () =>
-      query.data?.jobs.filter(
+      allJobs.filter(
         (j) =>
           (!status || j.status === status) &&
           (!employment || j.employmentType === employment) &&
           (!workMode || j.workMode === workMode),
-      ) ?? [],
-    [query.data, status, employment, workMode],
+      ),
+    [allJobs, status, employment, workMode],
   );
+
+  const totalJobs = query.data?.pagination.total ?? allJobs.length;
+  const totalPages = query.data?.pagination.pages ?? 1;
+
+  // Metric card statistics from loaded jobs
+  const openCount = allJobs.filter((j) => j.status === 'open' || j.status === 'published').length;
+  const draftCount = allJobs.filter((j) => j.status === 'draft').length;
+  const pausedCount = allJobs.filter((j) => j.status === 'paused').length;
+  const closedCount = allJobs.filter((j) => j.status === 'closed' || j.status === 'archived').length;
+
+  const limit = 10;
+  const startIdx = totalJobs === 0 ? 0 : (page - 1) * limit + 1;
+  const endIdx = Math.min(page * limit, totalJobs);
+
   const update = (values: Record<string, string>) => {
     const n = new URLSearchParams(sp);
     Object.entries(values).forEach(([k, v]) => (v ? n.set(k, v) : n.delete(k)));
     n.set('page', '1');
     setSp(n);
   };
-  if (!a.has('jobs.update'))
+
+  const handleSelectAll = (checked: boolean) => {
+    if (checked) {
+      setSelectedIds(new Set(rows.map((j) => j.id)));
+    } else {
+      setSelectedIds(new Set());
+    }
+  };
+
+  const handleToggleRow = (id: string) => {
+    const next = new Set(selectedIds);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    setSelectedIds(next);
+  };
+
+  const handlePageChange = (newPage: number) => {
+    const n = new URLSearchParams(sp);
+    n.set('page', String(newPage));
+    setSp(n);
+  };
+
+  const handleClearFilters = () => {
+    setSp(new URLSearchParams());
+    setSelectedIds(new Set());
+  };
+
+  const isFiltered = Boolean(q || status || employment || workMode);
+
+  if (!a.has('jobs.update')) {
     return (
       <PermissionState description="The jobs.update permission is required to view managed jobs." />
     );
+  }
   if (a.blocked) return <Block />;
+
   return (
-    <main className="jobs-page">
+    <div className="jobs-page">
+      {/* Header & Sub-Navigation Pill Tabs */}
       <PageHeader
         title="Jobs"
-        description="Create, review, and move roles through the hiring lifecycle."
-        primaryAction={
-          a.has('jobs.create') ? (
-            <Link
-              className="tvx-button tvx-button--primary tvx-button--md"
-              to="/org/jobs/new"
-            >
-              Create job
-            </Link>
-          ) : undefined
-        }
+        description="Create, review, and move open roles through the hiring lifecycle."
+        secondaryActions={<JobTabs canCreate={a.has('jobs.create')} />}
       />
-      <MetricCard
-        label="Total managed jobs"
-        value={query.data?.pagination.total ?? '—'}
-        metadata="Across your organization"
-      />
-      <Toolbar
-        label="Job filters"
-        start={
-          <SearchField
-            label="Search jobs"
-            defaultValue={q}
-            onSearch={(v) => update({ q: v })}
-          />
-        }
-        end={
-          <div className="job-filters">
-            <Select
+
+      {/* 5 Metrics Summary Cards */}
+      <div className="job-metrics-grid">
+        <div className="job-metric-card">
+          <div className="job-metric-card__header">
+            <div className="job-metric-icon-box">
+              <Briefcase size={20} />
+            </div>
+            <span className="job-metric-badge job-metric-badge--success">
+              • Configured
+            </span>
+          </div>
+          <div className="job-metric-card__body">
+            <span className="job-metric-card__label">Total Managed Jobs</span>
+            <strong className="job-metric-card__val">{totalJobs}</strong>
+            <span className="job-metric-card__sub">Across organization</span>
+          </div>
+        </div>
+
+        <div className="job-metric-card">
+          <div className="job-metric-card__header">
+            <div className="job-metric-icon-box">
+              <CheckCircle2 size={20} />
+            </div>
+            <span className="job-metric-badge job-metric-badge--success">
+              • Active
+            </span>
+          </div>
+          <div className="job-metric-card__body">
+            <span className="job-metric-card__label">Published & Open</span>
+            <strong className="job-metric-card__val" style={{ color: '#059669' }}>
+              {openCount}
+            </strong>
+            <span className="job-metric-card__sub">Accepting applications</span>
+          </div>
+        </div>
+
+        <div className="job-metric-card">
+          <div className="job-metric-card__header">
+            <div className="job-metric-icon-box">
+              <FileEdit size={20} />
+            </div>
+            <span className="job-metric-badge job-metric-badge--warning">
+              • In Progress
+            </span>
+          </div>
+          <div className="job-metric-card__body">
+            <span className="job-metric-card__label">Draft Roles</span>
+            <strong className="job-metric-card__val" style={{ color: '#d97706' }}>
+              {draftCount}
+            </strong>
+            <span className="job-metric-card__sub">Under composition</span>
+          </div>
+        </div>
+
+        <div className="job-metric-card">
+          <div className="job-metric-card__header">
+            <div className="job-metric-icon-box">
+              <Clock size={20} />
+            </div>
+            <span className="job-metric-badge job-metric-badge--info">
+              • Paused
+            </span>
+          </div>
+          <div className="job-metric-card__body">
+            <span className="job-metric-card__label">On Hold</span>
+            <strong className="job-metric-card__val" style={{ color: '#0284c7' }}>
+              {pausedCount}
+            </strong>
+            <span className="job-metric-card__sub">Temporarily paused</span>
+          </div>
+        </div>
+
+        <div className="job-metric-card">
+          <div className="job-metric-card__header">
+            <div className="job-metric-icon-box">
+              <Archive size={20} />
+            </div>
+            <span className="job-metric-badge job-metric-badge--neutral">
+              • Retired
+            </span>
+          </div>
+          <div className="job-metric-card__body">
+            <span className="job-metric-card__label">Closed & Archived</span>
+            <strong className="job-metric-card__val" style={{ color: '#475569' }}>
+              {closedCount}
+            </strong>
+            <span className="job-metric-card__sub">Fulfilled / inactive</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Modern Filter Toolbar */}
+      <div className="job-modern-toolbar">
+        <div className="job-toolbar-filters">
+          <div className="job-filter-group">
+            <span className="job-filter-label">Search</span>
+            <div className="job-search-container">
+              <Search className="job-search-icon" size={16} />
+              <input
+                type="text"
+                className="job-search-input"
+                placeholder="Search jobs by title, location..."
+                value={q}
+                onChange={(e) => update({ q: e.target.value })}
+              />
+              {q && (
+                <button
+                  type="button"
+                  className="job-search-clear"
+                  onClick={() => update({ q: '' })}
+                  aria-label="Clear search"
+                >
+                  <X size={14} />
+                </button>
+              )}
+            </div>
+          </div>
+
+          <div className="job-filter-group">
+            <span className="job-filter-label">Status</span>
+            <select
+              className="job-pill-select"
               aria-label="Status — current page"
               value={status}
-              options={jobStatuses.map((v) => ({ value: v, label: label(v) }))}
               onChange={(e) => update({ status: e.target.value })}
-            />
-            <Select
+            >
+              <option value="">All status</option>
+              {jobStatuses.map((v) => (
+                <option key={v} value={v}>
+                  {label(v)}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="job-filter-group">
+            <span className="job-filter-label">Employment</span>
+            <select
+              className="job-pill-select"
               aria-label="Employment — current page"
               value={employment}
-              options={employmentTypes.map((v) => ({
-                value: v,
-                label: label(v),
-              }))}
               onChange={(e) => update({ employment: e.target.value })}
-            />
-            <Select
+            >
+              <option value="">All employment</option>
+              {employmentTypes.map((v) => (
+                <option key={v} value={v}>
+                  {label(v)}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="job-filter-group">
+            <span className="job-filter-label">Work Mode</span>
+            <select
+              className="job-pill-select"
               aria-label="Work mode — current page"
               value={workMode}
-              options={workModes.map((v) => ({ value: v, label: label(v) }))}
               onChange={(e) => update({ workMode: e.target.value })}
+            >
+              <option value="">All work modes</option>
+              {workModes.map((v) => (
+                <option key={v} value={v}>
+                  {label(v)}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {isFiltered && (
+            <button
+              type="button"
+              className="tvx-button tvx-button--secondary text-xs"
+              style={{ borderRadius: '9999px', height: '42px', padding: '0 16px' }}
+              onClick={handleClearFilters}
+            >
+              <RotateCcw size={14} />
+              Clear Filters
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Modern Data Table Card */}
+      <div className="job-table-card">
+        {query.isLoading ? (
+          <div className="p-12">
+            <LoadingState label="Loading jobs" />
+          </div>
+        ) : query.isError ? (
+          <div className="p-6">
+            <ErrorState
+              detail={(query.error as Error).message}
+              retry={() => void query.refetch()}
             />
           </div>
-        }
-      />
-      <p className="filter-note">
-        Status, employment, and work-mode filters apply to the current page.
-        Search covers all managed jobs.
-      </p>
-      {query.isLoading ? (
-        <LoadingState label="Loading jobs" />
-      ) : query.isError ? (
-        <ErrorState
-          detail={(query.error as Error).message}
-          retry={() => void query.refetch()}
-        />
-      ) : (
-        <DataTable
-          caption="Managed jobs"
-          rows={rows}
-          rowKey={(j) => j.id}
-          columns={[
-            {
-              id: 'title',
-              header: 'Role',
-              render: (j) => (
-                <div>
-                  <strong>{j.title}</strong>
-                  <small>{j.location}</small>
-                </div>
-              ),
-            },
-            {
-              id: 'setup',
-              header: 'Setup',
-              render: (j) => (
-                <>
-                  {label(j.employmentType)} · {label(j.workMode)}
-                </>
-              ),
-            },
-            {
-              id: 'status',
-              header: 'Status',
-              render: (j) => <Status job={j} />,
-            },
-            { id: 'openings', header: 'Openings', accessor: (j) => j.openings },
-            {
-              id: 'interest',
-              header: 'Interest',
-              render: (j) => (
-                <>
-                  {j.applicationsCount} applications · {j.viewsCount} views
-                </>
-              ),
-            },
-            {
-              id: 'deadline',
-              header: 'Deadline',
-              render: (j) =>
-                j.deadline
-                  ? new Date(j.deadline).toLocaleDateString()
-                  : 'No deadline',
-            },
-          ]}
-          renderNarrow={(j) => (
-            <Card
-              heading={j.title}
-              headingLevel={2}
-              actions={<Status job={j} />}
-            >
-              <p>
-                {label(j.employmentType)} · {label(j.workMode)}
-              </p>
-              <p>
-                {j.openings} openings · {j.applicationsCount} applications
-              </p>
-              <p>
-                {j.viewsCount} views ·{' '}
-                {j.deadline
-                  ? `Closes ${new Date(j.deadline).toLocaleDateString()}`
-                  : 'No deadline'}{' '}
-                · {j.location}
-              </p>
-            </Card>
-          )}
-          rowActions={(j) => (
-            <JobRowActions job={j} permissions={a.p} verified={a.verified} />
-          )}
-          empty={
-            q || status || employment || workMode ? (
+        ) : rows.length === 0 ? (
+          <div className="p-8">
+            {isFiltered ? (
               <FilteredEmptyState
                 title="No matching jobs"
                 description="No jobs on this page match the current filters."
-                onClear={() => setSp({})}
+                onClear={handleClearFilters}
               />
             ) : (
               <EmptyState
@@ -405,30 +608,191 @@ export function ManagedJobsPage() {
                 description="Create the first job to begin recruiting."
                 action={
                   a.has('jobs.create') ? (
-                    <Link
-                      className="tvx-button tvx-button--primary tvx-button--md"
-                      to="/org/jobs/new"
-                    >
-                      Create job
+                    <Link className="job-btn-black" to="/org/jobs/new">
+                      <Plus size={16} />
+                      Create Job
                     </Link>
                   ) : undefined
                 }
               />
-            )
-          }
-          pagination={{
-            page,
-            totalPages: query.data?.pagination.pages ?? 1,
-            onPageChange: (p) => {
-              const n = new URLSearchParams(sp);
-              n.set('page', String(p));
-              setSp(n);
-            },
-            ariaLabel: 'Jobs pages',
-          }}
-        />
-      )}
-    </main>
+            )}
+          </div>
+        ) : (
+          <>
+            <div className="job-table-wrapper">
+              <table className="job-modern-table" aria-label="Managed jobs table">
+                <thead>
+                  <tr>
+                    <th scope="col" className="job-checkbox-cell">
+                      <input
+                        type="checkbox"
+                        className="job-custom-checkbox"
+                        aria-label="Select all jobs"
+                        checked={rows.length > 0 && selectedIds.size === rows.length}
+                        onChange={(e) => handleSelectAll(e.target.checked)}
+                      />
+                    </th>
+                    <th scope="col">Role & Location</th>
+                    <th scope="col">Status</th>
+                    <th scope="col">Setup & Openings</th>
+                    <th scope="col">Apps & Views</th>
+                    <th scope="col">Deadline</th>
+                    <th scope="col">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map((j) => {
+                    const isSelected = selectedIds.has(j.id);
+                    const dt = formatDateParts(j.deadline);
+                    const shortCode = `#JOB-${j.id.slice(-6).toUpperCase()}`;
+
+                    return (
+                      <tr key={j.id} className={isSelected ? 'is-selected' : undefined}>
+                        <td className="job-checkbox-cell">
+                          <input
+                            type="checkbox"
+                            className="job-custom-checkbox"
+                            aria-label={`Select ${j.title}`}
+                            checked={isSelected}
+                            onChange={() => handleToggleRow(j.id)}
+                          />
+                        </td>
+                        <td>
+                          <div className="job-entity-cell">
+                            <div className="job-entity-icon">
+                              <Briefcase size={18} />
+                            </div>
+                            <div className="job-entity-info">
+                              <div className="job-entity-title-row">
+                                <Link
+                                  to={`/org/jobs/${j.id}`}
+                                  className="job-entity-title"
+                                >
+                                  {j.title}
+                                </Link>
+                                <span className="job-code-badge">{shortCode}</span>
+                              </div>
+                              <span className="job-entity-meta">
+                                <span>{j.location}</span>
+                              </span>
+                            </div>
+                          </div>
+                        </td>
+                        <td>
+                          <span
+                            className={`job-status-pill job-status-pill--${
+                              j.status === 'open' || j.status === 'published'
+                                ? 'published'
+                                : j.status === 'draft'
+                                ? 'draft'
+                                : j.status === 'paused'
+                                ? 'paused'
+                                : 'closed'
+                            }`}
+                          >
+                            <span className="job-status-dot" />
+                            {label(j.status)}
+                          </span>
+                        </td>
+                        <td>
+                          <div className="job-setup-cell">
+                            <span className="job-setup-type">{label(j.employmentType)}</span>
+                            <span className="job-setup-mode">{label(j.workMode)}</span>
+                            <span className="job-setup-openings">{j.openings} {j.openings === 1 ? 'opening' : 'openings'}</span>
+                          </div>
+                        </td>
+                        <td>
+                          <div className="job-stats-cell">
+                            <span className="job-stat-pill job-stat-pill--apps" title="Applications count">
+                              <Users size={12} />
+                              <span>{j.applicationsCount} apps</span>
+                            </span>
+                            <span className="job-stat-pill job-stat-pill--views" title="Views count">
+                              <Eye size={12} />
+                              <span>{j.viewsCount} views</span>
+                            </span>
+                          </div>
+                        </td>
+                        <td>
+                          <div className="job-date-cell">
+                            <span className="job-date-main">{dt.date}</span>
+                          </div>
+                        </td>
+                        <td>
+                          <JobRowActions job={j} permissions={a.p} verified={a.verified} />
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Accessible Narrow Layout for Mobile view ports */}
+            <div className="sm:hidden p-4 space-y-3 border-t border-slate-100">
+              {rows.map((j) => (
+                <div key={`narrow-${j.id}`} className="p-4 rounded-xl border border-slate-200 bg-white">
+                  <div className="font-semibold text-slate-900 mb-1">
+                    <Link to={`/org/jobs/${j.id}`} className="hover:underline">
+                      {j.title}
+                    </Link>
+                  </div>
+                  <div className="text-xs text-slate-500 mb-2">
+                    {j.location} · {label(j.employmentType)} · {label(j.workMode)}
+                  </div>
+                  <div className="text-xs text-slate-600 mb-3">
+                    {j.openings} openings · {j.applicationsCount} applications · {j.viewsCount} views
+                  </div>
+                  <JobRowActions job={j} permissions={a.p} verified={a.verified} />
+                </div>
+              ))}
+            </div>
+
+            {/* Pagination Footer */}
+            <div className="job-pagination-footer">
+              <span className="job-pagination-info">
+                Showing <strong>{startIdx}</strong> to <strong>{endIdx}</strong> of{' '}
+                <strong>{totalJobs}</strong> jobs
+              </span>
+              {totalPages > 1 && (
+                <div className="job-pagination-controls">
+                  <button
+                    type="button"
+                    className="job-page-btn"
+                    disabled={page <= 1}
+                    onClick={() => handlePageChange(page - 1)}
+                    aria-label="Previous page"
+                  >
+                    <ChevronLeft size={16} />
+                  </button>
+
+                  {Array.from({ length: totalPages }, (_, i) => i + 1).map((pNum) => (
+                    <button
+                      key={pNum}
+                      type="button"
+                      className={`job-page-btn ${pNum === page ? 'job-page-btn--active' : ''}`}
+                      onClick={() => handlePageChange(pNum)}
+                    >
+                      {pNum}
+                    </button>
+                  ))}
+
+                  <button
+                    type="button"
+                    className="job-page-btn"
+                    disabled={page >= totalPages}
+                    onClick={() => handlePageChange(page + 1)}
+                    aria-label="Next page"
+                  >
+                    <ChevronRight size={16} />
+                  </button>
+                </div>
+              )}
+            </div>
+          </>
+        )}
+      </div>
+    </div>
   );
 }
 export function JobDetailsPage() {
@@ -576,6 +940,7 @@ export function JobDetailsPage() {
               { term: 'Applications', description: j.applicationsCount },
               { term: 'Views', description: j.viewsCount },
               {
+                id: 'deadline',
                 term: 'Deadline',
                 description: j.deadline
                   ? new Date(j.deadline).toLocaleDateString()
@@ -896,9 +1261,10 @@ interface AIDescriptionEditorProps {
   value: string;
   onApply: (newDesc: string) => void;
   onCancel: () => void;
+  draft?: JobDraft | undefined;
 }
 
-function AIDescriptionEditor({ jobTitle, value, onApply, onCancel }: AIDescriptionEditorProps) {
+function AIDescriptionEditor({ jobTitle, value, onApply, onCancel, draft }: AIDescriptionEditorProps) {
   const [desc, setDesc] = useState(value);
   const [aiGenerating, setAiGenerating] = useState(false);
   const [aiChecking, setAiChecking] = useState(false);
@@ -919,9 +1285,25 @@ function AIDescriptionEditor({ jobTitle, value, onApply, onCancel }: AIDescripti
             }
             setAiGenerating(true);
             try {
+              const skills = draft?.skills?.map((s) => s.name).filter(Boolean) ?? [];
+              const location = [draft?.city, draft?.state, draft?.country].filter(Boolean).join(', ');
+              const minExp = draft?.minimumExperience ? Number(draft.minimumExperience) : undefined;
+              const maxExp = draft?.maximumExperience ? Number(draft.maximumExperience) : undefined;
+
+              const payload: Record<string, unknown> = {
+                title: jobTitle,
+                keyRequirements: draft?.requirements?.trim() || undefined,
+                employmentType: draft?.employmentType || undefined,
+                workMode: draft?.workMode || undefined,
+                skills: skills.length > 0 ? skills : undefined,
+                minimumExperience: minExp && !Number.isNaN(minExp) ? minExp : undefined,
+                maximumExperience: maxExp && !Number.isNaN(maxExp) ? maxExp : undefined,
+                location: location || undefined,
+              };
+
               const res = await apiRequest<{ description: string }>('/jobs/ai/generate-description', {
                 method: 'POST',
-                body: { title: jobTitle, keyRequirements: 'Standard tech role requirements.' }
+                body: payload,
               });
               if (res?.description) {
                 setDesc(res.description);
@@ -935,6 +1317,7 @@ function AIDescriptionEditor({ jobTitle, value, onApply, onCancel }: AIDescripti
         >
           {aiGenerating ? 'Generating...' : 'Generate Description'}
         </Button>
+
 
         <Button
           type="button"
@@ -1185,18 +1568,142 @@ export function JobFormPage({ mode }: { mode: 'create' | 'edit' }) {
       />
     );
   return (
-    <main className="jobs-page">
-      <PageHeader
-        title={mode === 'create' ? 'Create job' : 'Edit job'}
-        description="Save a precise, review-ready role without exposing internal data."
-      />
+    <main className="jobs-page job-form-page">
+      <JobTabs canCreate={a.has('jobs.create')} />
+
+      {/* Hero Header Card */}
+      <div className="job-form-hero">
+        <div className="job-form-hero__main">
+          <div className="job-form-hero__icon">
+            <Briefcase size={26} />
+          </div>
+          <div className="job-form-hero__content">
+            <div className="job-form-hero__meta">
+              <span className="job-form-hero__code">
+                {mode === 'create' ? '#DRAFT-NEW' : `#JOB-${jobId.slice(-6).toUpperCase()}`}
+              </span>
+              <StatusTag tone={mode === 'create' ? 'draft' : (existing.data?.status ? statusMeta(existing.data.status)[1] : 'draft')}>
+                {mode === 'create' ? 'New Draft' : label(existing.data?.status || 'draft')}
+              </StatusTag>
+            </div>
+            <h1 className="job-form-hero__title">
+              {mode === 'create' ? 'Create New Job Position' : 'Edit Job Position'}
+            </h1>
+            <p className="job-form-hero__sub">
+              Draft a targeted position with AI-assisted description generation and skill auto-suggestions.
+            </p>
+          </div>
+        </div>
+        <div className="job-form-hero__actions">
+          <Link to="/org/jobs" className="job-form-hero__back">
+            <ChevronLeft size={16} />
+            <span>Back to Jobs</span>
+          </Link>
+        </div>
+      </div>
+
+      {/* 5-Card Draft Completeness Grid */}
+      <div className="job-metrics-grid">
+        <div className="job-metric-card">
+          <div className="job-metric-card__header">
+            <div className="job-metric-icon-box">
+              <FileEdit size={20} />
+            </div>
+            <span className={`job-metric-badge ${d.title.trim() && d.description.trim() ? 'job-metric-badge--success' : 'job-metric-badge--warning'}`}>
+              {d.title.trim() && d.description.trim() ? 'Complete' : 'Incomplete'}
+            </span>
+          </div>
+          <div className="job-metric-card__body">
+            <span className="job-metric-card__label">1. Role Basics</span>
+            <span className="job-metric-card__val" style={{ fontSize: '1rem', fontStyle: d.title ? 'normal' : 'italic' }}>
+              {d.title ? d.title : 'Untitled Position'}
+            </span>
+            <span className="job-metric-card__sub">{d.workMode ? label(d.workMode) : 'No work mode'} · {d.openings} opening(s)</span>
+          </div>
+        </div>
+
+        <div className="job-metric-card">
+          <div className="job-metric-card__header">
+            <div className="job-metric-icon-box" style={{ background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)' }}>
+              <MapPin size={20} />
+            </div>
+            <span className={`job-metric-badge ${d.city || d.country ? 'job-metric-badge--success' : 'job-metric-badge--neutral'}`}>
+              {d.city || d.country ? 'Configured' : 'Optional'}
+            </span>
+          </div>
+          <div className="job-metric-card__body">
+            <span className="job-metric-card__label">2. Location & Exp</span>
+            <span className="job-metric-card__val" style={{ fontSize: '1rem' }}>
+              {[d.city, d.country].filter(Boolean).join(', ') || 'Remote / Unset'}
+            </span>
+            <span className="job-metric-card__sub">{d.minimumExperience || 0}-{d.maximumExperience || 0} yrs experience</span>
+          </div>
+        </div>
+
+        <div className="job-metric-card">
+          <div className="job-metric-card__header">
+            <div className="job-metric-icon-box" style={{ background: 'linear-gradient(135deg, #10b981 0%, #047857 100%)' }}>
+              <Building2 size={20} />
+            </div>
+            <span className={`job-metric-badge ${d.salaryMinimum || d.salaryMaximum ? 'job-metric-badge--success' : 'job-metric-badge--neutral'}`}>
+              {d.salaryMinimum || d.salaryMaximum ? 'Set' : 'Omitted'}
+            </span>
+          </div>
+          <div className="job-metric-card__body">
+            <span className="job-metric-card__label">3. Compensation</span>
+            <span className="job-metric-card__val" style={{ fontSize: '1rem' }}>
+              {d.salaryMinimum || d.salaryMaximum
+                ? `${d.salaryCurrency || 'USD'} ${d.salaryMinimum || 0} - ${d.salaryMaximum || 0}`
+                : 'Not specified'}
+            </span>
+            <span className="job-metric-card__sub">{d.salaryPeriod ? label(d.salaryPeriod) : 'Yearly'} ({d.salaryVisible ? 'Public' : 'Private'})</span>
+          </div>
+        </div>
+
+        <div className="job-metric-card">
+          <div className="job-metric-card__header">
+            <div className="job-metric-icon-box" style={{ background: 'linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%)' }}>
+              <Sparkles size={20} />
+            </div>
+            <span className={`job-metric-badge ${d.skills.length > 0 ? 'job-metric-badge--success' : 'job-metric-badge--warning'}`}>
+              {d.skills.length} skill(s)
+            </span>
+          </div>
+          <div className="job-metric-card__body">
+            <span className="job-metric-card__label">4. Skills & Req</span>
+            <span className="job-metric-card__val" style={{ fontSize: '1rem' }}>
+              {d.skills.length > 0 ? `${d.skills.length} skills attached` : 'No skills set'}
+            </span>
+            <span className="job-metric-card__sub">{d.requirements ? 'Requirements set' : 'Add requirements'}</span>
+          </div>
+        </div>
+
+        <div className="job-metric-card">
+          <div className="job-metric-card__header">
+            <div className="job-metric-icon-box" style={{ background: 'linear-gradient(135deg, #f59e0b 0%, #b45309 100%)' }}>
+              <Users size={20} />
+            </div>
+            <span className={`job-metric-badge ${d.questions.length > 0 ? 'job-metric-badge--info' : 'job-metric-badge--neutral'}`}>
+              {d.questions.length} question(s)
+            </span>
+          </div>
+          <div className="job-metric-card__body">
+            <span className="job-metric-card__label">5. Screening</span>
+            <span className="job-metric-card__val" style={{ fontSize: '1rem' }}>
+              {d.questions.length > 0 ? `${d.questions.length} custom questions` : 'Default screening'}
+            </span>
+            <span className="job-metric-card__sub">Min Profile: {d.minimumProfileCompletion || 0}%</span>
+          </div>
+        </div>
+      </div>
+
       {savedDraft && (
         <Alert tone="warning" title="Newer local draft available">
           <p>
             Restore your saved browser draft or discard it and continue with the
             server version.
           </p>
-          <div className="job-actions">
+          <div className="job-actions" style={{ marginTop: '10px' }}>
             <Button
               type="button"
               onClick={() => {
@@ -1221,7 +1728,8 @@ export function JobFormPage({ mode }: { mode: 'create' | 'edit' }) {
           </div>
         </Alert>
       )}
-      <Form className="job-form" busy={save.isPending} onSubmit={submit}>
+
+      <Form className="job-form job-form-container" busy={save.isPending} onSubmit={submit}>
         <ErrorSummary
           ref={summary}
           errors={Object.entries(errors).map(([fieldId, message]) => ({
@@ -1263,12 +1771,14 @@ export function JobFormPage({ mode }: { mode: 'create' | 'edit' }) {
               <AIDescriptionEditor
                 jobTitle={d.title}
                 value={d.description}
+                draft={d}
                 onApply={(newDesc) => {
                   set('description', newDesc);
                   setDescriptionEditorOpen(false);
                 }}
                 onCancel={() => setDescriptionEditorOpen(false)}
               />
+
             </Dialog>
           </div>
           <TextArea
@@ -1279,7 +1789,7 @@ export function JobFormPage({ mode }: { mode: 'create' | 'edit' }) {
             error={errors.description}
             maxLength={10000}
             onChange={(e) => set('description', e.target.value)}
-            hint="Click the 'AI Assist & Large Editor' button above to open the expanded editor."
+            hint="Click the 'AI Assist' button above to open the expanded editor."
           />
           <div className="job-form-grid">
             <Select
@@ -1331,6 +1841,7 @@ export function JobFormPage({ mode }: { mode: 'create' | 'edit' }) {
             />
           </div>
         </FormSection>
+
         <FormSection heading="Location and experience">
           <div className="job-form-grid">
             <TextField
@@ -1370,6 +1881,7 @@ export function JobFormPage({ mode }: { mode: 'create' | 'edit' }) {
             />
           </div>
         </FormSection>
+
         <FormSection
           heading="Salary"
           description="Leave both amounts empty to omit salary from the API payload."
@@ -1426,6 +1938,7 @@ export function JobFormPage({ mode }: { mode: 'create' | 'edit' }) {
             />
           </div>
         </FormSection>
+
         <FormSection
           heading="Requirements"
           description="Enter one item per line."
@@ -1446,6 +1959,7 @@ export function JobFormPage({ mode }: { mode: 'create' | 'edit' }) {
             />
           ))}
         </FormSection>
+
         <FormSection heading="Application settings">
           <Checkbox
             label="Resume required"
@@ -1468,6 +1982,7 @@ export function JobFormPage({ mode }: { mode: 'create' | 'edit' }) {
             onChange={(e) => set('minimumProfileCompletion', e.target.value)}
           />
         </FormSection>
+
         <FormSection
           heading="Skills"
           description="Add exact skill requirements used during review."
@@ -1601,15 +2116,15 @@ export function JobFormPage({ mode }: { mode: 'create' | 'edit' }) {
               variant="secondary"
               disabled={aiSuggesting}
               onClick={async () => {
-                if (!d.title.trim() || !d.description.trim()) {
-                  alert('Please enter both job title and description first to suggest skills.');
+                if (!d.title.trim()) {
+                  alert('Please enter a job title first to suggest skills.');
                   return;
                 }
                 setAiSuggesting(true);
                 try {
                   const res = await apiRequest<{ skills: string[] }>('/jobs/ai/suggest-skills', {
                     method: 'POST',
-                    body: { title: d.title, description: d.description }
+                    body: { title: d.title, description: d.description || d.title }
                   });
                   if (res?.skills?.length) {
                     const newSkills = res.skills.map(name => ({
@@ -1634,6 +2149,7 @@ export function JobFormPage({ mode }: { mode: 'create' | 'edit' }) {
             </Button>
           </div>
         </FormSection>
+
         <FormSection
           heading="Application questions"
           description="Choice questions require at least two options, one per line."
@@ -1734,101 +2250,108 @@ export function JobFormPage({ mode }: { mode: 'create' | 'edit' }) {
             Add question
           </Button>
         </FormSection>
-        <FormActions>
-          <Button
-            type="button"
-            variant="secondary"
-            onClick={() => nav('/org/jobs')}
-          >
-            Cancel
-          </Button>
-          {mode === 'edit' && (
-            <>
-              <Button
-                type="button"
-                variant="secondary"
-                disabled={cloneMutation.isPending}
-                onClick={async (e) => {
-                  e.preventDefault();
-                  try {
-                    const result = await cloneMutation.mutateAsync(jobId);
-                    if (result && typeof result === 'object' && 'job' in result) {
-                      const newJob = (result as { job: { _id: string } }).job;
-                      setDirty(false);
-                      sessionStorage.removeItem(key);
-                      alert('Job cloned successfully!');
-                      nav(`/org/jobs/${newJob._id}/edit`);
-                    }
-                  } catch (err) {
-                    alert('Failed to clone job: ' + (err as Error).message);
-                  }
-                }}
-              >
-                {cloneMutation.isPending ? 'Cloning...' : 'Clone job'}
-              </Button>
-              <Button
-                type="button"
-                variant="danger"
-                loading={archiving}
-                onClick={async (e) => {
-                  e.preventDefault();
-                  if (confirm('Are you sure you want to archive this job?')) {
-                    setDirty(false);
-                    setArchiving(true);
+
+        <FormActions className="job-form-sticky-bar">
+          <div className="job-form-sticky-bar__info">
+            <Clock size={15} />
+            <span>{dirty ? 'Unsaved changes (auto-saved to browser session)' : 'Draft in sync'}</span>
+          </div>
+          <div className="job-form-sticky-bar__actions">
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => nav('/org/jobs')}
+            >
+              Cancel
+            </Button>
+            {mode === 'edit' && (
+              <>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  disabled={cloneMutation.isPending}
+                  onClick={async (e) => {
+                    e.preventDefault();
                     try {
-                      await apiRequest(`/jobs/manage/${jobId}`, { method: 'DELETE' });
-                      sessionStorage.removeItem(key);
-                      alert('Job archived successfully.');
-                      nav('/org/jobs');
+                      const result = await cloneMutation.mutateAsync(jobId);
+                      if (result && typeof result === 'object' && 'job' in result) {
+                        const newJob = (result as { job: { _id: string } }).job;
+                        setDirty(false);
+                        sessionStorage.removeItem(key);
+                        alert('Job cloned successfully!');
+                        nav(`/org/jobs/${newJob._id}/edit`);
+                      }
                     } catch (err) {
-                      alert('Failed to archive job: ' + (err as Error).message);
-                    } finally {
-                      setArchiving(false);
+                      alert('Failed to clone job: ' + (err as Error).message);
                     }
-                  }
-                }}
-              >
-                Archive job
-              </Button>
-            </>
-          )}
-          <Button
-            type="button"
-            variant="secondary"
-            loading={save.isPending || submittingAndPublishing}
-            onClick={async (e) => {
-              e.preventDefault();
-              const nextErrors = validate(d);
-              if (Object.keys(nextErrors).length > 0) {
-                setErrors(nextErrors);
-                summary.current?.scrollIntoView({ behavior: 'smooth' });
-                return;
-              }
-              setSubmittingAndPublishing(true);
-              try {
-                const res = await save.mutateAsync(d);
-                let savedId = jobId;
-                if (res && typeof res === 'object' && 'job' in res) {
-                  const jobData = (res as { job: { _id: string } }).job;
-                  savedId = jobData._id;
+                  }}
+                >
+                  {cloneMutation.isPending ? 'Cloning...' : 'Clone job'}
+                </Button>
+                <Button
+                  type="button"
+                  variant="danger"
+                  loading={archiving}
+                  onClick={async (e) => {
+                    e.preventDefault();
+                    if (confirm('Are you sure you want to archive this job?')) {
+                      setDirty(false);
+                      setArchiving(true);
+                      try {
+                        await apiRequest(`/jobs/manage/${jobId}`, { method: 'DELETE' });
+                        sessionStorage.removeItem(key);
+                        alert('Job archived successfully.');
+                        nav('/org/jobs');
+                      } catch (err) {
+                        alert('Failed to archive job: ' + (err as Error).message);
+                      } finally {
+                        setArchiving(false);
+                      }
+                    }
+                  }}
+                >
+                  Archive job
+                </Button>
+              </>
+            )}
+            <Button
+              type="button"
+              variant="secondary"
+              loading={save.isPending || submittingAndPublishing}
+              onClick={async (e) => {
+                e.preventDefault();
+                const nextErrors = validate(d);
+                if (Object.keys(nextErrors).length > 0) {
+                  setErrors(nextErrors);
+                  summary.current?.scrollIntoView({ behavior: 'smooth' });
+                  return;
                 }
-                await apiRequest(`/jobs/manage/${savedId}/submit`, { method: 'PATCH' });
-                setDirty(false);
-                sessionStorage.removeItem(key);
-                alert('Job submitted and published successfully!');
-                nav('/org/jobs');
-              } catch (err) {
-                alert('Failed to publish job: ' + (err as Error).message);
-              } finally {
-                setSubmittingAndPublishing(false);
-              }
-            }}
-          >
-            Submit & Publish
-          </Button>
-          <Button type="submit" loading={save.isPending}>
-            Save draft
-          </Button>
+                setSubmittingAndPublishing(true);
+                try {
+                  const res = await save.mutateAsync(d);
+                  let savedId = jobId;
+                  if (res && typeof res === 'object' && 'job' in res) {
+                    const jobData = (res as { job: { _id: string } }).job;
+                    savedId = jobData._id;
+                  }
+                  await apiRequest(`/jobs/manage/${savedId}/submit`, { method: 'PATCH' });
+                  setDirty(false);
+                  sessionStorage.removeItem(key);
+                  alert('Job submitted and published successfully!');
+                  nav('/org/jobs');
+                } catch (err) {
+                  alert('Failed to publish job: ' + (err as Error).message);
+                } finally {
+                  setSubmittingAndPublishing(false);
+                }
+              }}
+            >
+              Submit & Publish
+            </Button>
+            <Button type="submit" loading={save.isPending}>
+              Save draft
+            </Button>
+          </div>
         </FormActions>
       </Form>
       {blocker.state === 'blocked' && (

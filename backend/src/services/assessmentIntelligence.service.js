@@ -7,15 +7,32 @@ import { AppError } from '../shared/errors/AppError.js';
 import { z } from 'zod';
 
 const questionGenSchema = z.object({
-  type: z.enum(['single-choice', 'multiple-choice', 'true-false', 'short-answer', 'long-answer', 'coding', 'sql', 'debugging', 'output-prediction', 'file-upload']),
+  type: z.enum(['single-choice', 'multiple-choice', 'true-false', 'short-answer', 'long-answer', 'coding', 'sql', 'debugging', 'output-prediction', 'file-upload', 'work-sample']),
   prompt: z.string(),
   defaultMarks: z.number().min(0.01),
   difficulty: z.enum(['easy', 'medium', 'hard']),
+  category: z.string().optional().default('General'),
+  skills: z.array(z.string()).optional().default([]),
   options: z.array(z.object({ id: z.string(), text: z.string() })).default([]),
   correctAnswer: z.any().nullable().default(null),
   coding: z.object({
     starterCode: z.record(z.string()).default({}),
     testCases: z.array(z.object({ input: z.any(), expectedOutput: z.any(), isHidden: z.boolean().default(false), weight: z.number() })).default([])
+  }).optional(),
+  deliverable: z.object({
+    type: z.enum(['file', 'url', 'text', 'mixed']),
+    instructions: z.string(),
+    allowedFormats: z.array(z.string()).default([]),
+    maxFiles: z.number().default(1)
+  }).optional(),
+  rubric: z.object({
+    criteria: z.array(z.object({
+      name: z.string(),
+      description: z.string().default(''),
+      maxMarks: z.number(),
+      weight: z.number()
+    })).default([]),
+    evaluationNotes: z.string().default('')
   }).optional()
 });
 
@@ -56,16 +73,30 @@ export const generateAIAssessment = async (jobDescription, companyId, userId, co
       prompt: q.prompt,
       difficulty: q.difficulty,
       defaultMarks: q.defaultMarks,
+      category: q.category || 'General',
+      skills: q.skills || [],
       options: q.options,
       correctAnswer: q.correctAnswer,
       coding: q.coding ? {
         languageSupport: ['javascript', 'python'],
         starterCode: q.coding.starterCode,
         testCases: q.coding.testCases
+      } : undefined,
+      deliverable: q.deliverable ? {
+        type: q.deliverable.type,
+        instructions: q.deliverable.instructions,
+        allowedFormats: q.deliverable.allowedFormats || [],
+        maxFiles: q.deliverable.maxFiles || 1
+      } : undefined,
+      rubric: q.rubric ? {
+        criteria: q.rubric.criteria || [],
+        evaluationNotes: q.rubric.evaluationNotes || ''
       } : undefined
     });
     createdQuestions.push(doc);
   }
+
+  const totalMarks = createdQuestions.reduce((acc, q) => acc + (q.defaultMarks || 0), 0);
 
   const assessment = await Assessment.create({
     company: companyId,
@@ -75,6 +106,7 @@ export const generateAIAssessment = async (jobDescription, companyId, userId, co
     type: 'mixed',
     durationMinutes: 60,
     passingPercentage: 70,
+    totalMarks,
     questions: createdQuestions.map((q, idx) => ({
       question: q._id,
       marks: q.defaultMarks,
@@ -83,6 +115,73 @@ export const generateAIAssessment = async (jobDescription, companyId, userId, co
   });
 
   return Assessment.findById(assessment._id).populate('questions.question');
+};
+
+/**
+ * Automatically creates targeted questions and adds them to the Question Bank.
+ */
+export const generateQuestionsForBank = async ({
+  topic,
+  skills = [],
+  difficulty = 'medium',
+  type = 'mixed',
+  count = 3,
+  companyId,
+  userId,
+  createdBy,
+  context = {}
+}) => {
+  const genRes = await invokeAIGateway(
+    'question_bank_generation',
+    {
+      topic,
+      skills: Array.isArray(skills) && skills.length ? skills.join(', ') : topic,
+      difficulty,
+      type,
+      count: String(count)
+    },
+    context
+  );
+
+  const data = parseJSON(genRes, assessmentGenSchema);
+
+  const authorId = userId || createdBy;
+  const createdQuestions = [];
+  for (const q of data.questions) {
+    const doc = await Question.create({
+      company: companyId,
+      createdBy: authorId,
+      type: q.type,
+      title: (q.title || q.prompt || '').slice(0, 150),
+      prompt: q.prompt,
+      difficulty: q.difficulty || difficulty,
+      defaultMarks: q.defaultMarks || 10,
+      category: q.category || topic,
+      topic,
+      skills: Array.isArray(q.skills) && q.skills.length ? q.skills : skills,
+      options: q.options || [],
+      correctAnswer: q.correctAnswer,
+      isReusable: true,
+      coding: q.coding ? {
+        languageSupport: ['javascript', 'python'],
+        starterCode: q.coding.starterCode || {},
+        testCases: q.coding.testCases || []
+      } : undefined,
+      deliverable: q.deliverable ? {
+        type: q.deliverable.type,
+        instructions: q.deliverable.instructions,
+        allowedFormats: q.deliverable.allowedFormats || [],
+        maxFiles: q.deliverable.maxFiles || 1
+      } : undefined,
+      rubric: q.rubric ? {
+        criteria: q.rubric.criteria || [],
+        evaluationNotes: q.rubric.evaluationNotes || ''
+      } : undefined
+    });
+    createdQuestions.push(doc);
+  }
+
+  return createdQuestions;
 };
 
 /**

@@ -61,12 +61,20 @@ export const jobSearchSchema = z.object({
 
 export const aiGenerateDescriptionSchema = z.object({
   title: text(150).min(1),
-  keyRequirements: text(3000).optional().default('')
+  keyRequirements: text(3000).optional().default(''),
+  department: text(100).optional(),
+  employmentType: z.enum(EMPLOYMENT_TYPES).optional(),
+  workMode: z.enum(WORK_MODES).optional(),
+  skills: z.array(z.string().trim().max(100)).optional(),
+  minimumExperience: z.number().min(0).max(60).optional(),
+  maximumExperience: z.number().min(0).max(60).optional(),
+  location: text(150).optional(),
 }).strict();
+
 
 export const aiSuggestSkillsSchema = z.object({
   title: text(150).min(1),
-  description: text(10000).min(1)
+  description: text(10000).optional().default('')
 }).strict();
 
 export const aiSafetyCheckSchema = z.object({

@@ -14,6 +14,9 @@ const mocks = vi.hoisted(() => ({
   candidate: vi.fn(),
   move: vi.fn(),
   refetch: vi.fn(),
+  checkEligibility: vi.fn(),
+  bulkAssign: vi.fn(),
+  assessments: vi.fn(),
 }));
 vi.mock('../../auth/AuthProvider', () => ({ useAuth: () => mocks.auth() }));
 vi.mock('./api', () => ({
@@ -34,6 +37,16 @@ vi.mock('./api', () => ({
 }));
 vi.mock('../assessments/api', () => ({
   useAssignments: () => ({ isPending: false, data: { items: [] } }),
+  useAssessments: () => mocks.assessments(),
+  useCheckEligibility: () => ({
+    isPending: false,
+    mutate: mocks.checkEligibility,
+    mutateAsync: mocks.checkEligibility,
+  }),
+  useBulkAssignAssessment: () => ({
+    isPending: false,
+    mutateAsync: mocks.bulkAssign,
+  }),
 }));
 import {
   ApplicationDetailPage,
@@ -141,6 +154,66 @@ beforeEach(() => {
   );
   mocks.candidate.mockReturnValue(query(candidate));
   mocks.move.mockResolvedValue({});
+  mocks.assessments.mockReturnValue(
+    query({
+      items: [
+        {
+          id: 'asmt1',
+          title: 'Fullstack Technical Assessment',
+          durationMinutes: 60,
+          passingPercentage: 75,
+          questionCount: 5,
+        },
+      ],
+      page: { page: 1, pages: 1, total: 1 },
+    }),
+  );
+  mocks.checkEligibility.mockImplementation(
+    (
+      _body: unknown,
+      options?: { onSuccess?: (data: unknown) => void },
+    ) => {
+      options?.onSuccess?.({
+        eligible: [
+          {
+            applicationId: 'app1',
+            candidateName: 'Alex Rivera',
+            email: 'alex@example.com',
+            stage: 'submitted',
+            jobTitle: 'Senior Product Designer',
+          },
+        ],
+        alreadyAssigned: [],
+        ineligible: [],
+        summary: {
+          total: 1,
+          eligibleCount: 1,
+          alreadyAssignedCount: 0,
+          ineligibleCount: 0,
+        },
+      });
+    },
+  );
+  mocks.bulkAssign.mockResolvedValue({
+    assigned: [
+      {
+        applicationId: 'app1',
+        candidateName: 'Alex Rivera',
+        assignmentId: 'assign1',
+        status: 'assessment-pending',
+      },
+    ],
+    alreadyAssigned: [],
+    ineligible: [],
+    failed: [],
+    summary: {
+      requested: 1,
+      assignedCount: 1,
+      alreadyAssignedCount: 0,
+      ineligibleCount: 0,
+      failedCount: 0,
+    },
+  });
 });
 describe('applications workspace', () => {
   it('renders populated list accessibly with privacy-safe content and no bulk or drag UI', async () => {
@@ -176,61 +249,14 @@ describe('applications workspace', () => {
     expect(mocks.applications).toHaveBeenCalledWith(expect.any(String), false);
     expect(mocks.pipeline).toHaveBeenCalledWith(undefined, false);
   });
-  it('confirms an exact move and announces success', async () => {
+  it('does not render generic Move Stage button or MoveDialog modal on applications page', async () => {
     show(<ApplicationsPage />, '/org/applications');
-    const moveButton = screen
-      .getAllByRole('button', { name: 'Move to stage' })
-      .at(0);
-    expect(moveButton).toBeDefined();
-    await userEvent.click(moveButton as HTMLElement);
-    await userEvent.selectOptions(
-      screen.getByLabelText('Destination'),
-      'under-review',
-    );
-    await userEvent.click(
-      screen.getByRole('button', { name: 'Confirm movement' }),
-    );
-    expect(mocks.move).toHaveBeenCalledWith({ status: 'under-review' });
     expect(
-      await screen.findByText(/moved from Submitted to Under Review/),
-    ).toBeInTheDocument();
-  });
-  it('treats a transition 409 as stale without auto retry', async () => {
-    mocks.move.mockRejectedValueOnce(new ApiError(409, 'stale'));
-    show(<ApplicationsPage />, '/org/applications');
-    const moveButton = screen
-      .getAllByRole('button', { name: 'Move to stage' })
-      .at(0);
-    expect(moveButton).toBeDefined();
-    await userEvent.click(moveButton as HTMLElement);
-    await userEvent.selectOptions(
-      screen.getByLabelText('Destination'),
-      'under-review',
-    );
-    await userEvent.click(
-      screen.getByRole('button', { name: 'Confirm movement' }),
-    );
-    expect(mocks.move).toHaveBeenCalledTimes(1);
+      screen.queryByRole('button', { name: /move stage|move to stage/i }),
+    ).not.toBeInTheDocument();
     expect(
-      await screen.findByText(/Move to Under Review was not completed/i),
-    ).toBeInTheDocument();
-    const reopen = screen
-      .getAllByRole('button', { name: 'Move to stage' })
-      .at(0);
-    await userEvent.click(reopen as HTMLElement);
-    expect(screen.getByLabelText('Destination')).toHaveValue('');
-    expect(
-      screen.getByRole('button', { name: 'Confirm movement' }),
-    ).toBeDisabled();
-    expect(mocks.move).toHaveBeenCalledTimes(1);
-    await userEvent.selectOptions(
-      screen.getByLabelText('Destination'),
-      'under-review',
-    );
-    await userEvent.click(
-      screen.getByRole('button', { name: 'Confirm movement' }),
-    );
-    expect(mocks.move).toHaveBeenCalledTimes(2);
+      screen.queryByRole('dialog', { name: /move to stage/i }),
+    ).not.toBeInTheDocument();
   });
   it('provides board pagination, complete filters, and canonical URL safety', async () => {
     const { router } = show(
@@ -325,5 +351,72 @@ describe('safe evidence and candidates', () => {
     });
     show(<ApplicationsPage />, '/org/applications');
     expect(screen.getByText('Offline')).toBeInTheDocument();
+  });
+  it('opens Assign Assessment modal on selection, shows eligibility preview, and processes bulk assignment with clear outcomes', async () => {
+    mocks.auth.mockReturnValue({
+      recruiter: {
+        permissions: [
+          'applications.view',
+          'applications.manage',
+          'assessments.assign',
+        ],
+      },
+    });
+    show(<ApplicationsPage />, '/org/applications');
+
+    // Select the candidate checkbox
+    const selectCheckbox = screen.getByLabelText(
+      'Select application for Alex Rivera',
+    );
+    await userEvent.click(selectCheckbox);
+
+    // Bulk action bar appears with "Assign Assessment" button
+    const assignBtn = screen.getByRole('button', {
+      name: 'Assign Assessment',
+    });
+    expect(assignBtn).toBeInTheDocument();
+    await userEvent.click(assignBtn);
+
+    // Modal dialog is open
+    expect(
+      screen.getByRole('dialog', {
+        name: /Assign Assessment to Candidates/i,
+      }),
+    ).toBeInTheDocument();
+
+    // Select the assessment from the dropdown
+    const selectDropdown = screen.getByLabelText('Select Assessment');
+    await userEvent.selectOptions(selectDropdown, 'asmt1');
+
+    // Live eligibility preview is evaluated and displayed
+    expect(mocks.checkEligibility).toHaveBeenCalledWith(
+      expect.objectContaining({
+        assessmentId: 'asmt1',
+        applicationIds: ['app1'],
+      }),
+      expect.anything(),
+    );
+    expect(screen.getByText('1 Eligible')).toBeInTheDocument();
+    expect(screen.getByText('Ready to Assign')).toBeInTheDocument();
+
+    // Confirm and assign
+    const confirmBtn = screen.getByRole('button', {
+      name: /Confirm & Assign \(1\)/i,
+    });
+    expect(confirmBtn).not.toBeDisabled();
+    await userEvent.click(confirmBtn);
+
+    expect(mocks.bulkAssign).toHaveBeenCalledWith(
+      expect.objectContaining({
+        assessmentId: 'asmt1',
+        applicationIds: ['app1'],
+      }),
+    );
+
+    // Outcomes view is displayed with clear per-candidate outcomes
+    expect(
+      screen.getByText('Assignments Issued Successfully'),
+    ).toBeInTheDocument();
+    expect(screen.getByText('Assigned')).toBeInTheDocument();
   });
 });

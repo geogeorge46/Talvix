@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import mongoose from 'mongoose';
 import { env } from '../config/env.js';
-import { DOCUMENT_MIMES, IMAGE_MIMES } from '../constants/document.js';
+import { DOCUMENT_MIMES, IMAGE_MIMES, RESUME_MIMES } from '../constants/document.js';
 import { Document } from '../models/Document.js';
 import { FileUploadSession } from '../models/FileUploadSession.js';
 import { AppError } from '../shared/errors/AppError.js';
@@ -16,7 +16,12 @@ import { deleteDocumentAssetIfUnreferenced } from './documentRetention.service.j
 const maximum = (category) => (category === 'assessment-attachment'
   ? env.FILE_MAX_ASSESSMENT_ATTACHMENT_MB
   : ['profile-photo', 'company-logo'].includes(category) ? env.FILE_MAX_IMAGE_MB : env.FILE_MAX_DOCUMENT_MB) * 1024 * 1024;
-const mimes = (category) => ['profile-photo', 'company-logo'].includes(category) ? IMAGE_MIMES : DOCUMENT_MIMES;
+const mimes = (category) => ['profile-photo', 'company-logo'].includes(category)
+  ? IMAGE_MIMES
+  : category === 'resume'
+    ? RESUME_MIMES
+    : [...DOCUMENT_MIMES, ...IMAGE_MIMES];
+
 
 export const createUploadSession = async (user, input) => {
   const entityId = input.entityId ?? user.id;
@@ -93,7 +98,7 @@ export const uploadDocument = async (...args) => {
 const own = async (user, id) => { const document = await Document.findOne({ _id: id, owner: user.id, status: { $ne: 'deleted' } }); if (!document) throw new AppError('Document not found', 404); return document; };
 export const listDocuments = async (user, query) => { const filter = { owner: user.id, status: query.status ?? 'active' }; if (query.category) filter.category = query.category; const [rows, total] = await Promise.all([Document.find(filter).sort({ createdAt: -1 }).skip((query.page - 1) * query.limit).limit(query.limit), Document.countDocuments(filter)]); return { documents: rows.map(serializeDocument), pagination: buildPagination(query.page, query.limit, total) }; };
 export const getDocument = async (user, id) => serializeDocument(await own(user, id));
-export const downloadDocument = async (user, id) => { const document = await own(user, id); if (!['active', 'archived'].includes(document.status) || ['suspicious', 'infected'].includes(document.malwareScan.status)) throw new AppError('Document is unavailable for download', 409); return createSignedDownloadUrl({ publicId: document.storage.publicId, resourceType: document.storage.resourceType, expiresAt: new Date(Date.now() + env.FILE_SIGNED_URL_TTL_SECONDS * 1000), attachment: true }); };
+export const downloadDocument = async (user, id, inline = false) => { const document = await own(user, id); if (!['active', 'archived'].includes(document.status) || ['suspicious', 'infected'].includes(document.malwareScan.status)) throw new AppError('Document is unavailable for download', 409); return createSignedDownloadUrl({ publicId: document.storage.publicId, resourceType: document.storage.resourceType, expiresAt: new Date(Date.now() + env.FILE_SIGNED_URL_TTL_SECONDS * 1000), attachment: !inline }); };
 export const updateDocument = async (user, id, input) => { const document = await own(user, id); document.set(input); await document.save(); return serializeDocument(document); };
 export const replaceDocument = async (user, id, fields, file, overrides) => uploadDocument(user, fields, file, await own(user, id), overrides);
 export const setState = async (user, id, state, reason) => { const document = await own(user, id); const allowed = { active: ['archived', 'deleted'], archived: ['active', 'deleted'] }; if (!allowed[document.status]?.includes(state)) throw new AppError('Invalid document status transition', 409); if (state === 'deleted' && !['user', 'candidate-profile', 'recruiter-profile'].includes(document.entityType)) throw new AppError('Workflow documents follow their entity retention policy', 409, 'DOCUMENT_REFERENCE_CONFLICT'); const from = document.status; document.status = state; document.isCurrent = state === 'active'; if (state === 'archived') document.archivedAt = new Date(); if (state === 'deleted') document.deletedAt = new Date(); document.statusHistory.push({ from, to: state, changedBy: user.id, reason }); await document.save(); if (state === 'deleted') await deleteDocumentAssetIfUnreferenced(document); return serializeDocument(document); };

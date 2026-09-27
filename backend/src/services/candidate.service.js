@@ -1,5 +1,6 @@
 import { USER_ROLES } from '../constants/roles.js';
 import { CandidateProfile } from '../models/CandidateProfile.js';
+import { Document } from '../models/Document.js';
 import { AppError } from '../shared/errors/AppError.js';
 import { buildPagination, createSafeRegex } from '../utils/pagination.js';
 import { calculateProfileCompletion } from '../utils/profileCompletion.js';
@@ -54,7 +55,22 @@ export const createCandidateProfileForUser = async (userId, session) => {
 };
 
 export const signProfileAssets = async (profile) => {
-  if (profile.resume && profile.resume.url && profile.resume.publicId) {
+  if (profile.resumeDocument && (!profile.resume?.publicId || !profile.resume?.url || profile.resume?.url?.startsWith('memory://'))) {
+    try {
+      const doc = await Document.findById(profile.resumeDocument);
+      if (doc && doc.storage?.publicId) {
+        profile.resume = {
+          url: doc.storage.provider === 'cloudinary' ? doc.storage.secureUrl : undefined,
+          publicId: doc.storage.publicId,
+          fileName: doc.displayName || doc.originalFileName,
+          uploadedAt: doc.createdAt,
+        };
+      }
+    } catch (e) {
+      console.error('Failed to resolve resume document:', e);
+    }
+  }
+  if (profile.resume && profile.resume.publicId) {
     try {
       const signed = await createSignedDownloadUrl({
         publicId: profile.resume.publicId,
@@ -65,9 +81,14 @@ export const signProfileAssets = async (profile) => {
       profile.set('resume.url', signed.url);
     } catch (e) {
       console.error('Failed to sign resume URL:', e);
+      if (profile.resume.url?.startsWith('memory://')) {
+        profile.set('resume.url', undefined);
+      }
     }
+  } else if (profile.resume?.url?.startsWith('memory://')) {
+    profile.set('resume.url', undefined);
   }
-  if (profile.profilePhoto && profile.profilePhoto.url && profile.profilePhoto.publicId) {
+  if (profile.profilePhoto && profile.profilePhoto.publicId) {
     try {
       const signed = await createSignedDownloadUrl({
         publicId: profile.profilePhoto.publicId,
@@ -78,7 +99,12 @@ export const signProfileAssets = async (profile) => {
       profile.set('profilePhoto.url', signed.url);
     } catch (e) {
       console.error('Failed to sign profile photo URL:', e);
+      if (profile.profilePhoto.url?.startsWith('memory://')) {
+        profile.set('profilePhoto.url', undefined);
+      }
     }
+  } else if (profile.profilePhoto?.url?.startsWith('memory://')) {
+    profile.set('profilePhoto.url', undefined);
   }
   return profile;
 };

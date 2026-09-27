@@ -11,7 +11,7 @@ const rec = (v: unknown) =>
   v && typeof v === 'object' ? (v as Record<string, unknown>) : {};
 
 const pagination = (v: unknown) => {
-  const meta = rec(rec(v).meta);
+  const meta = rec(rec(v).meta ?? rec(v).pagination);
   return {
     pagination: {
       page: typeof meta.page === 'number' ? meta.page : 1,
@@ -37,11 +37,10 @@ export const useNotifications = (query = 'page=1&limit=20') =>
 export const useUnreadCount = () =>
   useQuery({
     queryKey: ['recruiter', 'notifications', 'unread'],
-    queryFn: async () =>
-      Number(
-        rec(await apiRequest<unknown>('/notifications/unread-count')).count ??
-          0,
-      ),
+    queryFn: async () => {
+      const v = rec(await apiRequest<unknown>('/notifications/unread-count'));
+      return Number(v.unreadCount ?? v.count ?? 0);
+    },
   });
 
 export const useNotificationMutation = () => {

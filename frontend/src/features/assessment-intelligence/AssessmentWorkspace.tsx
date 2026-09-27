@@ -10,6 +10,7 @@ import {
 } from '../../design-system';
 import { useGenerateAIAssessment } from '../assessments/api';
 import { label } from '../assessments/model';
+import { Tabs } from '../assessments/Pages';
 
 export function AssessmentWorkspace() {
   const [jobDescription, setJobDescription] = useState('');
@@ -22,8 +23,9 @@ export function AssessmentWorkspace() {
 
     try {
       const data = await generate.mutateAsync(jobDescription);
-      if (data?.assessment) {
-        setGeneratedAssessment(data.assessment);
+      const assessmentData = (data as any)?.assessment || data;
+      if (assessmentData) {
+        setGeneratedAssessment(assessmentData);
       }
     } catch (err) {
       console.error('AI Generation error:', err);
@@ -35,6 +37,7 @@ export function AssessmentWorkspace() {
       <PageHeader
         title="AI Assessment & Question Builder"
         description="Leverage AI to construct optimized assessment blueprints and questions directly from job specifications."
+        secondaryActions={<Tabs />}
       />
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px', alignItems: 'start' }}>
@@ -76,7 +79,7 @@ export function AssessmentWorkspace() {
               actions={
                 <Link
                   className="tvx-button tvx-button--primary"
-                  to={`/org/assessments/manage/${generatedAssessment._id || generatedAssessment.id}`}
+                  to={`/org/assessments/${generatedAssessment._id || generatedAssessment.id}`}
                 >
                   Manage Assessment
                 </Link>
@@ -121,6 +124,17 @@ export function AssessmentWorkspace() {
                             <li key={opt.id || opt.text}>{opt.text}</li>
                           ))}
                         </ul>
+                      )}
+                      {q.deliverable && (
+                        <div style={{ marginTop: '8px', fontSize: '12px', color: 'var(--color-text-muted)', background: 'rgba(0,0,0,0.03)', padding: '8px', borderRadius: '4px' }}>
+                          <strong>Deliverable:</strong> {q.deliverable.type} {q.deliverable.allowedFormats?.length ? `(${q.deliverable.allowedFormats.join(', ')})` : ''}
+                          {q.deliverable.instructions && <div style={{ marginTop: '4px' }}>{q.deliverable.instructions}</div>}
+                        </div>
+                      )}
+                      {q.rubric?.criteria && q.rubric.criteria.length > 0 && (
+                        <div style={{ marginTop: '8px', fontSize: '12px', color: 'var(--color-text-muted)' }}>
+                          <strong>Rubric:</strong> {q.rubric.criteria.map((c: any) => `${c.name} (${c.maxMarks} pts)`).join(', ')}
+                        </div>
                       )}
                     </div>
                   );

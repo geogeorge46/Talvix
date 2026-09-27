@@ -30,7 +30,6 @@ import {
   ForbiddenPage,
   NotFoundPage,
   UnauthorizedPage,
-  WorkspacePlaceholder,
 } from '../pages/SystemPages';
 import { OrganizationDashboardPage } from '../features/organization-dashboard';
 import {
@@ -55,10 +54,11 @@ import {
   CandidateAssignmentPage,
   ResultPage,
   RecruiterAssignmentPage,
-  RecruiterReviewDetailPage,
+  ReviewDetailPage,
   CreateAssignmentPage,
   QuestionBankPage,
   ReviewsPage,
+  BlueprintBuilder,
 } from '../features/assessments';
 import {
   AvailabilityPage,
@@ -149,7 +149,6 @@ import { ResumeIntelligenceDashboard } from '../features/resume-intelligence/Res
 import { JobIntelligenceDashboard } from '../features/job-intelligence/JobIntelligenceDashboard';
 import { CandidateMatchDashboard } from '../features/candidate-matching/CandidateMatchDashboard';
 import { CopilotWorkspace } from '../features/copilot/CopilotWorkspace';
-import { AssessmentWorkspace } from '../features/assessment-intelligence/AssessmentWorkspace';
 import { CandidateAssessmentView } from '../features/assessment-intelligence/CandidateAssessmentView';
 import { ResumeReviewDashboard } from '../features/candidate-intelligence/ResumeReviewDashboard';
 import { CandidateIntelligenceDashboard } from '../features/candidate-intelligence/CandidateIntelligenceDashboard';
@@ -394,7 +393,7 @@ export function AppRoutes() {
         <Route path="job-intelligence" element={<JobIntelligenceDashboard />} />
         <Route path="matching" element={<CandidateMatchDashboard />} />
         <Route path="copilot" element={<CopilotWorkspace />} />
-        <Route path="assessments-builder" element={<AssessmentWorkspace />} />
+        <Route path="assessments-builder" element={<Navigate to="/org/assessments" replace />} />
         <Route path="resume-review" element={<ResumeReviewDashboard />} />
         <Route path="candidate-intelligence" element={<CandidateIntelligenceDashboard />} />
         <Route path="inbox" element={<CommunicationCenter />} />
@@ -408,6 +407,7 @@ export function AppRoutes() {
         <Route path="integration-settings" element={<IntegrationSettings />} />
         <Route path="admin-console" element={<AdminConsole />} />
         <Route path="security-compliance" element={<SecurityComplianceCenter />} />
+        <Route path="ats" element={<Navigate to="/org/applications" replace />} />
         <Route
           path="applications"
           element={
@@ -552,6 +552,14 @@ export function AppRoutes() {
           }
         />
         <Route
+          path="assessments/blueprints"
+          element={
+            <CapabilityRoute anyPermission={['assessments.view']}>
+              <BlueprintBuilder />
+            </CapabilityRoute>
+          }
+        />
+        <Route
           path="assessments/assignments/:assignmentId"
           element={
             <CapabilityRoute anyPermission={['assessments.view']}>
@@ -587,7 +595,7 @@ export function AppRoutes() {
           path="assessments/reviews/:attemptId"
           element={
             <CapabilityRoute anyPermission={['assessments.review']}>
-              <RecruiterReviewDetailPage />
+              <ReviewDetailPage />
             </CapabilityRoute>
           }
         />
@@ -672,14 +680,6 @@ export function AppRoutes() {
           }
         />
         <Route
-          path="offers/approvals/:offerId"
-          element={
-            <CapabilityRoute anyPermission={['offers.approve']}>
-              <ApprovalDetailPage />
-            </CapabilityRoute>
-          }
-        />
-        <Route
           path="offers"
           element={
             <CapabilityRoute anyPermission={['offers.view']}>
@@ -692,6 +692,22 @@ export function AppRoutes() {
           element={
             <CapabilityRoute anyPermission={['offers.manage']}>
               <OfferFormPage mode="create" />
+            </CapabilityRoute>
+          }
+        />
+        <Route
+          path="offers/approvals"
+          element={
+            <CapabilityRoute anyPermission={['offers.approve']}>
+              <ApprovalQueuePage />
+            </CapabilityRoute>
+          }
+        />
+        <Route
+          path="offers/approvals/:offerId"
+          element={
+            <CapabilityRoute anyPermission={['offers.approve']}>
+              <ApprovalDetailPage />
             </CapabilityRoute>
           }
         />
@@ -724,14 +740,6 @@ export function AppRoutes() {
           element={
             <CapabilityRoute anyPermission={['offers.manage']}>
               <OfferTemplateFormPage mode="edit" />
-            </CapabilityRoute>
-          }
-        />
-        <Route
-          path="offers/approvals"
-          element={
-            <CapabilityRoute anyPermission={['offers.approve']}>
-              <ApprovalQueuePage />
             </CapabilityRoute>
           }
         />

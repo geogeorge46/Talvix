@@ -1,4 +1,6 @@
 import { AssessmentAttempt } from '../models/AssessmentAttempt.js';
+import { AssessmentAssignment } from '../models/AssessmentAssignment.js';
+import { Application } from '../models/Application.js';
 import { CandidateProfile } from '../models/CandidateProfile.js';
 import { Assessment } from '../models/Assessment.js';
 import { AppError } from '../shared/errors/AppError.js';
@@ -172,4 +174,239 @@ export const getBenchmarking = async (company, filters = {}) => {
     departmentPerformance: formattedDepartment,
     skillDistribution: formattedSkills
   };
+};
+
+export const getCohortLeaderboard = async (company, assessmentId, filters = {}) => {
+  const assessment = await Assessment.findOne({ _id: assessmentId, company });
+  if (!assessment) throw new AppError('Assessment not found', 404);
+
+  // Match assignments for this assessment & company
+  const assignmentMatch = { assessment: assessment._id, company };
+  if (filters.jobId) {
+    const jobAppIds = await Application.find({ job: filters.jobId, company }).distinct('_id');
+    assignmentMatch.application = { $in: jobAppIds };
+  }
+
+  const assignments = await AssessmentAssignment.find(assignmentMatch)
+    .populate('candidate', 'fullName email')
+    .populate('application', 'job status applicationNumber')
+    .populate('latestAttempt')
+    .populate('bestAttempt')
+    .lean();
+
+  const candidateIds = assignments.map((a) => a.candidate?._id).filter(Boolean);
+  const profiles = await CandidateProfile.find({ user: { $in: candidateIds } }).lean();
+  const profileMap = new Map(profiles.map((p) => [p.user.toString(), p]));
+
+  const now = new Date();
+
+  // Process each assigned candidate
+  const rows = assignments.map((assignment) => {
+    const candidateId = assignment.candidate?._id?.toString() || '';
+    const profile = profileMap.get(candidateId);
+    const university = profile?.education?.[0]?.institution || 'N/A';
+    const department = profile?.education?.[0]?.fieldOfStudy || 'N/A';
+
+    // Derive display status
+    let displayStatus = 'not-started';
+    if (assignment.status === 'cancelled') {
+      displayStatus = 'cancelled';
+    } else if (assignment.resultReleasedAt) {
+      displayStatus = 'result-released';
+    } else if (assignment.status === 'completed') {
+      displayStatus = 'completed';
+    } else if (assignment.status === 'evaluating') {
+      displayStatus = 'under-review';
+    } else if (assignment.status === 'in-progress') {
+      displayStatus = 'in-progress';
+    } else if (assignment.expiresAt < now) {
+      displayStatus = 'overdue';
+    } else if (['assigned', 'available'].includes(assignment.status)) {
+      displayStatus = 'not-started';
+    }
+
+    // Attempt selection policy:
+    // When completed, prioritize bestAttempt (highest scored).
+    // Otherwise, inspect latestAttempt (in-progress or pending-review attempt).
+    const chosenAttempt = assignment.bestAttempt || assignment.latestAttempt || null;
+
+    let score = null;
+    let percentage = null;
+    let passed = null;
+    let isProvisional = false;
+    let durationSeconds = 0;
+    const categoryScores = [];
+
+    if (chosenAttempt) {
+      if (chosenAttempt.status === 'review-pending') {
+        displayStatus = 'under-review';
+      }
+
+      if (['completed', 'review-pending'].includes(chosenAttempt.status)) {
+        score = chosenAttempt.evaluation?.totalScore ?? null;
+        percentage = chosenAttempt.evaluation?.percentage ?? null;
+        passed = chosenAttempt.evaluation?.passed ?? null;
+
+        if (chosenAttempt.startedAt && chosenAttempt.completedAt) {
+          durationSeconds = Math.round((new Date(chosenAttempt.completedAt).getTime() - new Date(chosenAttempt.startedAt).getTime()) / 1000);
+        } else if (chosenAttempt.startedAt && chosenAttempt.submittedAt) {
+          durationSeconds = Math.round((new Date(chosenAttempt.submittedAt).getTime() - new Date(chosenAttempt.startedAt).getTime()) / 1000);
+        }
+
+        // Check if any subjective question still requires manual review
+        const hasPendingReview = chosenAttempt.questionResults?.some((qr) => qr.requiresManualReview);
+        if (hasPendingReview || chosenAttempt.status === 'review-pending') {
+          isProvisional = true;
+        }
+
+        // Calculate category breakdown from the immutable snapshot
+        const snapshotQuestions = assignment.assessmentSnapshot?.questions || [];
+        const categoryMap = new Map();
+
+        // Map questionId -> questionResult
+        const qrMap = new Map((chosenAttempt.questionResults || []).map((qr) => [qr.questionId.toString(), qr]));
+
+        for (const sq of snapshotQuestions) {
+          const catName = sq.category || sq.type || 'General';
+          if (!categoryMap.has(catName)) {
+            categoryMap.set(catName, { category: catName, totalMarks: 0, awardedMarks: 0, questionCount: 0, pendingReview: false });
+          }
+          const cat = categoryMap.get(catName);
+          cat.totalMarks += (sq.marks || 0);
+          cat.questionCount += 1;
+
+          const qr = qrMap.get(sq.questionId.toString());
+          if (qr) {
+            cat.awardedMarks += (qr.awardedMarks || 0);
+            if (qr.requiresManualReview) cat.pendingReview = true;
+          }
+        }
+
+        for (const cat of categoryMap.values()) {
+          const catPct = cat.totalMarks > 0 ? Math.round((cat.awardedMarks / cat.totalMarks) * 1000) / 10 : 0;
+          categoryScores.push({
+            category: cat.category,
+            totalMarks: cat.totalMarks,
+            awardedMarks: Math.round(cat.awardedMarks * 100) / 100,
+            percentage: catPct,
+            isProvisional: cat.pendingReview,
+          });
+        }
+      }
+    }
+
+    return {
+      assignmentId: assignment._id,
+      attemptId: chosenAttempt?._id?.toString() || null,
+      applicationId: assignment.application?._id,
+      applicationNumber: assignment.application?.applicationNumber,
+      candidateId,
+      candidateName: assignment.candidate?.fullName || 'Unknown Candidate',
+      candidateEmail: assignment.candidate?.email || '',
+      status: displayStatus,
+      rawStatus: assignment.status,
+      attemptStatus: chosenAttempt?.status || null,
+      attemptNumber: chosenAttempt?.attemptNumber || 0,
+      attemptsUsed: assignment.attemptsUsed || 0,
+      maximumAttempts: assignment.assessmentSnapshot?.maximumAttempts || 1,
+      score,
+      percentage,
+      passed,
+      isProvisional,
+      durationSeconds,
+      submittedAt: chosenAttempt?.submittedAt || null,
+      resultReleasedAt: assignment.resultReleasedAt || null,
+      categoryScores,
+      university,
+      department,
+    };
+  });
+
+  // Filter by display status if specified
+  let filtered = rows;
+  if (filters.status) {
+    filtered = filtered.filter((r) => r.status === filters.status);
+  }
+
+  // Filter by category presence if specified
+  if (filters.category) {
+    filtered = filtered.filter((r) => r.categoryScores.some((cs) => cs.category.toLowerCase().includes(filters.category.toLowerCase())));
+  }
+
+  // Ranking & Tie-breaking policy:
+  // 1. Final evaluated scores rank ahead of provisional scores.
+  // 2. Provisional scores rank ahead of unsubmitted candidates.
+  // 3. For evaluated scores: Highest percentage first.
+  // 4. Tie-breaker 1: Lower durationSeconds (faster completion).
+  // 5. Tie-breaker 2: Earlier submittedAt timestamp.
+  const rankable = [];
+  const unranked = [];
+
+  for (const row of filtered) {
+    if (row.percentage !== null) {
+      rankable.push(row);
+    } else {
+      unranked.push({ ...row, rank: null });
+    }
+  }
+
+  rankable.sort((a, b) => {
+    // 1. Non-provisional (final) ahead of provisional
+    if (a.isProvisional !== b.isProvisional) {
+      return a.isProvisional ? 1 : -1;
+    }
+    // 2. Highest percentage
+    if (b.percentage !== a.percentage) {
+      return b.percentage - a.percentage;
+    }
+    // 3. Tie-breaker 1: Duration (faster first, non-zero)
+    if (a.durationSeconds && b.durationSeconds && a.durationSeconds !== b.durationSeconds) {
+      return a.durationSeconds - b.durationSeconds;
+    }
+    // 4. Tie-breaker 2: Earlier submission
+    const aTime = a.submittedAt ? new Date(a.submittedAt).getTime() : 0;
+    const bTime = b.submittedAt ? new Date(b.submittedAt).getTime() : 0;
+    return aTime - bTime;
+  });
+
+  // Assign ranks
+  const ranked = rankable.map((item, idx) => ({
+    ...item,
+    rank: idx + 1,
+  }));
+
+  const allCohort = [...ranked, ...unranked];
+
+  // Secondary sort by request query if not default 'rank'
+  if (filters.sortBy === 'candidateName') {
+    allCohort.sort((a, b) => {
+      const cmp = a.candidateName.localeCompare(b.candidateName);
+      return filters.sortOrder === 'desc' ? -cmp : cmp;
+    });
+  } else if (filters.sortBy === 'score') {
+    allCohort.sort((a, b) => {
+      const aScore = a.percentage ?? -1;
+      const bScore = b.percentage ?? -1;
+      return filters.sortOrder === 'asc' ? aScore - bScore : bScore - aScore;
+    });
+  } else if (filters.sortBy === 'submittedAt') {
+    allCohort.sort((a, b) => {
+      const aTime = a.submittedAt ? new Date(a.submittedAt).getTime() : 0;
+      const bTime = b.submittedAt ? new Date(b.submittedAt).getTime() : 0;
+      return filters.sortOrder === 'asc' ? aTime - bTime : bTime - aTime;
+    });
+  }
+
+  const summary = {
+    totalAssigned: assignments.length,
+    notStarted: rows.filter((r) => r.status === 'not-started').length,
+    inProgress: rows.filter((r) => r.status === 'in-progress').length,
+    underReview: rows.filter((r) => r.status === 'under-review').length,
+    completed: rows.filter((r) => r.status === 'completed').length,
+    resultReleased: rows.filter((r) => r.status === 'result-released').length,
+    overdue: rows.filter((r) => r.status === 'overdue').length,
+    cancelled: rows.filter((r) => r.status === 'cancelled').length,
+  };
+
+  return { summary, candidates: allCohort };
 };

@@ -9,7 +9,8 @@ const notificationPreferenceSchema = new mongoose.Schema({
     slack: { type: Boolean, default: false },
     teams: { type: Boolean, default: false }
   },
-  frequency: { type: String, enum: ['instant', 'daily_digest', 'weekly_digest'], default: 'instant' }
+  frequency: { type: String, enum: ['instant', 'daily_digest', 'weekly_digest'], default: 'instant' },
+  mandatorySecurityEmails: { type: Boolean, default: true }
 }, { timestamps: true, versionKey: false });
 
 export const NotificationPreference = mongoose.model('NotificationPreference', notificationPreferenceSchema);

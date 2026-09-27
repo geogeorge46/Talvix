@@ -49,7 +49,14 @@ export const rejectionCategories = [
 type Dict = Record<string, unknown>;
 const obj = (v: unknown): Dict =>
   v && typeof v === 'object' && !Array.isArray(v) ? (v as Dict) : {};
-const text = (v: unknown) => (typeof v === 'string' ? v : '');
+const text = (v: unknown) =>
+  typeof v === 'string'
+    ? v
+    : v && typeof v === 'object'
+      ? String((v as Dict)._id ?? (v as Dict).id ?? (v as Dict).fileName ?? (v as Dict).url ?? '')
+      : typeof v === 'number'
+        ? String(v)
+        : '';
 const num = (v: unknown) =>
   typeof v === 'number' && Number.isFinite(v) ? v : 0;
 const scalar = (v: unknown) =>
@@ -357,11 +364,11 @@ export function toApplicationDetail(v: unknown): ApplicationDetail {
         };
       })
       .filter((a) => a.answer),
-    resume: text(r.fileName)
+    resume: text(r.fileName) || text(x.resumeDocument) || text(p.resumeDocument)
       ? {
-          fileName: text(r.fileName),
-          uploadedAt: date(r.uploadedAt),
-          documentId: text(x.resumeDocument) || undefined,
+          fileName: text(r.fileName) || text(obj(p.resume).fileName) || text(obj(p.resume).displayName) || 'Resume.pdf',
+          uploadedAt: date(r.uploadedAt) || date(obj(p.resume).uploadedAt) || date(x.submittedAt) || date(x.createdAt),
+          documentId: text(x.resumeDocument) || text(r.documentId) || text(p.resumeDocument) || undefined,
         }
       : undefined,
     education,

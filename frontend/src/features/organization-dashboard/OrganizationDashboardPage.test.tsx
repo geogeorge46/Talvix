@@ -87,6 +87,31 @@ function responseFor(path: string): unknown {
     };
   if (path === '/offers/analytics')
     return { analytics: { pendingApprovals: 5, compensationRange: 'private' } };
+  if (path === '/analytics/company/dashboard')
+    return {
+      overview: {
+        companyScore: 88,
+        verificationStatus: 'verified',
+        activeJobs: 4,
+        recruiterCount: 3,
+        hiringProgress: 75,
+        industry: 'Software',
+        companySize: '11-50',
+      },
+      statistics: {
+        applicationsReceived: 120,
+        interviewsCompleted: 18,
+        offersAccepted: 6,
+        hiringSuccessRate: 85,
+        averageTimeToHire: 14,
+      },
+      teamSummary: {
+        primary_admin: [{ _id: 'u1', fullName: 'Sarah Admin', email: 'sarah@example.com' }],
+        hr_admin: [],
+        recruiter: [],
+        hiring_manager: [],
+      },
+    };
   throw new Error(`Unexpected request: ${path}`);
 }
 function Location() {
@@ -253,5 +278,17 @@ describe('rendered organization dashboard', () => {
     expect(
       await screen.findByRole('heading', { name: 'No candidates match' }),
     ).toBeVisible();
+  });
+
+  it('switches tabs to Company Dashboard and renders company overview metrics and team summary', async () => {
+    const user = userEvent.setup();
+    renderDashboard();
+    const companyTab = screen.getByRole('tab', { name: /Company Dashboard/i });
+    await user.click(companyTab);
+    expect(await screen.findByRole('heading', { name: 'Company Overview' })).toBeVisible();
+    expect(screen.getAllByText('88/100').length).toBeGreaterThan(0);
+    expect(screen.getByText('Sarah Admin')).toBeVisible();
+    expect(screen.getByText('sarah@example.com')).toBeVisible();
+    expect(screen.getByText('Software')).toBeVisible();
   });
 });

@@ -89,7 +89,7 @@ function MetricBoundary({
         value="Unavailable"
         metadata="Permission required"
         icon={icon}
-        variant={variant}
+        {...(variant ? { variant } : {})}
       />
     );
   if (error)
@@ -108,7 +108,7 @@ function MetricBoundary({
       value={value}
       metadata={metadata}
       icon={icon}
-      variant={variant}
+      {...(variant ? { variant } : {})}
       isLoading={loading}
     />
   );
@@ -169,9 +169,9 @@ export function OrganizationDashboardPage() {
   const rows = queries.applications.data?.candidates ?? [];
   const pageData = queries.applications.data?.pagination;
   const hasFilters = Boolean(filters.q || filters.stage);
-  const recDash = useRecruiterDashboardQuery();
-  const compDash = useCompanyDashboardQuery();
   const [activeTab, setActiveTab] = useState<'recruiter' | 'company'>('recruiter');
+  const recDash = useRecruiterDashboardQuery(false);
+  const compDash = useCompanyDashboardQuery(activeTab === 'company' && permissions.length > 0);
 
   // Widget settings
   const [widgets, setWidgets] = useState<Array<{ id: string; visible: boolean; order: number }>>([
@@ -349,32 +349,34 @@ export function OrganizationDashboardPage() {
         }
       />
 
-      <div className="tvx-tabs" style={{ marginBottom: '1.5rem' }}>
-        <div style={{ display: 'flex', gap: '1.5rem', borderBottom: '1px solid var(--color-border-subtle)', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div role="tablist" style={{ display: 'flex', gap: '1.5rem' }}>
-            <button
-              role="tab"
-              data-state={activeTab === 'recruiter' ? 'active' : 'inactive'}
-              onClick={() => setActiveTab('recruiter')}
-              style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0.75rem 0.5rem' }}
-            >
-              My Dashboard
-            </button>
-            <button
-              role="tab"
-              data-state={activeTab === 'company' ? 'active' : 'inactive'}
-              onClick={() => setActiveTab('company')}
-              style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0.75rem 0.5rem' }}
-            >
-              Company Dashboard
-            </button>
-          </div>
-          {activeTab === 'recruiter' && (
-            <Button size="compact" variant="quiet" onClick={() => setShowPersonalize(!showPersonalize)} style={{ marginBottom: '0.25rem' }}>
-              Layout Settings
-            </Button>
-          )}
-        </div>
+      <div className="org-nav-tabs-wrapper">
+        <nav className="org-nav-tabs" aria-label="Dashboard views" role="tablist">
+          <button
+            role="tab"
+            aria-selected={activeTab === 'recruiter'}
+            className={`org-nav-tab ${activeTab === 'recruiter' ? 'active' : ''}`}
+            data-state={activeTab === 'recruiter' ? 'active' : 'inactive'}
+            onClick={() => setActiveTab('recruiter')}
+          >
+            <LayoutDashboard style={{ width: '16px', height: '16px' }} />
+            My Dashboard
+          </button>
+          <button
+            role="tab"
+            aria-selected={activeTab === 'company'}
+            className={`org-nav-tab ${activeTab === 'company' ? 'active' : ''}`}
+            data-state={activeTab === 'company' ? 'active' : 'inactive'}
+            onClick={() => setActiveTab('company')}
+          >
+            <Building style={{ width: '16px', height: '16px' }} />
+            Company Dashboard
+          </button>
+        </nav>
+        {activeTab === 'recruiter' && (
+          <Button size="compact" variant="quiet" onClick={() => setShowPersonalize(!showPersonalize)}>
+            Layout Settings
+          </Button>
+        )}
       </div>
 
       {activeTab === 'recruiter' ? (
@@ -632,116 +634,210 @@ export function OrganizationDashboardPage() {
           ) : compDash.isError ? (
             <ErrorState detail="Failed to load company dashboard statistics." retry={() => void compDash.refetch()} />
           ) : (
-            <>
-              <section className="tvx-dashboard-metrics" aria-label="Company Overview" style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '1rem', marginBottom: '2rem' }}>
-                <MetricCard
-                  label="Company Score"
-                  value={`${compDash.data?.overview.companyScore}/100`}
-                  icon={<Sparkles />}
-                />
-                <MetricCard
-                  label="Verification Status"
-                  value={compDash.data?.overview.verificationStatus}
-                  icon={<ShieldCheck />}
-                />
-                <MetricCard
-                  label="Active Jobs"
-                  value={compDash.data?.overview.activeJobs ?? 0}
-                  icon={<BriefcaseBusiness />}
-                />
-                <MetricCard
-                  label="Recruiter Count"
-                  value={compDash.data?.overview.recruiterCount ?? 0}
-                  icon={<Users />}
-                />
-                <MetricCard
-                  label="Hiring Progress"
-                  value={compDash.data?.overview.hiringProgress ?? 0}
-                  icon={<TrendingUp />}
-                />
-              </section>
+            (() => {
+              const overview = compDash.data?.overview ?? {};
+              const statistics = compDash.data?.statistics ?? {};
+              const teamSummary = compDash.data?.teamSummary ?? {
+                primary_admin: [],
+                hr_admin: [],
+                recruiter: [],
+                hiring_manager: [],
+              };
 
-              <section className="tvx-dashboard-metrics" aria-label="Company Stats" style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '1rem', marginBottom: '2rem' }}>
-                <MetricCard
-                  label="Applications"
-                  value={compDash.data?.statistics.applicationsReceived ?? 0}
-                  icon={<FileText />}
-                />
-                <MetricCard
-                  label="Interviews Completed"
-                  value={compDash.data?.statistics.interviewsCompleted ?? 0}
-                  icon={<CalendarDays />}
-                />
-                <MetricCard
-                  label="Offers Accepted"
-                  value={compDash.data?.statistics.offersAccepted ?? 0}
-                  icon={<FileText />}
-                />
-                <MetricCard
-                  label="Success Rate"
-                  value={`${compDash.data?.statistics.hiringSuccessRate ?? 0}%`}
-                  icon={<Sparkles />}
-                />
-                <MetricCard
-                  label="Avg Time to Hire"
-                  value={`${compDash.data?.statistics.averageTimeToHire ?? 0} Days`}
-                  icon={<History />}
-                />
-              </section>
+              const scoreValue = overview.companyScore !== undefined && overview.companyScore !== null
+                ? `${overview.companyScore}/100`
+                : '50/100';
 
-              <div className="tvx-dashboard-workspace-grid">
-                <section className="tvx-candidates">
-                  <Card heading="Company Profile" headingLevel={2}>
-                    <DescriptionList
-                      items={[
-                        { term: 'Industry', description: compDash.data?.overview.industry },
-                        { term: 'Company Size', description: compDash.data?.overview.companySize },
-                        { term: 'Verification Status', description: compDash.data?.overview.verificationStatus }
-                      ]}
+              const verStatus = overview.verificationStatus || 'unverified';
+              const verTone = verStatus === 'verified' ? 'success' : verStatus === 'rejected' ? 'danger' : 'warning';
+
+              return (
+                <>
+                  <div className="org-section-heading">
+                    <h2>Company Overview</h2>
+                    <p>Key indicators and organizational score across your company.</p>
+                  </div>
+                  <section className="org-metrics-grid-5" aria-label="Company Overview">
+                    <MetricCard
+                      label="Company Score"
+                      value={scoreValue}
+                      metadata="Health score"
+                      icon={<Sparkles />}
                     />
-                  </Card>
-                </section>
+                    <MetricCard
+                      label="Verification Status"
+                      value={
+                        <StatusTag tone={verTone}>
+                          {verStatus}
+                        </StatusTag>
+                      }
+                      metadata="Account status"
+                      icon={<ShieldCheck />}
+                    />
+                    <MetricCard
+                      label="Active Jobs"
+                      value={overview.activeJobs ?? 0}
+                      metadata="Open postings"
+                      icon={<BriefcaseBusiness />}
+                    />
+                    <MetricCard
+                      label="Recruiter Count"
+                      value={overview.recruiterCount ?? 0}
+                      metadata="Active members"
+                      icon={<Users />}
+                    />
+                    <MetricCard
+                      label="Hiring Progress"
+                      value={`${overview.hiringProgress ?? 0}%`}
+                      metadata="Quarterly target"
+                      icon={<TrendingUp />}
+                    />
+                  </section>
 
-                <aside className="tvx-dashboard-sidebar">
-                  <Card heading="Team Summary" headingLevel={2}>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-                      <div>
-                        <strong style={{ display: 'block', fontSize: '0.85rem', textTransform: 'uppercase', color: 'var(--color-text-subtle)' }}>Primary Admin</strong>
-                        {compDash.data?.teamSummary.primary_admin.length ? (
-                          compDash.data.teamSummary.primary_admin.map((u: any) => <div key={u._id}>{u.fullName} ({u.email})</div>)
-                        ) : (
-                          <div>None</div>
-                        )}
-                      </div>
-                      <div>
-                        <strong style={{ display: 'block', fontSize: '0.85rem', textTransform: 'uppercase', color: 'var(--color-text-subtle)' }}>HR Admins</strong>
-                        {compDash.data?.teamSummary.hr_admin.length ? (
-                          compDash.data.teamSummary.hr_admin.map((u: any) => <div key={u._id}>{u.fullName} ({u.email})</div>)
-                        ) : (
-                          <div>None</div>
-                        )}
-                      </div>
-                      <div>
-                        <strong style={{ display: 'block', fontSize: '0.85rem', textTransform: 'uppercase', color: 'var(--color-text-subtle)' }}>Recruiters</strong>
-                        {compDash.data?.teamSummary.recruiter.length ? (
-                          compDash.data.teamSummary.recruiter.map((u: any) => <div key={u._id}>{u.fullName} ({u.email})</div>)
-                        ) : (
-                          <div>None</div>
-                        )}
-                      </div>
-                      <div>
-                        <strong style={{ display: 'block', fontSize: '0.85rem', textTransform: 'uppercase', color: 'var(--color-text-subtle)' }}>Hiring Managers</strong>
-                        {compDash.data?.teamSummary.hiring_manager.length ? (
-                          compDash.data.teamSummary.hiring_manager.map((u: any) => <div key={u._id}>{u.fullName} ({u.email})</div>)
-                        ) : (
-                          <div>None</div>
-                        )}
-                      </div>
-                    </div>
-                  </Card>
-                </aside>
-              </div>
-            </>
+                  <div className="org-section-heading" style={{ marginTop: '1.5rem' }}>
+                    <h2>Recruitment Statistics</h2>
+                    <p>Aggregate performance metrics for applications, interviews, and offers.</p>
+                  </div>
+                  <section className="org-metrics-grid-5" aria-label="Company Stats">
+                    <MetricCard
+                      label="Applications"
+                      value={statistics.applicationsReceived ?? 0}
+                      metadata="Total received"
+                      icon={<FileText />}
+                    />
+                    <MetricCard
+                      label="Interviews Completed"
+                      value={statistics.interviewsCompleted ?? 0}
+                      metadata="Conducted to date"
+                      icon={<CalendarDays />}
+                    />
+                    <MetricCard
+                      label="Offers Accepted"
+                      value={statistics.offersAccepted ?? 0}
+                      metadata="Hired candidates"
+                      icon={<FileText />}
+                      variant="ice"
+                    />
+                    <MetricCard
+                      label="Success Rate"
+                      value={`${statistics.hiringSuccessRate ?? 0}%`}
+                      metadata="Offer conversion"
+                      icon={<Sparkles />}
+                    />
+                    <MetricCard
+                      label="Avg Time to Hire"
+                      value={`${statistics.averageTimeToHire ?? 0} Days`}
+                      metadata="Average velocity"
+                      icon={<History />}
+                      variant="dark"
+                    />
+                  </section>
+
+                  <div className="tvx-dashboard-workspace-grid" style={{ marginTop: '1.5rem' }}>
+                    <section className="tvx-candidates">
+                      <Card heading="Company Profile" headingLevel={2}>
+                        <DescriptionList
+                          items={[
+                            { term: 'Industry', description: overview.industry || 'Not specified' },
+                            { term: 'Company Size', description: overview.companySize || 'Not specified' },
+                            {
+                              term: 'Verification Status',
+                              description: (
+                                <StatusTag tone={verTone}>
+                                  {verStatus}
+                                </StatusTag>
+                              ),
+                            },
+                            {
+                              term: 'Company Score',
+                              description: (
+                                <Badge variant="accent">
+                                  {scoreValue}
+                                </Badge>
+                              ),
+                            },
+                          ]}
+                        />
+                      </Card>
+                    </section>
+
+                    <aside className="tvx-dashboard-sidebar">
+                      <Card heading="Team Summary" headingLevel={2}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                          <div className="org-team-group">
+                            <span className="org-team-role-label">Primary Admin</span>
+                            {teamSummary.primary_admin && teamSummary.primary_admin.length > 0 ? (
+                              teamSummary.primary_admin.map((u: any) => (
+                                <div key={u?._id || u?.email || Math.random()} className="org-team-member-card">
+                                  <Avatar name={u?.fullName || 'Admin'} size="sm" />
+                                  <div className="org-team-member-info">
+                                    <span className="org-team-member-name">{u?.fullName || 'Primary Admin'}</span>
+                                    <span className="org-team-member-email">{u?.email || ''}</span>
+                                  </div>
+                                </div>
+                              ))
+                            ) : (
+                              <span style={{ color: 'var(--color-text-subtle)', fontSize: '0.875rem' }}>None assigned</span>
+                            )}
+                          </div>
+
+                          <div className="org-team-group">
+                            <span className="org-team-role-label">HR Admins</span>
+                            {teamSummary.hr_admin && teamSummary.hr_admin.length > 0 ? (
+                              teamSummary.hr_admin.map((u: any) => (
+                                <div key={u?._id || u?.email || Math.random()} className="org-team-member-card">
+                                  <Avatar name={u?.fullName || 'HR'} size="sm" />
+                                  <div className="org-team-member-info">
+                                    <span className="org-team-member-name">{u?.fullName || 'HR Admin'}</span>
+                                    <span className="org-team-member-email">{u?.email || ''}</span>
+                                  </div>
+                                </div>
+                              ))
+                            ) : (
+                              <span style={{ color: 'var(--color-text-subtle)', fontSize: '0.875rem' }}>None assigned</span>
+                            )}
+                          </div>
+
+                          <div className="org-team-group">
+                            <span className="org-team-role-label">Recruiters</span>
+                            {teamSummary.recruiter && teamSummary.recruiter.length > 0 ? (
+                              teamSummary.recruiter.map((u: any) => (
+                                <div key={u?._id || u?.email || Math.random()} className="org-team-member-card">
+                                  <Avatar name={u?.fullName || 'Recruiter'} size="sm" />
+                                  <div className="org-team-member-info">
+                                    <span className="org-team-member-name">{u?.fullName || 'Recruiter'}</span>
+                                    <span className="org-team-member-email">{u?.email || ''}</span>
+                                  </div>
+                                </div>
+                              ))
+                            ) : (
+                              <span style={{ color: 'var(--color-text-subtle)', fontSize: '0.875rem' }}>None assigned</span>
+                            )}
+                          </div>
+
+                          <div className="org-team-group">
+                            <span className="org-team-role-label">Hiring Managers</span>
+                            {teamSummary.hiring_manager && teamSummary.hiring_manager.length > 0 ? (
+                              teamSummary.hiring_manager.map((u: any) => (
+                                <div key={u?._id || u?.email || Math.random()} className="org-team-member-card">
+                                  <Avatar name={u?.fullName || 'Manager'} size="sm" />
+                                  <div className="org-team-member-info">
+                                    <span className="org-team-member-name">{u?.fullName || 'Hiring Manager'}</span>
+                                    <span className="org-team-member-email">{u?.email || ''}</span>
+                                  </div>
+                                </div>
+                              ))
+                            ) : (
+                              <span style={{ color: 'var(--color-text-subtle)', fontSize: '0.875rem' }}>None assigned</span>
+                            )}
+                          </div>
+                        </div>
+                      </Card>
+                    </aside>
+                  </div>
+                </>
+              );
+            })()
           )}
         </>
       )}

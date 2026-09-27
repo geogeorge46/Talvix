@@ -3,7 +3,7 @@ import { RecruiterProfile } from '../models/RecruiterProfile.js';
 import { User } from '../models/User.js';
 import { CompanyMember } from '../models/CompanyMember.js';
 
-export const activeUsers = async (ids) => User.find({ _id: { $in: [...new Set(ids.map(String))] }, isActive: true }).distinct('_id');
+export const activeUsers = async (ids) => User.find({ _id: { $in: [...new Set(ids.map(String))] }, isActive: { $ne: false }, isDeleted: { $ne: true } }).distinct('_id');
 export const companyRecipients = async (companyId, permission) => {
   const company = await Company.findOne({ _id: companyId, isActive: true, verificationStatus: 'verified' }).select('teamMembers');
   if (!company) return [];

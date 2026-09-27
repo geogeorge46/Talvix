@@ -7,6 +7,7 @@ import { changeOfferStatus } from '../utils/offerStatus.js';
 import { publishOptionalDomainEvent } from './domainEvent.service.js';
 import { createOfferReminders } from './reminderEvent.service.js';
 import { AuditLog } from '../models/AuditLog.js';
+import { companyRecipients } from '../utils/notificationRecipients.js';
 import mongoose from 'mongoose';
 
 const own = async (company, id) => {
@@ -20,7 +21,14 @@ const event = (type, offer, recipientIds, extra = {}) =>
     type,
     company: String(offer.company),
     recipientIds: recipientIds.map(String),
-    payload: { offerId: String(offer.id), offerNumber: offer.offerNumber, revision: offer.revision, ...extra },
+    payload: {
+      offerId: String(offer.id),
+      offerNumber: offer.offerNumber,
+      revision: offer.revision,
+      companyName: offer.jobSnapshot?.companyName,
+      jobTitle: offer.jobSnapshot?.title,
+      ...extra
+    },
     deduplicationKey: `${type}:${offer.id}:r${offer.revision}`
   });
 
@@ -32,6 +40,9 @@ export const approve = async (company, id, actor, comments, reqMeta = {}) => {
   const offer = await own(company, id);
   if (offer.status === 'approved') return offer;
   if (offer.status !== 'pending-approval') throw new AppError('Offer is not pending approval', 409);
+
+  const potentialApprovers = await companyRecipients(company, 'offers.approve');
+  const otherApprovers = potentialApprovers.map(String).filter((recruiterId) => recruiterId !== String(actor));
 
   if (offer.approvalChain && offer.approvalChain.length > 0) {
     const step = offer.approvalChain[offer.currentApprovalStep];
@@ -59,7 +70,7 @@ export const approve = async (company, id, actor, comments, reqMeta = {}) => {
           throw new AppError('Unauthorized role to approve this step', 403);
         }
       } else {
-        if (offer.createdBy.equals(actor) && offer.templateSnapshot?.allowCreatorApproval !== true) {
+        if (offer.createdBy.equals(actor) && otherApprovers.length > 0 && offer.templateSnapshot?.allowCreatorApproval !== true) {
           throw new AppError('Offer creators cannot approve their own offer', 403);
         }
       }
@@ -97,7 +108,7 @@ export const approve = async (company, id, actor, comments, reqMeta = {}) => {
       }
     }
   } else {
-    if (offer.createdBy.equals(actor) && offer.templateSnapshot?.allowCreatorApproval !== true) {
+    if (offer.createdBy.equals(actor) && otherApprovers.length > 0 && offer.templateSnapshot?.allowCreatorApproval !== true) {
       throw new AppError('Offer creators cannot approve their own offer', 403);
     }
     changeOfferStatus(offer, 'approved', actor, 'recruiter', comments);
@@ -171,7 +182,7 @@ export const send = async (company, id, actor, reqMeta = {}) => {
   await offer.save();
 
   const application = await Application.findById(offer.application);
-  if (application?.status === 'offer-pending') {
+  if (application && ['offer-pending', 'shortlisted', 'assessment-completed', 'interview-scheduled', 'interview-completed'].includes(application.status)) {
     changeApplicationStatus(application, 'offer-sent', actor, 'Offer made available in candidate portal');
     await application.save();
   }

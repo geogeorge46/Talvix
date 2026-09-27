@@ -1,6 +1,6 @@
 export const INTERVIEW_TYPES = Object.freeze(['screening','technical','coding','behavioral','managerial','hr','culture-fit','case-study','final','other']);
 export const CRITERION_CATEGORIES = Object.freeze(['technical','communication','problem-solving','experience','leadership','culture','motivation','role-fit','other']);
-export const RECOMMENDATIONS = Object.freeze(['strong-hire','hire','hold','no-hire','strong-no-hire']);
+export const RECOMMENDATIONS = Object.freeze(['strong-hire','hire','hold','neutral','no-hire','strong-no-hire']);
 export const PROCESS_STATUSES = Object.freeze(['draft','active','completed','cancelled','archived']);
 export const ROUND_STATUSES = Object.freeze(['pending','scheduling','scheduled','in-progress','awaiting-feedback','completed','cancelled','skipped','reschedule-requested','no-show']);
 export const SCHEDULE_STATUSES = Object.freeze(['proposed','confirmed','reschedule-requested','rescheduled','completed','cancelled','no-show']);
