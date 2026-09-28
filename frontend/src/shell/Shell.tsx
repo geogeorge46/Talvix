@@ -90,18 +90,6 @@ export const candidateNavigation: NavigationItem[] = [
     to: '/candidate/offers',
     icon: <BriefcaseBusiness />,
   },
-  {
-    id: 'notifications',
-    label: 'Notifications',
-    to: '/candidate/notifications',
-    icon: <Bell />,
-  },
-  {
-    id: 'settings',
-    label: 'Settings',
-    to: '/candidate/settings',
-    icon: <Settings />,
-  },
 ];
 export const organizationNavigation: NavigationItem[] = [
   { id: 'overview', label: 'Overview', to: '/org', icon: <LayoutDashboard /> },
@@ -555,14 +543,32 @@ export function NotificationTrigger() {
     </div>
   );
 }
+export function SettingsTrigger() {
+  const navigate = useNavigate();
+  const { user } = useAuth();
+  return (
+    <IconButton
+      icon={<Settings size={18} />}
+      aria-label="Settings"
+      variant="quiet"
+      onClick={() =>
+        navigate(
+          user?.role === 'candidate'
+            ? '/candidate/settings'
+            : '/org/settings',
+        )
+      }
+    />
+  );
+}
 export function AccountMenu() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const initials = user?.fullName
     ? user.fullName.split(' ').map((n) => n[0]).join('').toUpperCase().slice(0, 2)
-    : 'U';
+    : 'JS';
   const roleLabel = user?.role === 'admin'
-    ? 'System Administrator'
+    ? 'Administrator'
     : user?.role === 'recruiter'
       ? 'Recruiter'
       : 'Candidate';
@@ -570,10 +576,8 @@ export function AccountMenu() {
   return (
     <DropdownMenu.Root>
       <DropdownMenu.Trigger asChild>
-        <button className="tvx-account-trigger" type="button" aria-label="User profile menu">
+        <button className="tvx-account-trigger-avatar-only" type="button" aria-label="User profile menu">
           <div className="tvx-account-avatar">{initials}</div>
-          <span className="tvx-account-name">{user?.fullName ?? 'Account'}</span>
-          <ChevronDown className="tvx-account-chevron" size={14} />
         </button>
       </DropdownMenu.Trigger>
       <DropdownMenu.Portal>
@@ -581,22 +585,26 @@ export function AccountMenu() {
           <div className="tvx-account-popup__header">
             <div className="tvx-account-popup__avatar">{initials}</div>
             <div className="tvx-account-popup__details">
-              <strong>{user?.fullName ?? 'Talvix Admin'}</strong>
-              <small>{user?.email ?? 'admin@talvix.local'}</small>
-              <span className="tvx-account-popup__badge">
-                <ShieldCheck size={12} />
-                {roleLabel}
-              </span>
+              <strong>{user?.fullName ?? 'Jane Smith'}</strong>
+              <small>{roleLabel}</small>
             </div>
           </div>
           <DropdownMenu.Separator className="tvx-account-popup__separator" />
           <DropdownMenu.Item
             className="tvx-account-popup__item"
-            onSelect={() => navigate(user?.role === 'candidate' ? '/candidate/profile' : user?.role === 'admin' ? '/admin/profile' : '/org/settings')}
+            onSelect={() => navigate(user?.role === 'candidate' ? '/candidate/profile' : user?.role === 'admin' ? '/admin/profile' : '/org/company')}
           >
             <User size={15} />
-            <span>Profile & Settings</span>
+            <span>Profile</span>
           </DropdownMenu.Item>
+          <DropdownMenu.Item
+            className="tvx-account-popup__item"
+            onSelect={() => navigate(user?.role === 'candidate' ? '/candidate/settings' : user?.role === 'admin' ? '/admin/settings' : '/org/settings')}
+          >
+            <Settings size={15} />
+            <span>Settings</span>
+          </DropdownMenu.Item>
+          <DropdownMenu.Separator className="tvx-account-popup__separator" />
           <DropdownMenu.Item
             className="tvx-account-popup__item is-destructive"
             onSelect={() => void logout()}
@@ -629,6 +637,7 @@ export function TopNav({
       <GlobalSearch />
       <div className="tvx-top-actions">
         <NotificationTrigger />
+        <SettingsTrigger />
         <AccountMenu />
       </div>
     </header>

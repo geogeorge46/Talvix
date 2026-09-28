@@ -63,7 +63,7 @@ export function RecruiterAssignmentPage() {
       body:
         modal === 'extend'
           ? {
-              expiresAt: new Date(expiresAt).toISOString(),
+              expiresAt: (expiresAt.includes('T') ? new Date(expiresAt) : new Date(`${expiresAt}T23:59:59`)).toISOString(),
               reason: reason.trim(),
             }
           : { reason: reason.trim() },

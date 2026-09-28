@@ -39,7 +39,7 @@ export function CandidateWorkspaceLayout() {
   return (
     <AppShell
       items={candidateNavigation}
-      workspaceName="My workspace"
+      workspaceName="Talvix"
       workspaceDetail="Candidate"
     />
   );

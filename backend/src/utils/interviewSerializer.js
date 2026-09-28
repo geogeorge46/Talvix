@@ -36,6 +36,7 @@ export const serializeRecruiterRound = (value, schedule) => {
     minimumInterviewers: x.minimumInterviewers,
     maximumInterviewers: x.maximumInterviewers,
     status: x.status,
+    scheduledInterview: id(x.scheduledInterview) || (schedule ? id(schedule) : undefined),
     interviewerIds: (x.interviewers ?? []).map(id),
     scorecard: {
       criteria: (x.scorecardTemplate?.criteria ?? []).map((c) => ({
@@ -62,9 +63,13 @@ export const serializeRecruiterRound = (value, schedule) => {
     schedule: serializeRecruiterSchedule(schedule),
   };
 };
-export const serializeRecruiterProcess = (value, rounds, schedules) => {
+export const serializeRecruiterProcess = (value, rounds, schedules = []) => {
   const x = plain(value);
-  const scheduleByRound = new Map(schedules.map((s) => [String(s.round), s]));
+  const scheduleById = new Map((schedules || []).map((s) => [String(s._id ?? s.id), s]));
+  const sortedSchedules = [...(schedules || [])].sort(
+    (a, b) => (a.version ?? 0) - (b.version ?? 0) || new Date(a.createdAt ?? 0) - new Date(b.createdAt ?? 0)
+  );
+  const scheduleByRound = new Map(sortedSchedules.map((s) => [String(s.round?._id ?? s.round), s]));
   const cand = x.candidate && typeof x.candidate === 'object' ? x.candidate : {};
   const app = x.application && typeof x.application === 'object' ? x.application : {};
   const j = x.job && typeof x.job === 'object' ? x.job : {};
@@ -94,9 +99,11 @@ export const serializeRecruiterProcess = (value, rounds, schedules) => {
     completedAt: x.completedAt,
     rounds: rounds
       .sort((a, b) => a.order - b.order)
-      .map((r) =>
-        serializeRecruiterRound(r, scheduleByRound.get(String(r._id))),
-      ),
+      .map((r) => {
+        const schedId = String(r.scheduledInterview?._id ?? r.scheduledInterview ?? '');
+        const schedule = scheduleById.get(schedId) || scheduleByRound.get(String(r._id ?? r.id));
+        return serializeRecruiterRound(r, schedule);
+      }),
   };
 };
 export const serializeScorecard = (round, schedule, feedback) => {
@@ -159,33 +166,45 @@ export const serializeCandidateSchedule = (value) => {
 export const serializeCandidateProcess = (
   process,
   rounds,
-  schedules,
+  schedules = [],
   feedback = [],
-) => ({
-  id: process.id,
-  status: process.status,
-  application: process.application,
-  job: process.job,
-  feedbackReleased: process.feedbackReleased,
-  rounds: rounds.map((round) => ({
-    id: round.id,
-    name: round.name,
-    type: round.type,
-    status: round.status,
-    order: round.order,
-    schedule: schedules.find((item) => item.round.toString() === round.id)
-      ?.toObject
-      ? serializeCandidateSchedule(
-          schedules.find((item) => item.round.toString() === round.id),
-        )
-      : undefined,
-    ...(process.feedbackReleased && {
-      feedback: feedback
-        .filter((item) => item.round.toString() === round.id)
-        .map((item) => ({
-          candidateVisibleFeedback: item.candidateVisibleFeedback,
-          weightedScore: item.weightedScore,
-        })),
-    }),
-  })),
-});
+) => {
+  const scheduleById = new Map((schedules || []).map((s) => [String(s._id ?? s.id), s]));
+  const sortedSchedules = [...(schedules || [])].sort(
+    (a, b) => (a.version ?? 0) - (b.version ?? 0) || new Date(a.createdAt ?? 0) - new Date(b.createdAt ?? 0)
+  );
+  const scheduleByRound = new Map(sortedSchedules.map((s) => [String(s.round?._id ?? s.round), s]));
+
+  return {
+    id: process.id ?? String(process._id ?? process),
+    status: process.status,
+    application: process.application,
+    job: process.job,
+    feedbackReleased: process.feedbackReleased,
+    rounds: rounds
+      .sort((a, b) => a.order - b.order)
+      .map((round) => {
+        const roundIdStr = String(round._id ?? round.id);
+        const schedIdStr = String(round.scheduledInterview?._id ?? round.scheduledInterview ?? '');
+        const scheduleDoc = scheduleById.get(schedIdStr) || scheduleByRound.get(roundIdStr);
+        return {
+          id: round.id ?? roundIdStr,
+          name: round.name,
+          type: round.type,
+          status: round.status,
+          order: round.order,
+          schedule: scheduleDoc
+            ? serializeCandidateSchedule(scheduleDoc)
+            : undefined,
+          ...(process.feedbackReleased && {
+            feedback: feedback
+              .filter((item) => String(item.round?._id ?? item.round) === roundIdStr)
+              .map((item) => ({
+                candidateVisibleFeedback: item.candidateVisibleFeedback,
+                weightedScore: item.weightedScore,
+              })),
+          }),
+        };
+      }),
+  };
+};

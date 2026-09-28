@@ -232,8 +232,8 @@ export const listMine = async (candidate) => {
   return Promise.all(
     processes.map(async (p) => {
       const [rounds, schedules, feedback] = await Promise.all([
-        InterviewRound.find({ process: p.id }),
-        InterviewSchedule.find({ process: p.id }),
+        InterviewRound.find({ process: p.id }).sort({ order: 1 }),
+        InterviewSchedule.find({ process: p.id }).sort({ version: 1, createdAt: 1 }),
         p.feedbackReleased ? InterviewFeedback.find({ process: p.id, submitted: true }) : [],
       ]);
       return serializeCandidateProcess(p, rounds, schedules, feedback);
@@ -245,8 +245,8 @@ export const getMine = async (candidate, id) => {
   const p = await InterviewProcess.findOne({ _id: id, candidate, isArchived: false });
   if (!p) throw new AppError('Interview process not found', 404);
   const [rounds, schedules, feedback] = await Promise.all([
-    InterviewRound.find({ process: p.id }),
-    InterviewSchedule.find({ process: p.id }),
+    InterviewRound.find({ process: p.id }).sort({ order: 1 }),
+    InterviewSchedule.find({ process: p.id }).sort({ version: 1, createdAt: 1 }),
     p.feedbackReleased ? InterviewFeedback.find({ process: p.id, submitted: true }) : [],
   ]);
   return serializeCandidateProcess(p, rounds, schedules, feedback);

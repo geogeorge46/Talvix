@@ -3,6 +3,7 @@ import { connectDatabase, disconnectDatabase } from './config/database.js';
 import { env } from './config/env.js';
 import { logger } from './shared/utils/logger.js';
 import { startBackgroundWorker, stopBackgroundWorker } from './services/backgroundJobs.service.js';
+import { initSocketServer } from './socketServer.js';
 
 let httpServer;
 let isShuttingDown = false;
@@ -50,12 +51,14 @@ const startServer = async () => {
     httpServer = app.listen(env.PORT, () => {
       logger.info(`Talvix API listening on port ${env.PORT} in ${env.NODE_ENV} mode`);
     });
+    initSocketServer(httpServer, env.CLIENT_URL);
   } catch (error) {
     logger.error('Server startup failed; HTTP server was not started', error);
     await disconnectDatabase();
     process.exit(1);
   }
 };
+
 
 process.on('SIGINT', () => shutdown('SIGINT'));
 process.on('SIGTERM', () => shutdown('SIGTERM'));

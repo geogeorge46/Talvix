@@ -6,10 +6,21 @@ import { AppError } from '../shared/errors/AppError.js';
 import { serializeScorecard } from '../utils/interviewSerializer.js';
 
 export const getScorecard = async (company, roundId, userId) => {
-  const round = await InterviewRound.findOne({
+  let round = await InterviewRound.findOne({
     _id: roundId,
     company,
   }).lean();
+
+  if (!round) {
+    const processDoc = await mongoose.model('InterviewProcess').findOne({ _id: roundId, company }).lean();
+    if (processDoc) {
+      const targetRoundId = processDoc.currentRound || (processDoc.rounds && processDoc.rounds[0]?._id);
+      if (targetRoundId) {
+        round = await InterviewRound.findOne({ _id: targetRoundId, company }).lean();
+      }
+    }
+  }
+
   if (!round) throw new AppError('Interview round not found', 404);
 
   const comp = await mongoose.model('Company').findById(company);

@@ -154,7 +154,9 @@ import { ResumeReviewDashboard } from '../features/candidate-intelligence/Resume
 import { CandidateIntelligenceDashboard } from '../features/candidate-intelligence/CandidateIntelligenceDashboard';
 import { CommunicationCenter } from '../features/communication-center/CommunicationCenter';
 import { InterviewRoomPage } from '../features/communication-center/InterviewRoomPage';
+import { NativeInterviewRoom } from '../features/interviews/components/NativeInterviewRoom';
 import { ExecutiveDashboard } from '../features/executive-intelligence/ExecutiveDashboard';
+
 import { WorkforceDashboard } from '../features/executive-intelligence/WorkforceDashboard';
 import { WorkflowBuilder } from '../features/automation-center/WorkflowBuilder';
 import { WorkflowMonitor } from '../features/automation-center/WorkflowMonitor';
@@ -349,9 +351,18 @@ export function AppRoutes() {
           element={<CandidateSchedulePage />}
         />
         <Route
+          path="interviews/:scheduleId/room"
+          element={<NativeInterviewRoom />}
+        />
+        <Route
+          path="interviews/schedules/:scheduleId/room"
+          element={<NativeInterviewRoom />}
+        />
+        <Route
           path="interviews/:processId"
           element={<CandidateInterviewDetailPage />}
         />
+
         <Route path="documents" element={<CandidateDocumentsPage />} />
         <Route
           path="documents/:documentId"
@@ -672,6 +683,22 @@ export function AppRoutes() {
           }
         />
         <Route
+          path="interviews/schedules/:scheduleId/room"
+          element={
+            <CapabilityRoute anyPermission={['interviews.view']}>
+              <NativeInterviewRoom />
+            </CapabilityRoute>
+          }
+        />
+        <Route
+          path="interviews/:scheduleId/room"
+          element={
+            <CapabilityRoute anyPermission={['interviews.view']}>
+              <NativeInterviewRoom />
+            </CapabilityRoute>
+          }
+        />
+        <Route
           path="interviews/:processId"
           element={
             <CapabilityRoute anyPermission={['interviews.view']}>
@@ -679,6 +706,7 @@ export function AppRoutes() {
             </CapabilityRoute>
           }
         />
+
         <Route
           path="offers"
           element={

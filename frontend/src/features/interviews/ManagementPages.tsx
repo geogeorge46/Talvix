@@ -35,6 +35,7 @@ import { useAuth } from '../../auth/AuthProvider';
 import {
   useFeedback,
   useProcessCreate,
+  useProcesses,
   useScorecard,
   useFeedbackAction,
   useTemplates,
@@ -145,6 +146,12 @@ export function ProcessCreatePage() {
     [templateId, setTemplateId] = useState('preset:standard-tech');
 
   const appQuery = useApplication(applicationId, Boolean(applicationId) && can);
+  const existingProcessesQuery = useProcesses(
+    `applicationId=${applicationId}&limit=1`,
+    Boolean(applicationId) && can && Boolean(searchParams.get('applicationId'))
+  );
+
+  const existingProcess = (existingProcessesQuery.data?.items?.[0] as { id?: string; _id?: string; status?: string } | undefined) ?? null;
 
   if (!can)
     return (
@@ -182,6 +189,38 @@ export function ProcessCreatePage() {
         description="Start from an eligible application and select an interview round structure."
       />
       <Card heading="Process source" headingLevel={2}>
+        {existingProcess && (
+          <div
+            style={{
+              padding: '16px',
+              background: '#eff6ff',
+              borderRadius: '8px',
+              border: '1px solid #bfdbfe',
+              marginBottom: '16px',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              gap: '12px',
+            }}
+          >
+            <div>
+              <strong style={{ color: '#1e40af', fontSize: '0.95rem', display: 'block' }}>
+                ℹ️ Active Interview Process Already Exists
+              </strong>
+              <span style={{ fontSize: '0.875rem', color: '#1e3a8a' }}>
+                An interview process is already active for this candidate application (Status: {label(existingProcess.status || 'active')}). You can manage rounds or finalize the existing process directly.
+              </span>
+            </div>
+            <Link
+              to={`/org/interviews/${existingProcess.id || existingProcess._id}`}
+              className="tvx-button tvx-button--primary"
+              style={{ whiteSpace: 'nowrap', textDecoration: 'none' }}
+            >
+              Open Existing Process →
+            </Link>
+          </div>
+        )}
+
         {appQuery.data && (
           <div
             style={{
@@ -234,11 +273,22 @@ export function ProcessCreatePage() {
             title={
               create.error instanceof Error &&
               create.error.message.includes('409')
-                ? 'Process conflict'
+                ? 'Active Process Already Exists'
                 : 'Could not create process'
             }
           >
-            {msg(create.error)} Your selections remain available for review.
+            <div style={{ marginBottom: existingProcess ? '10px' : '0' }}>
+              {msg(create.error)}. In Talvix, each application has a single continuous interview process containing all rounds.
+            </div>
+            {existingProcess && (
+              <Link
+                to={`/org/interviews/${existingProcess.id || existingProcess._id}`}
+                className="tvx-button tvx-button--primary"
+                style={{ textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '6px', marginTop: '6px' }}
+              >
+                View & Manage Active Process →
+              </Link>
+            )}
           </Alert>
         )}
         <Button
@@ -513,8 +563,7 @@ export function FeedbackDetailPage() {
     [concerns, setConcerns] = useState(''),
     [privateNotes, setPrivateNotes] = useState(''),
     [visibleFeedback, setVisibleFeedback] = useState(''),
-    [attachments, setAttachments] = useState<string[]>([]),
-    [newAttachmentId, setNewAttachmentId] = useState('');
+    [attachments, setAttachments] = useState<string[]>([]);
   useEffect(() => {
     const feedback = q.data?.feedback;
     if (!q.data || !feedback) return;
@@ -557,18 +606,29 @@ export function FeedbackDetailPage() {
   const missing = scorecard.criteria.filter((x) => x.required && !scores[x.id]?.score).map((x) => x.name);
   const save = () => action.mutateAsync({ body: payload });
   const submit = async () => { await save(); await action.mutateAsync({ submit: true }); };
-  const addAttachment = () => {
-    if (newAttachmentId.trim() && !attachments.includes(newAttachmentId.trim())) {
-      setAttachments([...attachments, newAttachmentId.trim()]);
-      setNewAttachmentId('');
-    }
-  };
   const removeAttachment = (id: string) => {
     setAttachments(attachments.filter((x) => x !== id));
   };
   return (
     <div className="iv-page">
-      <PageHeader title={scorecard.name} description={`${label(scorecard.type)} scorecard · ${label(scorecard.status)}`} secondaryActions={<StatusTag tone={immutable ? 'success' : scorecard.overdue ? 'danger' : 'warning'}>{immutable ? 'Submitted' : scorecard.overdue ? 'Overdue' : 'Draft'}</StatusTag>} />
+      <PageHeader
+        title={scorecard.name}
+        description={`${label(scorecard.type)} scorecard · ${label(scorecard.status)}`}
+        secondaryActions={
+          <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+            <Link
+              to={`/org/interviews/schedules/${scorecard.schedule?.id || scorecard.roundId}/room`}
+              className="tvx-button tvx-button--primary"
+              style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', backgroundColor: '#2563eb', color: '#ffffff', padding: '6px 14px', borderRadius: '6px', textDecoration: 'none', fontWeight: 600, fontSize: '0.85rem' }}
+            >
+              🎥 Enter Native Room ↗
+            </Link>
+            <StatusTag tone={immutable ? 'success' : scorecard.overdue ? 'danger' : 'warning'}>
+              {immutable ? 'Submitted' : scorecard.overdue ? 'Overdue' : 'Draft'}
+            </StatusTag>
+          </div>
+        }
+      />
       {immutable && <Alert tone="success" title="Feedback submitted">This scorecard is immutable. Submitted feedback cannot be edited.</Alert>}
       {action.isError && <Alert tone="danger" title="Draft not saved">{msg(action.error)} Your edits remain in this form. {msg(action.error).includes('409') && <Button variant="secondary" onClick={() => void q.refetch()}>Reconcile with server</Button>}</Alert>}
       {!immutable && missing.length > 0 && <Alert tone="warning" title={`${missing.length} required ${missing.length === 1 ? 'criterion' : 'criteria'} incomplete`}>{missing.join(', ')}</Alert>}
@@ -588,10 +648,9 @@ export function FeedbackDetailPage() {
         <TextArea disabled={immutable} label="Strengths (one per line)" value={strengths} onChange={(e) => setStrengths(e.target.value)} />
         <TextArea disabled={immutable} label="Concerns (one per line)" value={concerns} onChange={(e) => setConcerns(e.target.value)} />
         <TextArea disabled={immutable} label="Private notes" hint="Visible only to you and authorized internal users." value={privateNotes} onChange={(e) => setPrivateNotes(e.target.value)} />
-        <TextArea disabled={immutable} label="Candidate-visible feedback" value={visibleFeedback} onChange={(e) => setVisibleFeedback(e.target.value)} />
-        <div style={{ marginTop: 'var(--space-4)', borderTop: '1px solid var(--color-border-subtle)', paddingTop: 'var(--space-4)' }}>
-          <h3 style={{ marginBlock: 'var(--space-2)' }}>Attachments</h3>
-          {attachments.length > 0 && (
+        {attachments.length > 0 && (
+          <div style={{ marginTop: 'var(--space-4)', borderTop: '1px solid var(--color-border-subtle)', paddingTop: 'var(--space-4)' }}>
+            <h3 style={{ marginBlock: 'var(--space-2)' }}>Attachments</h3>
             <ul style={{ marginBlock: 'var(--space-2)', paddingLeft: 'var(--space-4)' }}>
               {attachments.map((id) => (
                 <li key={id} style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', marginBlock: 'var(--space-1)' }}>
@@ -602,14 +661,8 @@ export function FeedbackDetailPage() {
                 </li>
               ))}
             </ul>
-          )}
-          {!immutable && (
-            <div style={{ display: 'flex', gap: 'var(--space-2)', alignItems: 'end', marginTop: 'var(--space-2)' }}>
-              <TextField label="Document ID to attach" value={newAttachmentId} onChange={(e) => setNewAttachmentId(e.target.value)} />
-              <Button type="button" onClick={addAttachment}>Attach Document</Button>
-            </div>
-          )}
-        </div>
+          </div>
+        )}
         {!immutable && <div className="iv-actions" style={{ marginTop: 'var(--space-4)' }}><Button variant="secondary" loading={action.isPending} disabled={!recommendation} onClick={() => void save()}>Save draft</Button><ConfirmDialog title="Submit this scorecard?" description="Submission makes your feedback immutable." confirmLabel="Submit feedback" onConfirm={submit} trigger={<Button disabled={!recommendation || missing.length > 0}>Submit scorecard</Button>} /></div>}
       </Card>
     </div>

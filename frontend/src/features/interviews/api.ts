@@ -242,3 +242,42 @@ export const useRoundAction = (processId: string, roundId: string) => {
       void qc.invalidateQueries({ queryKey: ['interview-process', processId] }),
   });
 };
+
+export const useScheduleDetails = (scheduleId: string, enabled = true) =>
+  useQuery({
+    queryKey: ['interview-schedule-details', scheduleId],
+    enabled: Boolean(scheduleId) && enabled,
+    queryFn: () => apiRequest<{ schedule?: any }>(`/interviews/schedules/${scheduleId}`),
+    select: (v) => v.schedule,
+    retry: false,
+    refetchInterval: 10000,
+  });
+
+export const useStartInterview = (scheduleId: string) => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () =>
+      apiRequest<{ status: string; canStart: boolean; serverTime: string }>(
+        `/interviews/schedules/${scheduleId}/start`,
+        { method: 'POST' }
+      ),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['interview-schedule-details', scheduleId] });
+    }
+  });
+};
+
+export const useEndInterview = (scheduleId: string) => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () =>
+      apiRequest<{ status: string; endedAt: string }>(
+        `/interviews/schedules/${scheduleId}/end`,
+        { method: 'POST' }
+      ),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['interview-schedule-details', scheduleId] });
+    }
+  });
+};
+

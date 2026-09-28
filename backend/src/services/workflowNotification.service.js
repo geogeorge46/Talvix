@@ -48,15 +48,21 @@ const formatMessage = (domain, action, payload) => {
 
   if (domain === 'interview') {
     const round = payload.roundName ?? 'Interview';
-    const detail = action === 'scheduled' ? 'has been scheduled'
-      : action === 'rescheduled' ? 'has been rescheduled'
+    const dateStr = payload.startTime ? new Date(payload.startTime).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' }) : '';
+    const dateNotice = dateStr ? ` on ${dateStr}` : '';
+    const detail = action === 'scheduled' ? `has been scheduled${dateNotice}`
+      : action === 'rescheduled' ? `has been rescheduled${dateNotice}`
       : action === 'cancelled' ? 'has been cancelled'
+      : action === 'confirmed' ? 'has been confirmed'
+      : action === 'feedback-released' ? 'feedback has been released'
       : 'update';
     return prefix ? `${prefix}: ${round} ${detail}.` : `${round} ${detail}.`;
   }
   if (domain === 'assessment') {
     const title = payload.assessmentTitle ? `"${payload.assessmentTitle}"` : 'Assessment';
-    const detail = action === 'assigned' ? 'has been assigned to you'
+    const dateStr = payload.expiresAt ? new Date(payload.expiresAt).toLocaleDateString('en-US', { dateStyle: 'medium' }) : '';
+    const dueNotice = dateStr ? ` (Due ${dateStr})` : '';
+    const detail = action === 'assigned' ? `has been assigned to you${dueNotice}`
       : action === 'result-released' ? 'results are now available'
       : action === 'expired' ? 'has expired'
       : 'update';
@@ -94,7 +100,8 @@ export const notificationInputForEvent = (event, payload) => {
     message,
     priority: ['suspended', 'cancelled', 'expired'].includes(action) ? 'high' : 'normal',
     source: ['account', 'recruiter'].includes(domain) ? 'auth' : ['company', 'job', 'application', 'assessment', 'interview', 'offer'].includes(domain) ? domain : 'admin',
-    data: payload
+    data: payload,
+    variables: payload
   };
 };
 

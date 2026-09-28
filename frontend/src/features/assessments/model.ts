@@ -210,9 +210,19 @@ export function toQuestion(v: unknown): Question {
 }
 export function toAssessment(v: unknown): Assessment {
   const x = record(v);
-  const qs = arr(x.questions).map((q) =>
-    toQuestion(record(q).questionSnapshot ?? record(q).question ?? q),
-  );
+  const qs = arr(x.questions).map((q) => {
+    const r = record(q);
+    const rawQuestion = r.questionSnapshot ?? r.question ?? q;
+    let qObj: Record<string, unknown>;
+    if (typeof rawQuestion === 'string') {
+      qObj = { id: rawQuestion, _id: rawQuestion, questionId: rawQuestion, marks: num(r.marks) };
+    } else if (typeof rawQuestion === 'object' && rawQuestion !== null) {
+      qObj = { ...record(rawQuestion), marks: num(r.marks, num(record(rawQuestion).marks)) };
+    } else {
+      qObj = record(q);
+    }
+    return toQuestion(qObj);
+  });
   return {
     id: text(x._id, text(x.id)),
     title: text(x.title, 'Untitled assessment'),

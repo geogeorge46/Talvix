@@ -112,12 +112,14 @@ export function CandidateDashboardPage() {
   const interviews = useSafeCandidateInterviews();
   const offers = useSafeCandidateOffers();
   const notifications = useNotifications('page=1&limit=5&read=false');
+  const nowMs = Date.now();
   const actions = [
     ...(assessments.data ?? [])
       .filter(
         (a) =>
           ['assigned', 'available', 'in-progress'].includes(a.status) &&
-          a.expiresAt,
+          a.expiresAt &&
+          new Date(a.expiresAt).getTime() > nowMs,
       )
       .map((a) => ({
         label: `Complete ${a.title}`,
@@ -2285,7 +2287,7 @@ export function CandidateJobsPage() {
   const [params, setParams] = useSearchParams();
   const query = params.toString() || 'page=1&limit=20';
   const q = useJobs(query);
-  const applications = useApplications('limit=100');
+  const applications = useApplications('limit=50');
   const appliedJobMap = new Map(
     (applications.data?.items ?? [])
       .filter((a) => a.jobId)
@@ -2509,7 +2511,7 @@ export function CandidateJobDetailPage() {
   const q = useJob(jobId);
   const profile = useCandidateProfile();
   const resume = useCandidateProfileResume();
-  const applications = useApplications('limit=100');
+  const applications = useApplications('limit=50');
   const mutation = useApplicationMutation();
   const [confirm, setConfirm] = useState(false);
   const draftKey = `talvix:candidate:application:${jobId}`;
@@ -3176,19 +3178,52 @@ export function CandidateNotificationDetailPage() {
       <ErrorState title="Notification unavailable" detail={message(q.error)} />
     );
   const n = q.data;
+  const d = n.data || {};
   return (
-    <div className="candidate-page">
-      <PageHeader title={n.title} description={date(n.createdAt)} />
-      <Card>
-        <p>{n.message}</p>
-        <div className="candidate-inline-links">
+    <div className="candidate-page candidate-domain-container">
+      <PageHeader
+        title={n.title}
+        description={`Received ${date(n.createdAt)} · ${n.category || n.type}`}
+        secondaryActions={
+          <StatusTag tone={n.read ? 'neutral' : 'warning'}>
+            {n.read ? 'Read' : 'Unread'}
+          </StatusTag>
+        }
+      />
+      <Card heading="Notification summary" headingLevel={2}>
+        <p style={{ fontSize: '1rem', lineHeight: '1.6', color: '#1e293b', marginBottom: '16px' }}>
+          {n.message}
+        </p>
+
+        {(d.companyName || d.jobTitle || d.startTime || d.expiresAt) && (
+          <div style={{ marginTop: '16px', padding: '16px', borderRadius: '8px', backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            {Boolean(d.companyName || d.jobTitle) && (
+              <div style={{ fontSize: '0.9rem', color: '#334155' }}>
+                <strong>Role & Company:</strong> {String(d.companyName || '')} {Boolean(d.companyName && d.jobTitle) && '·'} {String(d.jobTitle || '')}
+              </div>
+            )}
+            {Boolean(d.startTime) && (
+              <div style={{ fontSize: '0.9rem', color: '#334155' }}>
+                <strong>Scheduled Time:</strong> {new Date(String(d.startTime)).toLocaleString(undefined, { dateStyle: 'full', timeStyle: 'short' })}
+              </div>
+            )}
+            {Boolean(d.expiresAt) && (
+              <div style={{ fontSize: '0.9rem', color: '#334155' }}>
+                <strong>Deadline:</strong> {new Date(String(d.expiresAt)).toLocaleString(undefined, { dateStyle: 'full', timeStyle: 'short' })}
+              </div>
+            )}
+          </div>
+        )}
+
+        <div className="candidate-inline-links" style={{ marginTop: '24px', display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
           {n.target && (
             <Button
+              variant="primary"
               onClick={() => {
                 if (n.target) navigate(n.target);
               }}
             >
-              Open related item
+              Open related item ↗
             </Button>
           )}
           <Button

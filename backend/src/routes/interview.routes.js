@@ -188,6 +188,24 @@ interviewRouter.post(
   f.submit,
 );
 interviewRouter.get(
+  "/schedules/:scheduleId",
+  authenticate,
+  validateParams(v.scheduleParams),
+  s.getSchedule
+);
+interviewRouter.post(
+  "/schedules/:scheduleId/start",
+  authenticate,
+  validateParams(v.scheduleParams),
+  s.startSchedule
+);
+interviewRouter.post(
+  "/schedules/:scheduleId/end",
+  authenticate,
+  validateParams(v.scheduleParams),
+  s.endSchedule
+);
+interviewRouter.get(
   "/me/schedules/:scheduleId",
   cand,
   validateParams(v.scheduleParams),
@@ -199,6 +217,7 @@ interviewRouter.get(
   validateParams(v.scheduleParams),
   s.downloadIcs,
 );
+
 interviewRouter.patch(
   "/me/schedules/:scheduleId/respond",
   cand,

@@ -799,8 +799,13 @@ export function AssignAssessmentModal({
     }
     setErrorNotice('');
     try {
-      const fromIso = new Date(availableFrom + 'T00:00:00.000Z').toISOString();
-      const toIso = new Date(expiresAt + 'T23:59:59.000Z').toISOString();
+      const now = new Date();
+      const todayLocalStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+      const fromDate = availableFrom === todayLocalStr ? now : new Date(`${availableFrom}T00:00:00`);
+      const toDate = expiresAt.includes('T') ? new Date(expiresAt) : new Date(`${expiresAt}T23:59:59`);
+
+      const fromIso = fromDate.toISOString();
+      const toIso = toDate.toISOString();
       const res = await bulkAssignMutation.mutateAsync({
         assessmentId,
         applicationIds,

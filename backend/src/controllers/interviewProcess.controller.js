@@ -42,11 +42,13 @@ export const get = h(async (r, s) => {
     .populate('application', 'candidateName applicationNumber');
   if (!process) throw new AppError("Interview process not found", 404);
   const [rounds, schedules] = await Promise.all([
-    InterviewRound.find({ process: process.id, company: r.company.id }).lean(),
+    InterviewRound.find({ process: process.id, company: r.company.id }).sort({ order: 1 }).lean(),
     InterviewSchedule.find({
       process: process.id,
       company: r.company.id,
-    }).lean(),
+    })
+      .sort({ version: 1, createdAt: 1 })
+      .lean(),
   ]);
   return s.json({
     success: true,

@@ -259,22 +259,31 @@ export interface SafeNotification {
   read: boolean;
   archived: boolean;
   target: string | undefined;
+  data?: Record<string, unknown>;
 }
 const safeTarget = (
   type: string,
   data: Record<string, unknown>,
 ): string | undefined => {
+  if (typeof data.actionUrl === 'string' && /^\/candidate\/[A-Za-z0-9/_-]*$/.test(data.actionUrl)) {
+    return data.actionUrl;
+  }
   const objectId = /^[a-f\d]{24}$/i;
-  const mapping: [RegExp, string, string][] = [
-    [/assessment/i, 'assignmentId', '/candidate/assessments/'],
-    [/interview/i, 'processId', '/candidate/interviews/'],
-    [/offer/i, 'offerId', '/candidate/offers/'],
-    [/application/i, 'applicationId', '/candidate/applications/'],
+  const mapping: [RegExp, string[], string][] = [
+    [/assessment/i, ['assignmentId', 'assessmentId'], '/candidate/assessments/'],
+    [/interview/i, ['processId', 'interviewProcessId', 'scheduleId'], '/candidate/interviews/'],
+    [/offer/i, ['offerId'], '/candidate/offers/'],
+    [/application/i, ['applicationId'], '/candidate/applications/'],
   ];
-  for (const [pattern, key, prefix] of mapping) {
-    const value = data[key];
-    if (pattern.test(type) && typeof value === 'string' && objectId.test(value))
-      return prefix + value;
+  for (const [pattern, keys, prefix] of mapping) {
+    if (pattern.test(type)) {
+      for (const key of keys) {
+        const value = data[key];
+        if (typeof value === 'string' && objectId.test(value)) {
+          return prefix + value;
+        }
+      }
+    }
   }
   return undefined;
 };
@@ -292,6 +301,7 @@ export const toSafeNotification = (value: unknown): SafeNotification => {
     read: v.isRead === true || v.read === true,
     archived: v.isArchived === true || v.archived === true,
     target: safeTarget(type, data),
+    data,
   };
 };
 export const candidateModelInternals = { safeTarget };

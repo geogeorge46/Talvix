@@ -183,10 +183,12 @@ describe('integrated RTL candidate journey (mocked contracts, not browser E2E)',
       'Notifications',
       'Settings',
     ]) {
-      const links = screen.getAllByRole('link', {
+      const element = screen.queryByRole('link', {
+        name: new RegExp(`^${label}$`, 'i'),
+      }) ?? screen.getByRole('button', {
         name: new RegExp(`^${label}$`, 'i'),
       });
-      await user.click(links[0] as HTMLElement);
+      await user.click(element);
       await waitFor(() =>
         expect(window.location.pathname.toLowerCase()).toContain(
           label.toLowerCase(),

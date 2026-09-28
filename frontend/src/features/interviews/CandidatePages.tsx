@@ -63,26 +63,19 @@ function Timeline({ p }: { p: CandidateProcess }) {
                   <p style={{ margin: 0, fontSize: '0.9rem', color: '#475569' }}>
                     📅 {formatZoned(r.schedule.startTime, r.schedule.timezone)}
                   </p>
-                  {r.schedule.mode === 'video' && r.schedule.meetingUrl ? (
-                    <div style={{ marginTop: '4px', display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
-                      <a
-                        href={r.schedule.meetingUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="tvx-button tvx-button--primary"
-                        style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '6px 14px', fontSize: '0.85rem', fontWeight: 600, backgroundColor: '#2563eb', color: '#ffffff', borderRadius: '6px', textDecoration: 'none' }}
-                      >
-                        🎥 Join Video Meeting ↗
-                      </a>
-                      <Link to={`/candidate/interviews/schedules/${r.schedule.id}`} style={{ fontSize: '0.85rem', textDecoration: 'underline' }}>
-                        Schedule details
-                      </Link>
-                    </div>
-                  ) : (
-                    <Link to={`/candidate/interviews/schedules/${r.schedule.id}`} style={{ fontSize: '0.85rem' }}>
-                      View schedule details
+                  <div style={{ marginTop: '4px', display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+                    <Link
+                      to={`/candidate/interviews/schedules/${r.schedule.id}/room`}
+                      className="tvx-button tvx-button--primary"
+                      style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '6px 14px', fontSize: '0.85rem', fontWeight: 600, backgroundColor: '#2563eb', color: '#ffffff', borderRadius: '6px', textDecoration: 'none' }}
+                    >
+                      🎥 Enter Native Video Interview ↗
                     </Link>
-                  )}
+                    <Link to={`/candidate/interviews/schedules/${r.schedule.id}`} style={{ fontSize: '0.85rem', textDecoration: 'underline' }}>
+                      Schedule details
+                    </Link>
+                  </div>
+
                 </div>
               )}
             </div>
@@ -259,34 +252,31 @@ export function CandidateSchedulePage() {
       />
       <Card heading="Schedule" headingLevel={2}>
         <ScheduleSummary s={s} />
-        {s.mode === 'video' && s.meetingUrl && (
-          <div style={{ marginTop: '16px', padding: '16px', backgroundColor: '#eff6ff', borderRadius: '8px', border: '1px solid #bfdbfe' }}>
-            <h4 style={{ margin: '0 0 6px 0', color: '#1e3a8a', fontSize: '1rem', fontWeight: 600 }}>🎥 Video Interview Link</h4>
-            <p style={{ margin: '0 0 12px 0', fontSize: '0.875rem', color: '#1e40af' }}>
-              Click the button below at your scheduled time to join the interview video call ({label(s.meetingProvider)}).
-            </p>
-            <a
-              href={s.meetingUrl}
-              rel="noreferrer"
-              target="_blank"
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '8px',
-                backgroundColor: '#2563eb',
-                color: '#ffffff',
-                padding: '10px 20px',
-                borderRadius: '6px',
-                fontWeight: 600,
-                fontSize: '0.95rem',
-                textDecoration: 'none',
-                boxShadow: '0 2px 4px rgba(37,99,235,0.2)',
-              }}
-            >
-              🎥 Join Video Interview Now ↗
-            </a>
-          </div>
-        )}
+        <div style={{ marginTop: '16px', padding: '16px', backgroundColor: '#eff6ff', borderRadius: '8px', border: '1px solid #bfdbfe' }}>
+          <h4 style={{ margin: '0 0 6px 0', color: '#1e3a8a', fontSize: '1rem', fontWeight: 600 }}>🎥 Native Video Interview Room</h4>
+          <p style={{ margin: '0 0 12px 0', fontSize: '0.875rem', color: '#1e40af' }}>
+            Click the button below to enter the waiting room or video interview call inside Talvix.
+          </p>
+          <Link
+            to={`/candidate/interviews/schedules/${s.id}/room`}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '8px',
+              backgroundColor: '#2563eb',
+              color: '#ffffff',
+              padding: '10px 20px',
+              borderRadius: '6px',
+              fontWeight: 600,
+              fontSize: '0.95rem',
+              textDecoration: 'none',
+              boxShadow: '0 2px 4px rgba(37,99,235,0.2)',
+            }}
+          >
+            🎥 Enter Native Interview Room ↗
+          </Link>
+        </div>
+
         {s.mode === 'phone' && s.phoneNumber && <p>Phone: {s.phoneNumber}</p>}
         {s.mode === 'onsite' && (
           <p>

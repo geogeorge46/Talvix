@@ -8,7 +8,16 @@ import { AppError } from '../shared/errors/AppError.js';
 import { aggregateRecommendation, averageScore, calculateWeightedScore, aggregateRoundFeedback } from '../utils/interviewScoring.js';
 
 const assigned = async (c, rid, u) => {
-  const r = await InterviewRound.findOne({ _id: rid, company: c, interviewers: u });
+  let r = await InterviewRound.findOne({ _id: rid, company: c, interviewers: u });
+  if (!r) {
+    const processDoc = await mongoose.model('InterviewProcess').findOne({ _id: rid, company: c }).lean();
+    if (processDoc) {
+      const targetRoundId = processDoc.currentRound || (processDoc.rounds && processDoc.rounds[0]?._id);
+      if (targetRoundId) {
+        r = await InterviewRound.findOne({ _id: targetRoundId, company: c, interviewers: u });
+      }
+    }
+  }
   if (!r) throw new AppError('Interview round not found', 404);
   return r;
 };

@@ -25,6 +25,7 @@ export interface RoundPlan {
   required: boolean;
   criteria: Criterion[];
   status?: string;
+  scheduledInterview?: string | undefined;
   interviewerIds?: string[];
   schedule?: SafeSchedule | undefined;
 }
@@ -67,6 +68,7 @@ export interface Scorecard {
   dueAt: string;
   overdue: boolean;
   criteria: Criterion[];
+  schedule?: SafeSchedule | undefined;
   feedback?: {
     id: string;
     scores: ScorecardScore[];
@@ -143,6 +145,7 @@ const round = (v: unknown): RoundPlan => {
     required: x.required !== false,
     criteria: list(score.criteria).map(criterion),
     status: str(x.status),
+    scheduledInterview: id(x.scheduledInterview) || (x.schedule ? id(x.schedule) : undefined),
     interviewerIds: list(x.interviewerIds ?? x.interviewers).map(id),
     schedule: x.schedule ? safeSchedule(x.schedule) : undefined,
   };
@@ -280,6 +283,30 @@ export const formatZoned = (iso: string, zone: string) => {
     return `${new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short', timeZone: zone }).format(new Date(iso))} (${zone})`;
   } catch {
     return `${new Date(iso).toLocaleString()} (${zone || 'timezone unavailable'})`;
+  }
+};
+export const isoToDatetimeLocal = (iso: string, zone: string) => {
+  if (!iso) return '';
+  try {
+    const parts = Object.fromEntries(
+      new Intl.DateTimeFormat('en-CA', {
+        timeZone: zone || Intl.DateTimeFormat().resolvedOptions().timeZone,
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        hourCycle: 'h23',
+      })
+        .formatToParts(new Date(iso))
+        .map((p) => [p.type, p.value]),
+    );
+    return `${parts.year}-${parts.month}-${parts.day}T${parts.hour}:${parts.minute}`;
+  } catch {
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return '';
+    const pad = (n: number) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
   }
 };
 export const zonedLocalToIso = (value: string, zone: string) => {

@@ -4,7 +4,7 @@ import { Question } from '../models/Question.js';
 import { AppError } from '../shared/errors/AppError.js';
 import { assertAssessmentTransition } from '../utils/assessmentStatus.js';
 import { buildPagination, createSafeRegex } from '../utils/pagination.js';
-const companyAssessment = async (company, id) => { const assessment = await Assessment.findOne({ _id: id, company }); if (!assessment) throw new AppError('Assessment not found', 404); return assessment; };
+const companyAssessment = async (company, id) => { const assessment = await Assessment.findOne({ _id: id, company }).populate('questions.question'); if (!assessment) throw new AppError('Assessment not found', 404); return assessment; };
 const assertDraft = (assessment) => { if (assessment.status !== 'draft') throw new AppError('Only draft assessments can be modified', 409); };
 const calculate = (assessment) => { assessment.questions.forEach((item, index) => { item.order = index; }); assessment.totalMarks = assessment.questions.reduce((sum, item) => sum + item.marks, 0); };
 export const createAssessment = (company, actor, input) => Assessment.create({ ...input, skills: input.skills.map((skill) => skill.toLowerCase()), company, createdBy: actor });

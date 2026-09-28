@@ -81,11 +81,11 @@ documentRouter.get('/assessments/attempts/:attemptId/:documentId/download', cand
 documentRouter.get('/manage/assessments/attempts/:attemptId', recruiter, requireCompanyAccess, authorizePermissions('documents.view', 'assessments.view'), params, integration.managedAttemptList);
 documentRouter.get('/manage/assessments/attempts/:attemptId/:documentId/download', recruiter, requireCompanyAccess, authorizePermissions('documents.view', 'assessments.view'), params, integration.managedAttemptDownload);
 
-documentRouter.post('/manage/interviews/:processId', recruiter, requireCompanyAccess, authorizePermissions('documents.manage', 'interviews.manage'), params, ...upload(integrationValidation.sharedUpload), integration.interviewUpload);
-documentRouter.post('/manage/interviews/:processId/:documentId/replace', recruiter, requireCompanyAccess, authorizePermissions('documents.manage', 'interviews.manage'), params, ...upload(integrationValidation.sharedReplacement), integration.interviewReplace);
-documentRouter.get('/manage/interviews/:processId', recruiter, requireCompanyAccess, authorizePermissions('documents.view', 'interviews.view'), params, integration.interviewList(true));
-documentRouter.get('/manage/interviews/:processId/:documentId/download', recruiter, requireCompanyAccess, authorizePermissions('documents.view', 'interviews.view'), params, integration.interviewDownload(true));
-documentRouter.patch('/manage/interviews/:processId/:documentId/access', recruiter, requireCompanyAccess, authorizePermissions('documents.manage', 'interviews.manage'), params, validateBody(integrationValidation.access), integration.interviewAccess);
+documentRouter.post('/manage/interviews/:processId', recruiter, authorizePermissions('documents.manage', 'interviews.manage'), requireCompanyAccess, params, ...upload(integrationValidation.sharedUpload), integration.interviewUpload);
+documentRouter.post('/manage/interviews/:processId/:documentId/replace', recruiter, authorizePermissions('documents.manage', 'interviews.manage'), requireCompanyAccess, params, ...upload(integrationValidation.sharedReplacement), integration.interviewReplace);
+documentRouter.get('/manage/interviews/:processId', recruiter, authorizePermissions('documents.view', 'interviews.view'), requireCompanyAccess, params, integration.interviewList(true));
+documentRouter.get('/manage/interviews/:processId/:documentId/download', recruiter, authorizePermissions('documents.view', 'interviews.view'), requireCompanyAccess, params, integration.interviewDownload(true));
+documentRouter.patch('/manage/interviews/:processId/:documentId/access', recruiter, authorizePermissions('documents.manage', 'interviews.manage'), requireCompanyAccess, params, validateBody(integrationValidation.access), integration.interviewAccess);
 documentRouter.get('/interviews/:processId', candidate, params, integration.interviewList());
 documentRouter.get('/interviews/:processId/:documentId/download', candidate, params, integration.interviewDownload());
 

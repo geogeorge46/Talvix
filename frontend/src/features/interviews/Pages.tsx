@@ -71,6 +71,7 @@ import {
 } from './api';
 import {
   formatZoned,
+  isoToDatetimeLocal,
   label,
   type CandidateProcess,
   type Process,
@@ -827,7 +828,7 @@ export function ProcessesPage() {
   const q = useProcesses(queryStr, can);
 
   // Query for metric summary cards
-  const allQ = useProcesses('limit=100&sort=newest', can);
+  const allQ = useProcesses('limit=50&sort=newest', can);
 
   if (!can) {
     return (
@@ -1374,12 +1375,21 @@ function LiveRound({ processId, round, index, canSchedule, canEvaluate }: { proc
   const [open, setOpen] = useState(false), [reason, setReason] = useState(''), [party, setParty] = useState('candidate'), [formError, setFormError] = useState('');
   const [interviewers, setInterviewers] = useState((round.interviewerIds && round.interviewerIds.length > 0) ? round.interviewerIds.join(', ') : defaultUserId);
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const [timezone, setTimezone] = useState(round.schedule?.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone);
+  const [start, setStart] = useState(''), [mode, setMode] = useState(round.schedule?.mode || 'video');
+  const [provider, setProvider] = useState(round.schedule?.meetingProvider || 'custom'), [details, setDetails] = useState(round.schedule?.meetingUrl || '');
 
   useEffect(() => {
     if (!interviewers && defaultUserId) {
       setInterviewers(defaultUserId);
     }
   }, [defaultUserId, interviewers]);
+
+  useEffect(() => {
+    if (open && round.schedule?.startTime) {
+      setStart(isoToDatetimeLocal(round.schedule.startTime, timezone));
+    }
+  }, [open, round.schedule, timezone]);
 
   const companyQuery = useCompany(open && canSchedule, true);
   const teamMembers = (companyQuery.data?.team ?? []).filter((m) => m.status === 'active');
@@ -1394,9 +1404,6 @@ function LiveRound({ processId, round, index, canSchedule, canEvaluate }: { proc
       })),
   ];
 
-  const [timezone, setTimezone] = useState(round.schedule?.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone);
-  const [start, setStart] = useState(''), [mode, setMode] = useState(round.schedule?.mode || 'video');
-  const [provider, setProvider] = useState(round.schedule?.meetingProvider || 'custom'), [details, setDetails] = useState(round.schedule?.meetingUrl || '');
   const scheduled = Boolean(round.schedule), isActive = ['scheduled', 'in-progress', 'awaiting-feedback'].includes(round.status ?? '');
   const detailsRequired = mode !== 'video' || provider === 'custom';
   const submitSchedule = () => {
@@ -1429,6 +1436,15 @@ function LiveRound({ processId, round, index, canSchedule, canEvaluate }: { proc
       <dl className="iv-round__meta"><div><dt>Duration</dt><dd>{round.durationMinutes} min</dd></div><div><dt>Interviewers</dt><dd>{round.interviewerIds?.length ? round.interviewerIds.join(', ') : 'Unassigned'}</dd></div><div><dt>Schedule</dt><dd>{round.schedule ? formatZoned(round.schedule.startTime, round.schedule.timezone) : 'Not scheduled'}</dd></div><div><dt>Mode</dt><dd>{round.schedule ? `${label(round.schedule.mode)} · ${label(round.schedule.meetingProvider)}` : '—'}</dd></div></dl>
       {action.isError && <Alert tone="danger" title="Round action failed">{err(action.error)}</Alert>}
       <div className="iv-actions">
+        {(round.scheduledInterview || round.schedule?.id) && (
+          <Link
+            to={`/org/interviews/schedules/${round.scheduledInterview || round.schedule?.id}/room`}
+            className="tvx-button tvx-button--primary"
+            style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', backgroundColor: '#2563eb', color: '#ffffff', padding: '6px 14px', borderRadius: '6px', textDecoration: 'none', fontWeight: 600, fontSize: '0.85rem' }}
+          >
+            🎥 Enter Native Interview Room ↗
+          </Link>
+        )}
         {canSchedule && ['pending','scheduled'].includes(round.status ?? '') && <Button onClick={() => setOpen(true)}>{scheduled ? 'Reschedule' : 'Schedule round'}</Button>}
         {canEvaluate && round.status === 'scheduled' && <Button onClick={() => void action.mutateAsync({ action: 'start' })}>Start round</Button>}
         {canEvaluate && ['in-progress','awaiting-feedback'].includes(round.status ?? '') && <ConfirmDialog title="Complete this round?" description={<TextArea label="Reason if feedback is incomplete" value={reason} onChange={(e) => setReason(e.target.value)} />} confirmLabel="Complete round" onConfirm={() => action.mutateAsync({ action: 'complete', body: { reason } })} trigger={<Button>Complete round</Button>} />}
@@ -1464,9 +1480,10 @@ function LiveRound({ processId, round, index, canSchedule, canEvaluate }: { proc
             onChange={(e) => setInterviewers(e.target.value)}
           />
         )}
-        <TextField required label="IANA timezone" error={formError.toLowerCase().includes('timezone') ? formError : undefined} value={timezone} onChange={(e) => setTimezone(e.target.value)} /><TextField required type="datetime-local" label="Start time" error={formError.toLowerCase().includes('local time') ? formError : undefined} value={start} onChange={(e) => setStart(e.target.value)} /><Select label="Mode" value={mode} onChange={(e) => setMode(e.target.value)} options={['video','phone','onsite'].map((value) => ({ value, label: label(value) }))} /><Select label="Meeting provider" value={provider} onChange={(e) => setProvider(e.target.value)} options={['zoom','google-meet','microsoft-teams','custom','none'].map((value) => ({ value, label: label(value) }))} /><TextField required={detailsRequired} error={formError.toLowerCase().includes('https') ? formError : undefined} label={mode === 'video' ? (provider === 'custom' ? 'HTTPS meeting URL' : 'HTTPS meeting URL (optional - will auto-generate if blank)') : mode === 'phone' ? 'Phone number' : 'Location address'} value={details} onChange={(e) => setDetails(e.target.value)} />{scheduled && <TextArea required label="Reschedule reason" value={reason} onChange={(e) => setReason(e.target.value)} />}</div>
+        <TextField required label="IANA timezone" error={formError.toLowerCase().includes('timezone') ? formError : undefined} value={timezone} onChange={(e) => setTimezone(e.target.value)} /><TextField required type="datetime-local" label="Start time" error={formError.toLowerCase().includes('local time') ? formError : undefined} value={start} onChange={(e) => setStart(e.target.value)} /><Select label="Mode" value={mode} onChange={(e) => setMode(e.target.value)} options={['video','phone','onsite'].map((value) => ({ value, label: label(value) }))} /><Select label="Meeting provider" value={provider} onChange={(e) => setProvider(e.target.value)} options={['native','zoom','google-meet','microsoft-teams','custom','none'].map((value) => ({ value, label: label(value) }))} /><TextField required={detailsRequired} error={formError.toLowerCase().includes('https') ? formError : undefined} label={mode === 'video' ? (provider === 'custom' ? 'HTTPS meeting URL' : 'HTTPS meeting URL (optional - will auto-generate if blank)') : mode === 'phone' ? 'Phone number' : 'Location address'} value={details} onChange={(e) => setDetails(e.target.value)} />{scheduled && <TextArea required label="Reschedule reason" value={reason} onChange={(e) => setReason(e.target.value)} />}</div>
     </Dialog>
   </li>;
+
 }
 
 export function CalendarPage() {
@@ -1604,7 +1621,11 @@ export function CalendarPage() {
                           </div>
 
                           <div className="iv-event-actions">
-                            {s.meetingUrl ? (
+                            {s.id ? (
+                              <Link to={`/org/interviews/schedules/${s.id}/room`} className="iv-join-btn" style={{ backgroundColor: '#2563eb', color: '#ffffff', border: 'none', fontWeight: 600 }}>
+                                <Video size={13} /> Enter Native Room ↗
+                              </Link>
+                            ) : s.meetingUrl ? (
                               <a href={s.meetingUrl} target="_blank" rel="noopener noreferrer" className="iv-join-btn">
                                 <Video size={13} /> Join Meeting
                               </a>

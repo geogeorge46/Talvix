@@ -1156,7 +1156,7 @@ export function CreateAssignmentPage() {
   const assessmentsQuery = useAssessments('page=1&limit=50&status=published', can);
   const selectedAssessmentQuery = useAssessment(assessmentId, can && Boolean(assessmentId));
   const applicationsQuery = useApplications(
-    'page=1&limit=100&sort=newest',
+    'page=1&limit=50&sort=newest',
     can && !initialAppId && !manualInput,
   );
 
@@ -1214,11 +1214,16 @@ export function CreateAssignmentPage() {
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!assessmentId) return;
+    const now = new Date();
+    const todayLocalStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    const fromDate = availableFrom === todayLocalStr ? now : new Date(`${availableFrom}T00:00:00`);
+    const toDate = expiresAt.includes('T') ? new Date(expiresAt) : new Date(`${expiresAt}T23:59:59`);
+
     const x = await create.mutateAsync({
       assessmentId,
       applicationId,
-      availableFrom: new Date(availableFrom).toISOString(),
-      expiresAt: new Date(expiresAt).toISOString(),
+      availableFrom: fromDate.toISOString(),
+      expiresAt: toDate.toISOString(),
     });
     const assignmentObj = x.assignment as { _id?: string; id?: string } | undefined;
     const id = assignmentObj?._id || assignmentObj?.id;

@@ -99,6 +99,9 @@ const statusTone = (s: string) =>
         ? 'warning'
         : 'neutral';
 export function Tabs() {
+  const { recruiter } = useAuth();
+  const manage = has(recruiter?.permissions ?? [], 'assessments.manage');
+
   return (
     <div className="as-nav-tabs-wrapper">
       <nav className="as-nav-tabs" aria-label="Assessment sections">
@@ -138,13 +141,15 @@ export function Tabs() {
           <CheckCircle2 size={15} />
           <span>Reviews</span>
         </NavLink>
-        <NavLink
-          to="/org/assessments/new"
-          className={({ isActive }) => `as-nav-tab as-nav-tab--create ${isActive ? 'active' : ''}`}
-        >
-          <Plus size={15} />
-          <span>Create assessment</span>
-        </NavLink>
+        {manage && (
+          <NavLink
+            to="/org/assessments/new"
+            className={({ isActive }) => `as-nav-tab as-nav-tab--create ${isActive ? 'active' : ''}`}
+          >
+            <Plus size={15} />
+            <span>Create assessment</span>
+          </NavLink>
+        )}
       </nav>
     </div>
   );
@@ -225,7 +230,7 @@ export function AssessmentsPage() {
   const q = useAssessments(queryStr, can);
 
   // Queries for top 5 metric cards summary
-  const allQ = useAssessments('limit=100&sort=newest', can);
+  const allQ = useAssessments('limit=50&sort=newest', can);
   const assignmentsQ = useAssignments('limit=1', can);
 
   if (!can) {
@@ -284,14 +289,6 @@ export function AssessmentsPage() {
         title="Assessments"
         description="Design, publish and monitor structured technical and behavioral assessments."
         secondaryActions={<Tabs />}
-        primaryAction={
-          manage ? (
-            <Link className="as-btn-black" to="/org/assessments/new">
-              <Plus size={16} />
-              Create Assessment
-            </Link>
-          ) : undefined
-        }
       />
 
       {/* 5 Metrics Cards (Matching the Parclgo design from the image) */}
@@ -492,15 +489,6 @@ export function AssessmentsPage() {
               <RotateCcw size={14} />
               Clear Filters
             </button>
-          )}
-        </div>
-
-        <div className="as-toolbar-actions">
-          {manage && (
-            <Link className="as-btn-black" to="/org/assessments/new">
-              <Plus size={16} />
-              Create Assessment
-            </Link>
           )}
         </div>
       </div>
@@ -2264,7 +2252,7 @@ export function AssignmentsPage({
   );
 
   // Fetch summary counts for cards when recruiter view
-  const summaryQ = useAssignments('limit=100', can && !candidate, false);
+  const summaryQ = useAssignments('limit=50', can && !candidate, false);
 
   if (!can)
     return (

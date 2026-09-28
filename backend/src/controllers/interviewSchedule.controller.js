@@ -1,7 +1,13 @@
 import * as x from '../services/interviewWorkflow.service.js';
 import { InterviewSchedule } from '../models/InterviewSchedule.js';
 import { exportToIcs, getOAuthUrl, handleOAuthCallback } from '../services/calendarIntegration.service.js';
-import { joinMeeting as joinMeetingService, leaveMeeting as leaveMeetingService } from '../services/interviewSchedule.service.js';
+import {
+  joinMeeting as joinMeetingService,
+  leaveMeeting as leaveMeetingService,
+  getScheduleDetails,
+  startInterviewSchedule,
+  endInterviewSchedule
+} from '../services/interviewSchedule.service.js';
 import { InterviewRound } from '../models/InterviewRound.js';
 import { Company } from '../models/Company.js';
 import { AppError } from '../shared/errors/AppError.js';
@@ -13,6 +19,33 @@ const h = (f) => async (r, s, n) => {
     return n(e);
   }
 };
+
+export const getSchedule = h(async (r, s) => {
+  const data = await getScheduleDetails(r.params.scheduleId, r.user);
+  return s.json({
+    success: true,
+    message: 'Interview details retrieved successfully',
+    data: { schedule: data }
+  });
+});
+
+export const startSchedule = h(async (r, s) => {
+  const data = await startInterviewSchedule(r.params.scheduleId, r.user);
+  return s.json({
+    success: true,
+    message: 'Interview session started',
+    data
+  });
+});
+
+export const endSchedule = h(async (r, s) => {
+  const data = await endInterviewSchedule(r.params.scheduleId, r.user);
+  return s.json({
+    success: true,
+    message: 'Interview session ended',
+    data
+  });
+});
 
 export const downloadIcs = h(async (r, s) => {
   const schedule = await InterviewSchedule.findById(r.params.scheduleId);
@@ -141,3 +174,4 @@ export const leaveMeeting = h(async (r, s) => {
   await leaveMeetingService(r.params.scheduleId, r.user, reqMeta);
   return s.json({ success: true, message: 'Meeting left successfully' });
 });
+

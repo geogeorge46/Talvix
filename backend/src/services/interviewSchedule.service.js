@@ -90,9 +90,15 @@ export const scheduleRound = async (c, pid, rid, u, b) => {
     });
     if (conflictErr) throw new AppError(conflictErr, 409);
 
+    const schedStart = new Date(b.startTime);
+    const startOfDay = new Date(schedStart);
+    startOfDay.setUTCHours(0, 0, 0, 0);
+    const endOfDay = new Date(schedStart);
+    endOfDay.setUTCHours(23, 59, 59, 999);
+
     const availability = await InterviewAvailability.find({
       user: { $in: [p.candidate, ...b.interviewerIds] },
-      date: { $lte: b.startTime },
+      date: { $gte: startOfDay, $lte: endOfDay },
     });
     if (!validateAvailability(availability, b.startTime, b.endTime)) {
       throw new AppError('Schedule is outside participant availability', 409);
@@ -153,7 +159,7 @@ export const respond = async (candidate, id, b) => {
   const s = await InterviewSchedule.findOne({
     _id: id,
     candidate,
-    status: { $in: ['proposed', 'confirmed', 'reschedule-requested', 'rescheduled'] },
+    status: { $in: ['scheduled', 'proposed', 'confirmed', 'reschedule-requested', 'rescheduled'] },
   });
   if (!s) throw new AppError('Interview schedule not found', 404);
   if (s.startTime <= new Date()) throw new AppError('This interview has already started', 409);
@@ -235,10 +241,18 @@ export const getMySchedule = async (candidate, id) => {
 
 export const rescheduleRound = async (c, pid, rid, u, b) => {
   const { r } = await context(c, pid, rid);
-  const s = await InterviewSchedule.findOne({ _id: r.scheduledInterview, company: c });
-  if (!s || !['proposed', 'confirmed', 'reschedule-requested', 'rescheduled'].includes(s.status)) {
+  const s =
+    (r.scheduledInterview
+      ? await InterviewSchedule.findOne({ _id: r.scheduledInterview, company: c })
+      : null) ||
+    (await InterviewSchedule.findOne({ round: r.id, company: c }).sort({
+      version: -1,
+      createdAt: -1,
+    }));
+  if (!s || !['scheduled', 'proposed', 'confirmed', 'reschedule-requested', 'rescheduled'].includes(s.status)) {
     throw new AppError('Interview schedule cannot be rescheduled', 409);
   }
+
   const interviewers = b.interviewerIds ?? s.interviewers.map(String);
   normalizeTimezone(b.timezone);
   const duration = validateScheduleWindow(b.startTime, b.endTime);
@@ -261,9 +275,15 @@ export const rescheduleRound = async (c, pid, rid, u, b) => {
     });
     if (conflictErr) throw new AppError(conflictErr, 409);
 
+    const schedStart = new Date(b.startTime);
+    const startOfDay = new Date(schedStart);
+    startOfDay.setUTCHours(0, 0, 0, 0);
+    const endOfDay = new Date(schedStart);
+    endOfDay.setUTCHours(23, 59, 59, 999);
+
     const availability = await InterviewAvailability.find({
       user: { $in: [s.candidate, ...interviewers] },
-      date: { $lte: b.startTime },
+      date: { $gte: startOfDay, $lte: endOfDay },
     });
     if (!validateAvailability(availability, b.startTime, b.endTime)) {
       throw new AppError('Schedule is outside participant availability', 409);
@@ -281,6 +301,14 @@ export const rescheduleRound = async (c, pid, rid, u, b) => {
     location: s.location,
     changedBy: u,
     reason: b.reason,
+  });
+
+  s.rescheduleHistory.push({
+    previousScheduledAt: s.scheduledAt || s.startTime,
+    newScheduledAt: new Date(b.startTime),
+    changedBy: u,
+    reason: b.reason || 'Rescheduled',
+    changedAt: new Date()
   });
 
   let meetingUrl = b.meetingUrl;
@@ -301,7 +329,7 @@ export const rescheduleRound = async (c, pid, rid, u, b) => {
 
   r.status = 'scheduled';
   r.interviewers = interviewers;
-
+  r.scheduledInterview = s.id;
 
   await Promise.all([
     s.save(),
@@ -426,6 +454,196 @@ export const markNoShow = async (c, pid, rid, u, b) => {
   return r;
 };
 
+export const getScheduleDetails = async (scheduleId, user) => {
+  const s = await InterviewSchedule.findById(scheduleId)
+    .populate('candidate', 'fullName email')
+    .populate('interviewers', 'fullName email')
+    .populate('job', 'title')
+    .populate('company', 'name slug');
+  if (!s) throw new AppError('Interview schedule not found', 404, { code: 'INTERVIEW_NOT_FOUND' });
+
+  const userId = String(user.id);
+  const isCandidate = String(s.candidate._id || s.candidate) === userId;
+  let isInterviewer = (s.interviewers || []).some((i) => String(i._id || i) === userId);
+
+  if (!isInterviewer && user.role === 'recruiter') {
+    const comp = await Company.findById(s.company);
+    const member = comp?.teamMembers?.find(
+      (m) => String(m.recruiter) === userId && m.status === 'active'
+    );
+    if (member) isInterviewer = true;
+  }
+
+  if (!isCandidate && !isInterviewer && user.role !== 'admin') {
+    throw new AppError('Access denied to this interview', 403, { code: 'INTERVIEW_UNAUTHORIZED' });
+  }
+
+  const now = new Date();
+  const schedTime = s.scheduledAt || s.startTime;
+  const endTime = s.endsAt || s.endTime;
+  const win = s.joinWindowMinutes || 5;
+  const joinAvailableAt = s.joinAvailableAt || new Date(new Date(schedTime).getTime() - win * 60 * 1000);
+
+  const isTerminal = ['completed', 'cancelled', 'expired'].includes(s.status);
+  const graceEndTime = new Date(new Date(endTime).getTime() + 24 * 60 * 60 * 1000);
+  const canEnterWaitingRoom = now >= joinAvailableAt && now < graceEndTime && !isTerminal;
+  const canStart = now >= schedTime && now < graceEndTime && !isTerminal;
+
+  return {
+    id: String(s._id),
+    scheduleId: String(s._id),
+    processId: String(s.process),
+    roundId: String(s.round),
+    applicationId: String(s.application),
+    candidate: s.candidate,
+    interviewers: s.interviewers,
+    job: s.job,
+    company: s.company,
+    scheduledAt: schedTime,
+    startTime: schedTime,
+    endsAt: endTime,
+    endTime: endTime,
+    joinAvailableAt,
+    joinWindowMinutes: win,
+    durationMinutes: s.durationMinutes,
+    timezone: s.timezone,
+    status: s.status,
+    candidateResponse: s.candidateResponse,
+    startedAt: s.startedAt,
+    endedAt: s.endedAt,
+    completedAt: s.completedAt,
+    candidateJoinedAt: s.candidateJoinedAt,
+    interviewerJoinedAt: s.interviewerJoinedAt,
+    rescheduleHistory: s.rescheduleHistory || [],
+    canEnterWaitingRoom,
+    canStart,
+    serverTime: now.toISOString()
+  };
+};
+
+export const startInterviewSchedule = async (scheduleId, user) => {
+  const s = await InterviewSchedule.findById(scheduleId);
+  if (!s) throw new AppError('Interview schedule not found', 404, { code: 'INTERVIEW_NOT_FOUND' });
+
+  const userId = String(user.id);
+  const isCandidate = String(s.candidate) === userId;
+  let isInterviewer = (s.interviewers || []).map(String).includes(userId);
+
+  if (!isInterviewer && user.role === 'recruiter') {
+    const comp = await Company.findById(s.company);
+    const member = comp?.teamMembers?.find(
+      (m) => String(m.recruiter) === userId && m.status === 'active'
+    );
+    if (member) isInterviewer = true;
+  }
+
+  if (!isCandidate && !isInterviewer && user.role !== 'admin') {
+    throw new AppError('Access denied', 403, { code: 'INTERVIEW_UNAUTHORIZED' });
+  }
+
+  if (['completed'].includes(s.status)) {
+    throw new AppError('Interview has already been completed', 409, { code: 'INTERVIEW_COMPLETED' });
+  }
+  if (['cancelled'].includes(s.status)) {
+    throw new AppError('Interview was cancelled', 409, { code: 'INTERVIEW_CANCELLED' });
+  }
+  if (['expired'].includes(s.status)) {
+    throw new AppError('Interview has expired', 403, { code: 'INTERVIEW_EXPIRED' });
+  }
+
+  const now = new Date();
+  const schedTime = s.scheduledAt || s.startTime;
+  const endTime = s.endsAt || s.endTime;
+  const win = s.joinWindowMinutes || 5;
+  const joinAvailableAt = s.joinAvailableAt || new Date(new Date(schedTime).getTime() - win * 60 * 1000);
+
+  if (now < joinAvailableAt) {
+    throw new AppError('Interview window is not open yet', 403, { code: 'INTERVIEW_NOT_OPEN' });
+  }
+
+  const graceEndTime = new Date(new Date(endTime).getTime() + 24 * 60 * 60 * 1000);
+  if (now >= graceEndTime) {
+    s.status = 'expired';
+    await s.save();
+    throw new AppError('Interview window has expired', 403, { code: 'INTERVIEW_EXPIRED' });
+  }
+
+  if (now < schedTime) {
+    if (['scheduled', 'proposed', 'confirmed', 'rescheduled'].includes(s.status)) {
+      s.status = 'waiting_room';
+      await s.save();
+    }
+    return {
+      status: s.status,
+      canEnterWaitingRoom: true,
+      canStart: false,
+      scheduledAt: schedTime,
+      serverTime: now.toISOString()
+    };
+  }
+
+  if (['scheduled', 'proposed', 'confirmed', 'rescheduled', 'waiting_room', 'in_progress'].includes(s.status)) {
+    s.status = 'in_progress';
+    s.startedAt ??= now;
+    if (isCandidate) s.candidateJoinedAt ??= now;
+    if (isInterviewer) s.interviewerJoinedAt ??= now;
+    await s.save();
+
+    await InterviewRound.updateOne(
+      { _id: s.round },
+      { $set: { status: 'in-progress', startedAt: now } }
+    );
+  }
+
+  return {
+    status: s.status,
+    canEnterWaitingRoom: true,
+    canStart: true,
+    startedAt: s.startedAt,
+    scheduledAt: schedTime,
+    endsAt: endTime,
+    serverTime: now.toISOString()
+  };
+};
+
+export const endInterviewSchedule = async (scheduleId, user) => {
+  const s = await InterviewSchedule.findById(scheduleId);
+  if (!s) throw new AppError('Interview schedule not found', 404, { code: 'INTERVIEW_NOT_FOUND' });
+
+  const userId = String(user.id);
+  const isCandidate = String(s.candidate) === userId;
+  let isInterviewer = (s.interviewers || []).map(String).includes(userId);
+
+  if (!isInterviewer && user.role === 'recruiter') {
+    const comp = await Company.findById(s.company);
+    const member = comp?.teamMembers?.find(
+      (m) => String(m.recruiter) === userId && m.status === 'active'
+    );
+    if (member) isInterviewer = true;
+  }
+
+  if (!isCandidate && !isInterviewer && user.role !== 'admin') {
+    throw new AppError('Access denied', 403, { code: 'INTERVIEW_UNAUTHORIZED' });
+  }
+
+  const now = new Date();
+  s.status = 'completed';
+  s.endedAt = now;
+  s.completedAt = now;
+  await s.save();
+
+  await InterviewRound.updateOne(
+    { _id: s.round },
+    { $set: { status: 'awaiting-feedback', completedAt: now } }
+  );
+
+  return {
+    status: s.status,
+    endedAt: s.endedAt,
+    completedAt: s.completedAt
+  };
+};
+
 export const joinMeeting = async (id, u, reqMeta = {}) => {
   const s = await InterviewSchedule.findById(id);
   if (!s) throw new AppError('Interview schedule not found', 404);
@@ -487,4 +705,5 @@ export const leaveMeeting = async (id, u, reqMeta = {}) => {
 
   return { success: true };
 };
+
 

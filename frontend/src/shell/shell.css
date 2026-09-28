@@ -351,6 +351,20 @@
   transform: translateY(-1px);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
 }
+.tvx-account-trigger-avatar-only {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border-radius: 50%;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.tvx-account-trigger-avatar-only:hover {
+  transform: translateY(-1px) scale(1.05);
+}
 .tvx-account-avatar {
   display: grid;
   place-items: center;

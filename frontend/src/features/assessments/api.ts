@@ -84,8 +84,11 @@ export const useComposition = (id: string) => {
       action: 'add' | 'remove' | 'reorder';
       questionId?: string;
       body?: unknown;
-    }) =>
-      apiRequest(
+    }) => {
+      if (input.action === 'remove' && !input.questionId) {
+        throw new Error('Question ID is required to remove a question.');
+      }
+      return apiRequest(
         input.action === 'remove'
           ? `/assessments/manage/${id}/questions/${input.questionId}`
           : input.action === 'reorder'
@@ -100,7 +103,8 @@ export const useComposition = (id: string) => {
                 : 'PATCH',
           body: input.body,
         },
-      ),
+      );
+    },
     onSuccess: () =>
       void qc.invalidateQueries({ queryKey: ['assessment', id] }),
   });
