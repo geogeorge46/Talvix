@@ -36,6 +36,10 @@ export function AuthLayout() {
   );
 }
 export function CandidateWorkspaceLayout() {
+  const location = useLocation();
+  if (location.pathname.includes('/attempt')) {
+    return <Outlet />;
+  }
   return (
     <AppShell
       items={candidateNavigation}
@@ -54,7 +58,9 @@ export function OrganizationWorkspaceLayout() {
     <AppShell
       items={items}
       workspaceName={recruiter?.company?.name ?? 'Organization'}
-      workspaceDetail="Restricted workspace"
+      workspaceDetail={
+        recruiter?.isApproved ? 'Restricted workspace' : 'Approval pending'
+      }
       content={content}
     />
   );
@@ -67,8 +73,7 @@ export function OrganizationWorkspaceLayout() {
         retry={() => void refreshCapabilities()}
       />,
     );
-  if (!recruiter?.isApproved) return stateShell(<PendingApprovalState />);
-  if (!recruiter.company) {
+  if (!recruiter?.company) {
     if (location.pathname === '/org/company/new')
       return stateShell(<Outlet />, restricted);
     return stateShell(
@@ -86,6 +91,7 @@ export function OrganizationWorkspaceLayout() {
       />,
     );
   }
+  if (!recruiter?.isApproved) return stateShell(<PendingApprovalState />);
   if (!recruiter.company.isActive)
     return stateShell(
       <SuspendedState

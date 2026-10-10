@@ -46,21 +46,60 @@ export type AssignmentStatus =
   | 'cancelled';
 const record = (v: unknown): Record<string, unknown> =>
   v && typeof v === 'object' ? (v as Record<string, unknown>) : {};
-const text = (v: unknown, fallback = '') =>
-  typeof v === 'string' ? v : fallback;
+const text = (v: unknown, fallback = ''): string => {
+  if (typeof v === 'string') return v;
+  if (typeof v === 'number') return String(v);
+  if (v && typeof v === 'object') {
+    if ('_id' in v && typeof (v as any)._id === 'string') return (v as any)._id;
+    if ('id' in v && typeof (v as any).id === 'string') return (v as any).id;
+    if (typeof (v as any).toString === 'function') {
+      const str = (v as any).toString();
+      if (str && str !== '[object Object]') return str;
+    }
+  }
+  return fallback;
+};
 const num = (v: unknown, fallback = 0) =>
   typeof v === 'number' && Number.isFinite(v) ? v : fallback;
 const arr = (v: unknown) => (Array.isArray(v) ? v : []);
+
+export const formatPercentage = (val?: number | null, fallback = 'N/A'): string => {
+  if (val === undefined || val === null || isNaN(val)) return fallback;
+  const rounded = Math.round(val * 10) / 10;
+  return `${rounded}%`;
+};
+
+export const formatScoreNumber = (val?: number | null): number => {
+  if (val === undefined || val === null || isNaN(val)) return 0;
+  return Math.round(val * 10) / 10;
+};
 export interface Question {
   id: string;
+  questionId?: string;
   type: QuestionType;
   prompt: string;
   title: string;
+  description?: string;
   marks: number;
   required: boolean;
   options: { id: string; text: string }[];
   languages: string[];
   starterCode: Record<string, string>;
+  functionName?: string;
+  coding?: {
+    languageSupport?: string[];
+    starterCode?: Record<string, string>;
+    buggyCode?: Record<string, string>;
+    bugCategory?: string;
+    functionName?: string;
+    testCases?: any[];
+  };
+  debugging?: {
+    starterCode?: Record<string, string>;
+    buggyCode?: Record<string, string>;
+    brokenCode?: Record<string, string>;
+    bugCategory?: string;
+  };
   deliverable?: Deliverable;
   rubricCriteria?: RubricCriterion[];
   category?: string;
@@ -156,8 +195,20 @@ export const formatDate = (v: string) =>
     : 'Not provided';
 export function toQuestion(v: unknown): Question {
   const x = record(v),
-    coding = record(x.coding),
-    deliv = record(x.deliverable);
+    codingRec = record(x.coding),
+    deliv = record(x.deliverable),
+    debugRec = record(x.debugging);
+
+  const rawId = text(x.questionId, text(x._id, text(x.id, text((x as any).question))));
+  const qId = rawId || `q_${Math.random().toString(36).substring(2, 9)}`;
+
+  const langSupport = arr(codingRec.languageSupport?.length ? codingRec.languageSupport : x.languages).filter(
+    (s): s is string => typeof s === 'string',
+  );
+  const starterCodeMap = record(codingRec.starterCode || debugRec.starterCode || x.starterCode) as Record<string, string>;
+  const buggyCodeMap = record(codingRec.buggyCode || debugRec.buggyCode || debugRec.brokenCode || x.buggyCode) as Record<string, string>;
+  const fnName = text(codingRec.functionName, text(x.functionName));
+
   const deliverable: Deliverable | undefined = x.deliverable
     ? {
         type: text(deliv.type, 'file') as DeliverableType,
@@ -175,6 +226,7 @@ export function toQuestion(v: unknown): Question {
         }),
       }
     : undefined;
+
   const rubricCriteria: RubricCriterion[] | undefined = Array.isArray(x.rubricCriteria)
     ? x.rubricCriteria.map((rc) => {
         const r = record(rc);
@@ -187,20 +239,33 @@ export function toQuestion(v: unknown): Question {
     : undefined;
 
   return {
-    id: text(x.questionId, text(x._id, text(x.id))),
+    id: qId,
+    questionId: qId,
     type: text(x.type, 'short-answer') as QuestionType,
     prompt: text(x.prompt),
     title: text(x.title),
+    description: text(x.description),
     marks: num(x.marks, num(x.defaultMarks)),
     required: x.isRequired !== false,
     options: arr(x.options).map((o) => {
       const z = record(o);
       return { id: text(z.id), text: text(z.text) };
     }),
-    languages: arr(coding.languageSupport).filter(
-      (s): s is string => typeof s === 'string',
-    ),
-    starterCode: record(coding.starterCode) as Record<string, string>,
+    languages: langSupport,
+    starterCode: starterCodeMap,
+    ...(fnName ? { functionName: fnName } : {}),
+    coding: {
+      languageSupport: langSupport,
+      starterCode: starterCodeMap,
+      buggyCode: buggyCodeMap,
+      functionName: fnName,
+      testCases: arr(codingRec.testCases || x.testCases).filter((tc) => !record(tc).isHidden),
+    },
+    debugging: {
+      starterCode: starterCodeMap,
+      buggyCode: buggyCodeMap,
+      bugCategory: text(debugRec.bugCategory, text(codingRec.bugCategory)),
+    },
     ...(text(x.category) ? { category: text(x.category) } : {}),
     ...(text(x.difficulty) ? { difficulty: text(x.difficulty) } : {}),
     skills: arr(x.skills).filter((s): s is string => typeof s === 'string'),
@@ -265,6 +330,7 @@ export function toAssignment(v: unknown): Assignment {
       : undefined;
   const attemptId = text(bestAttemptId, text(latestAttemptId, text(attemptIdVal, text(x.attemptId))));
   return {
+    ...x,
     id: text(x._id, text(x.id)),
     title: text(a.title, text(x.assessmentTitle, 'Assessment')),
     status: text(x.status, 'assigned') as AssignmentStatus,
@@ -275,12 +341,14 @@ export function toAssignment(v: unknown): Assignment {
     applicationId: text(record(x.application)._id, text(x.applicationId)),
     resultReleased: x.resultReleasedAt != null || x.resultReleased === true,
     attemptsUsed: num(x.attemptsUsed),
+    bestScore: x.bestScore !== undefined ? num(x.bestScore) : undefined,
     bestPercentage: x.bestPercentage !== undefined ? num(x.bestPercentage) : undefined,
     passed: typeof x.passed === 'boolean' ? x.passed : undefined,
     latestAttempt: x.latestAttempt && typeof x.latestAttempt === 'object' ? record(x.latestAttempt) : undefined,
     bestAttempt: x.bestAttempt && typeof x.bestAttempt === 'object' ? record(x.bestAttempt) : undefined,
     totalMarks: num(a.totalMarks),
-  } as Assignment;
+    assessmentSnapshot: x.assessmentSnapshot || a,
+  } as unknown as Assignment;
 }
 export function toAttempt(v: unknown): Attempt {
   const x = record(v),

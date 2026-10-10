@@ -155,49 +155,89 @@ export function RecruiterAnalyticsPage() {
         title="Recruitment Analytics"
         description="Aggregate pipeline funnel performance, team productivity, and candidate matching metrics."
         secondaryActions={
-          <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', gap: '0.625rem', alignItems: 'center', flexWrap: 'wrap' }}>
             <Select
+              hideLabel
               aria-label="Saved Views"
               value={selectedViewId}
+              placeholder="Saved Views..."
               options={[
                 { value: '', label: 'Default Filters' },
                 ...savedViews.map((v) => ({ value: v._id, label: v.name + (v.isDefault ? ' (Default)' : '') })),
               ]}
               onChange={(e) => handleSelectView(e.target.value)}
+              style={{
+                height: '36px',
+                minWidth: '160px',
+                borderRadius: '9999px',
+                fontSize: '0.8125rem',
+                padding: '0 12px',
+                border: '1px solid #cbd5e1',
+                background: '#ffffff',
+              }}
             />
             {selectedViewId && (
               <Button
                 variant="secondary"
-                size="compact"
+                leadingIcon={<Trash2 size={14} />}
                 onClick={() => handleDeleteView(selectedViewId)}
-                style={{ height: '36px', color: '#ef4444', borderColor: '#fee2e2' }}
+                style={{
+                  height: '36px',
+                  borderRadius: '9999px',
+                  fontSize: '0.8125rem',
+                  color: '#dc2626',
+                  borderColor: '#fecaca',
+                  backgroundColor: '#fef2f2',
+                  paddingInline: '0.875rem',
+                }}
               >
-                <Trash2 size={14} style={{ marginRight: '4px' }} /> Delete View
+                Delete View
               </Button>
             )}
             <Button
               variant="secondary"
+              leadingIcon={<Save size={14} />}
               onClick={() => setShowSaveDialog(true)}
-              style={{ height: '36px', borderRadius: '9999px', fontSize: '0.8125rem' }}
+              style={{
+                height: '36px',
+                borderRadius: '9999px',
+                fontSize: '0.8125rem',
+                paddingInline: '0.875rem',
+                borderColor: '#cbd5e1',
+              }}
             >
-              <Save size={14} style={{ marginRight: '4px' }} /> Save View
+              Save View
             </Button>
           </div>
         }
         primaryAction={
-          <div style={{ display: 'flex', gap: '0.5rem' }}>
+          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
             <Button
               variant="secondary"
+              leadingIcon={<Download size={14} />}
               onClick={() => handleExport('csv')}
-              style={{ height: '36px', borderRadius: '9999px', fontSize: '0.8125rem' }}
+              style={{
+                height: '36px',
+                borderRadius: '9999px',
+                fontSize: '0.8125rem',
+                paddingInline: '0.875rem',
+                borderColor: '#cbd5e1',
+              }}
             >
-              <Download size={14} style={{ marginRight: '4px' }} /> Export CSV
+              Export CSV
             </Button>
             <Button
+              variant="primary"
+              leadingIcon={<Download size={14} />}
               onClick={() => handleExport('pdf')}
-              style={{ height: '36px', borderRadius: '9999px', fontSize: '0.8125rem' }}
+              style={{
+                height: '36px',
+                borderRadius: '9999px',
+                fontSize: '0.8125rem',
+                paddingInline: '0.875rem',
+              }}
             >
-              <Download size={14} style={{ marginRight: '4px' }} /> Export PDF
+              Export PDF
             </Button>
           </div>
         }
@@ -235,39 +275,76 @@ export function RecruiterAnalyticsPage() {
       )}
 
       {/* Date and Department Filtering Toolbar */}
-      <div className="ats-board-controls" style={{ padding: '12px 16px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap', width: '100%' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1, minWidth: '200px' }}>
-            <CalendarDays size={16} style={{ color: '#64748b' }} />
-            <span style={{ fontSize: '0.8125rem', fontWeight: 600, color: '#0f172a' }}>Date Range:</span>
-            <Select
-              aria-label="Date range filter"
-              value={selectedRange}
-              options={[
-                { value: '7', label: 'Last 7 days' },
-                { value: '30', label: 'Last 30 days' },
-                { value: '90', label: 'Last 90 days' },
-              ]}
-              onChange={(e) => setSelectedRange(e.target.value)}
-            />
+      <div
+        className="ats-board-controls"
+        style={{
+          padding: '12px 18px',
+          borderRadius: '14px',
+          background: '#ffffff',
+          border: '1px solid #e2e8f0',
+          boxShadow: '0 1px 3px rgba(0,0,0,0.03)',
+          marginBottom: '1.25rem',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: '20px', flexWrap: 'wrap', width: '100%' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1, minWidth: '220px' }}>
+            <CalendarDays size={16} style={{ color: '#475569', flexShrink: 0 }} />
+            <span style={{ fontSize: '0.8125rem', fontWeight: 600, color: '#1e293b', whiteSpace: 'nowrap' }}>
+              Date Range:
+            </span>
+            <div style={{ flex: 1 }}>
+              <Select
+                hideLabel
+                aria-label="Date range filter"
+                value={selectedRange}
+                options={[
+                  { value: '7', label: 'Last 7 days' },
+                  { value: '30', label: 'Last 30 days' },
+                  { value: '90', label: 'Last 90 days' },
+                ]}
+                onChange={(e) => setSelectedRange(e.target.value)}
+                style={{ height: '36px', borderRadius: '8px', fontSize: '0.8125rem', border: '1px solid #cbd5e1' }}
+              />
+            </div>
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1, minWidth: '200px' }}>
-            <Building2 size={16} style={{ color: '#64748b' }} />
-            <span style={{ fontSize: '0.8125rem', fontWeight: 600, color: '#0f172a' }}>Department:</span>
-            <Select
-              aria-label="Department filter"
-              value={selectedDept}
-              options={[
-                { value: '', label: 'All Departments' },
-                { value: 'engineering', label: 'Engineering' },
-                { value: 'sales', label: 'Sales & Marketing' },
-                { value: 'hr', label: 'Human Resources' },
-                { value: 'product', label: 'Product & Design' },
-              ]}
-              onChange={(e) => setSelectedDept(e.target.value)}
-            />
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1, minWidth: '220px' }}>
+            <Building2 size={16} style={{ color: '#475569', flexShrink: 0 }} />
+            <span style={{ fontSize: '0.8125rem', fontWeight: 600, color: '#1e293b', whiteSpace: 'nowrap' }}>
+              Department:
+            </span>
+            <div style={{ flex: 1 }}>
+              <Select
+                hideLabel
+                aria-label="Department filter"
+                value={selectedDept}
+                options={[
+                  { value: '', label: 'All Departments' },
+                  { value: 'engineering', label: 'Engineering' },
+                  { value: 'sales', label: 'Sales & Marketing' },
+                  { value: 'hr', label: 'Human Resources' },
+                  { value: 'product', label: 'Product & Design' },
+                ]}
+                onChange={(e) => setSelectedDept(e.target.value)}
+                style={{ height: '36px', borderRadius: '8px', fontSize: '0.8125rem', border: '1px solid #cbd5e1' }}
+              />
+            </div>
           </div>
+
+          {(selectedDept !== '' || selectedRange !== '30') && (
+            <Button
+              variant="quiet"
+              size="compact"
+              leadingIcon={<X size={14} />}
+              onClick={() => {
+                setSelectedDept('');
+                setSelectedRange('30');
+              }}
+              style={{ fontSize: '0.8125rem', color: '#64748b' }}
+            >
+              Reset Filters
+            </Button>
+          )}
         </div>
       </div>
 

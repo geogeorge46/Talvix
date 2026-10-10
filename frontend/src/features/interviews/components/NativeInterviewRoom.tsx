@@ -204,12 +204,25 @@ export const NativeInterviewRoom: React.FC = () => {
         {/* Remote Video Tile (Other Participant) */}
         <div className="relative bg-slate-900 rounded-xl overflow-hidden border border-slate-800 flex items-center justify-center shadow-2xl min-h-0">
           {webRTC.remoteStream ? (
-            <video
-              ref={remoteVideoRef}
-              autoPlay
-              playsInline
-              className="w-full h-full object-cover"
-            />
+            <>
+              <video
+                ref={remoteVideoRef}
+                autoPlay
+                playsInline
+                className={`w-full h-full object-cover ${webRTC.isRemoteVideoMuted ? 'hidden' : 'block'}`}
+              />
+              {webRTC.isRemoteVideoMuted && (
+                <div className="text-center p-6 space-y-3">
+                  <div className="w-16 h-16 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center mx-auto text-slate-400">
+                    <CameraOff className="w-8 h-8" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-slate-200">{remoteUserName}</p>
+                    <p className="text-xs text-slate-400">Camera is turned off</p>
+                  </div>
+                </div>
+              )}
+            </>
           ) : (
             <div className="text-center p-6 space-y-3">
               <div className="w-16 h-16 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center mx-auto text-slate-400">
@@ -225,19 +238,33 @@ export const NativeInterviewRoom: React.FC = () => {
           {/* Remote User Label */}
           <div className="absolute bottom-3 left-3 bg-slate-950/80 backdrop-blur px-3 py-1 rounded-md text-xs font-medium border border-slate-800 flex items-center gap-2">
             <span>{remoteUserName}</span>
+            {webRTC.isRemoteAudioMuted && <MicOff className="w-3.5 h-3.5 text-red-400" />}
           </div>
         </div>
 
         {/* Local Video Tile (Self) */}
         <div className="relative bg-slate-900 rounded-xl overflow-hidden border border-slate-800 flex items-center justify-center shadow-2xl min-h-0">
-          {webRTC.localStream && !webRTC.isVideoMuted ? (
-            <video
-              ref={localVideoRef}
-              autoPlay
-              playsInline
-              muted
-              className="w-full h-full object-cover transform -scale-x-100"
-            />
+          {webRTC.localStream ? (
+            <>
+              <video
+                ref={localVideoRef}
+                autoPlay
+                playsInline
+                muted
+                className={`w-full h-full object-cover transform -scale-x-100 ${webRTC.isVideoMuted ? 'hidden' : 'block'}`}
+              />
+              {webRTC.isVideoMuted && (
+                <div className="text-center p-6 space-y-3">
+                  <div className="w-16 h-16 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center mx-auto text-slate-400">
+                    <CameraOff className="w-8 h-8" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-slate-200">{localUserName} (You)</p>
+                    <p className="text-xs text-slate-400">Camera is off</p>
+                  </div>
+                </div>
+              )}
+            </>
           ) : (
             <div className="text-center p-6 space-y-3">
               <div className="w-16 h-16 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center mx-auto text-slate-400">
@@ -245,7 +272,7 @@ export const NativeInterviewRoom: React.FC = () => {
               </div>
               <div>
                 <p className="text-sm font-semibold text-slate-200">{localUserName} (You)</p>
-                <p className="text-xs text-slate-400">Camera is off</p>
+                <p className="text-xs text-slate-400">Initializing camera...</p>
               </div>
             </div>
           )}

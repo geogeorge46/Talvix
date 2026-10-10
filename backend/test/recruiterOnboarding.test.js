@@ -375,4 +375,101 @@ describe('Recruiter Onboarding & Verification Flow', () => {
 
     expect([401, 403]).toContain(jobRes.status);
   });
+
+  it('Phase 1 — Initial company creation verifies profile link and provisional_admin CompanyMember', async () => {
+    const regRes = await request(app)
+      .post('/api/v1/auth/register')
+      .send({
+        fullName: 'Phase1 Recruiter',
+        email: 'phase1@talvix.test',
+        password: 'Password123!',
+        role: 'recruiter',
+      });
+    const token = generateAccessToken(regRes.body.data.user._id);
+
+    const companyRes = await request(app)
+      .post('/api/v1/companies')
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        name: 'Phase1 Tech',
+        website: 'https://phase1.test',
+        industry: 'Software',
+      });
+
+    expect(companyRes.status).toBe(201);
+    const createdCompanyId = companyRes.body.data.company._id;
+
+    // Check RecruiterProfile link
+    const profile = await RecruiterProfile.findOne({ user: regRes.body.data.user._id });
+    expect(profile.company.toString()).toBe(createdCompanyId);
+
+    // Check CompanyMember creation
+    const member = await CompanyMember.findOne({ company: createdCompanyId, recruiter: regRes.body.data.user._id });
+    expect(member).toBeDefined();
+    expect(member.role).toBe('provisional_admin');
+    expect(member.status).toBe('active');
+  });
+
+  it('Phase 1 — Cannot create second initial company after company is linked', async () => {
+    const regRes = await request(app)
+      .post('/api/v1/auth/register')
+      .send({
+        fullName: 'Two Company Recruiter',
+        email: 'twocompanies@talvix.test',
+        password: 'Password123!',
+        role: 'recruiter',
+      });
+    const token = generateAccessToken(regRes.body.data.user._id);
+
+    await request(app)
+      .post('/api/v1/companies')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ name: 'First Company Inc', industry: 'Software' });
+
+    // Attempt second company creation
+    const secondRes = await request(app)
+      .post('/api/v1/companies')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ name: 'Second Company Inc', industry: 'Finance' });
+
+    expect(secondRes.status).toBe(409);
+  });
+
+  it('Phase 1 — Non-recruiter (candidate) cannot create company', async () => {
+    const regRes = await request(app)
+      .post('/api/v1/auth/register')
+      .send({
+        fullName: 'Candidate User',
+        email: 'candidate@talvix.test',
+        password: 'Password123!',
+        role: 'candidate',
+      });
+    const token = generateAccessToken(regRes.body.data.user._id);
+
+    const companyRes = await request(app)
+      .post('/api/v1/companies')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ name: 'Candidate Company', industry: 'Software' });
+
+    expect(companyRes.status).toBe(403);
+  });
+
+  it('Phase 1 — Suspended recruiter cannot create initial company', async () => {
+    const user = await User.create({
+      fullName: 'Suspended Recruiter',
+      email: 'suspendedrec@talvix.test',
+      role: 'recruiter',
+      recruiterVerificationStatus: 'suspended',
+      blocked: true,
+    });
+    await RecruiterProfile.create({ user: user._id });
+    const token = generateAccessToken(user.id);
+
+    const companyRes = await request(app)
+      .post('/api/v1/companies')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ name: 'Bypassed Company', industry: 'Software' });
+
+    expect(companyRes.status).toBe(403);
+  });
 });

@@ -54,9 +54,27 @@ assessmentRouter.patch('/attempts/me/:attemptId/answers', candidate, validatePar
 assessmentRouter.post('/attempts/me/:attemptId/submit', candidate, validateParams(schemas.attemptIdSchema), attemptController.submitMyAttempt);
 assessmentRouter.post('/attempts/me/:attemptId/suspicious-events', candidate, validateParams(schemas.attemptIdSchema), validateBody(schemas.suspiciousEventSchema), attemptController.logSuspiciousEvent);
 assessmentRouter.post('/attempts/me/:attemptId/execute', candidate, validateParams(schemas.attemptIdSchema), validateBody(schemas.executeCodeSchema), attemptController.executeCodeInAttempt);
+assessmentRouter.get('/attempts/me/:attemptId/questions/:questionId/technical', candidate, validateParams(schemas.attemptQuestionParamsSchema), attemptController.getTechnicalDraft);
+assessmentRouter.put('/attempts/me/:attemptId/questions/:questionId/technical/draft', candidate, validateParams(schemas.attemptQuestionParamsSchema), validateBody(schemas.technicalDraftSchema), attemptController.saveTechnicalDraft);
+assessmentRouter.post('/attempts/me/:attemptId/questions/:questionId/technical/submit', candidate, validateParams(schemas.attemptQuestionParamsSchema), attemptController.submitTechnicalResponse);
+assessmentRouter.post('/attempts/me/:attemptId/questions/:questionId/coding/run', candidate, validateParams(schemas.attemptQuestionParamsSchema), validateBody(schemas.codingRunSchema), attemptController.runCodingQuestion);
+assessmentRouter.post('/attempts/me/:attemptId/questions/:questionId/coding/submit', candidate, validateParams(schemas.attemptQuestionParamsSchema), validateBody(schemas.codingSubmitSchema), attemptController.submitCodingQuestion);
+assessmentRouter.get('/attempts/me/:attemptId/questions/:questionId/sql/schema', candidate, validateParams(schemas.attemptQuestionParamsSchema), attemptController.getSQLSchema);
+assessmentRouter.post('/attempts/me/:attemptId/questions/:questionId/sql/run', candidate, validateParams(schemas.attemptQuestionParamsSchema), validateBody(schemas.sqlRunSchema), attemptController.runSQLQuestion);
+assessmentRouter.post('/attempts/me/:attemptId/questions/:questionId/sql/submit', candidate, validateParams(schemas.attemptQuestionParamsSchema), validateBody(schemas.sqlSubmitSchema), attemptController.submitSQLQuestion);
+assessmentRouter.post('/attempts/me/:attemptId/questions/:questionId/debugging/run', candidate, validateParams(schemas.attemptQuestionParamsSchema), validateBody(schemas.codingRunSchema), attemptController.runDebuggingQuestion);
+assessmentRouter.post('/attempts/me/:attemptId/questions/:questionId/debugging/submit', candidate, validateParams(schemas.attemptQuestionParamsSchema), validateBody(schemas.codingSubmitSchema), attemptController.submitDebuggingQuestion);
+assessmentRouter.put('/attempts/me/:attemptId/questions/:questionId/system-design/draft', candidate, validateParams(schemas.attemptQuestionParamsSchema), validateBody(schemas.systemDesignSchema), attemptController.saveSystemDesignDraft);
+assessmentRouter.post('/attempts/me/:attemptId/questions/:questionId/system-design/submit', candidate, validateParams(schemas.attemptQuestionParamsSchema), validateBody(schemas.systemDesignSchema), attemptController.submitSystemDesignResponse);
+assessmentRouter.put('/attempts/me/:attemptId/questions/:questionId/work-sample/draft', candidate, validateParams(schemas.attemptQuestionParamsSchema), validateBody(schemas.workSampleSubmitSchema), attemptController.saveWorkSampleDraft);
+assessmentRouter.post('/attempts/me/:attemptId/questions/:questionId/work-sample/submit', candidate, validateParams(schemas.attemptQuestionParamsSchema), validateBody(schemas.workSampleSubmitSchema), attemptController.submitWorkSampleResponse);
+assessmentRouter.get('/attempts/me/:attemptId/ai-feedback', candidate, validateParams(schemas.attemptIdSchema), attemptController.getCandidateAIFeedback);
 
 assessmentRouter.get('/reviews', ...recruiter('assessments.review'), reviewController.pendingReviews);
 assessmentRouter.get('/reviews/:attemptId', ...recruiter('assessments.review'), validateParams(schemas.attemptIdSchema), reviewController.reviewAttempt);
+assessmentRouter.post('/reviews/:attemptId/questions/:questionId/ai-evaluate', ...recruiter('assessments.review'), validateParams(schemas.attemptQuestionParamsSchema), reviewController.triggerAIEvaluation);
+assessmentRouter.get('/reviews/:attemptId/ai-summary', ...recruiter('assessments.review'), validateParams(schemas.attemptIdSchema), reviewController.getRecruiterAISummary);
+
 assessmentRouter.patch('/reviews/:attemptId/questions/:questionId', ...recruiter('assessments.review'), validateParams(schemas.attemptQuestionParamsSchema), validateBody(schemas.reviewSchema), reviewController.scoreReviewQuestion);
 assessmentRouter.patch('/reviews/:attemptId/complete', ...recruiter('assessments.review'), validateParams(schemas.attemptIdSchema), validateBody(schemas.reviewCompleteSchema), reviewController.completeAttemptReview);
 

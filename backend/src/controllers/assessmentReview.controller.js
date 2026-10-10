@@ -1,5 +1,6 @@
 import * as review from '../services/assessmentWorkflow.service.js';
 import * as analytics from '../services/assessmentAnalytics.service.js';
+import * as aiService from '../services/technicalAI.service.js';
 const handle = (action) => async (request, response, next) => { try { return await action(request, response); } catch (error) { return next(error); } };
 export const pendingReviews = handle(async (r, s) => s.json({ success: true, message: 'Pending reviews retrieved successfully', data: { attempts: await review.listPendingReviews(r.company.id) } }));
 export const reviewAttempt = handle(async (r, s) => s.json({ success: true, message: 'Review attempt retrieved successfully', data: { attempt: await review.getReviewAttempt(r.company.id, r.params.attemptId) } }));
@@ -8,3 +9,6 @@ export const completeAttemptReview = handle(async (r, s) => s.json({ success: tr
 export const releaseAssignmentResult = handle(async (r, s) => s.json({ success: true, message: 'Assessment result released successfully', data: { assignment: await review.releaseResult(r.company.id, r.params.assignmentId, r.user.id) } }));
 export const assessmentStatistics = handle(async (r, s) => s.json({ success: true, message: 'Assessment statistics retrieved successfully', data: { statistics: await analytics.getAssessmentStatistics(r.company.id, r.params.assessmentId) } }));
 export const assignmentPipeline = handle(async (r, s) => s.json({ success: true, message: 'Assessment pipeline retrieved successfully', data: await analytics.getAssignmentPipeline(r.company.id) }));
+export const triggerAIEvaluation = handle(async (r, s) => s.json({ success: true, message: 'AI evaluation generated successfully', data: { evaluation: await aiService.analyzeTechnicalSubmissionWithAI({ attemptId: r.params.attemptId, questionId: r.params.questionId }) } }));
+export const getRecruiterAISummary = handle(async (r, s) => s.json({ success: true, message: 'AI summary retrieved successfully', data: { summary: await aiService.getRecruiterAISummary(r.company.id, r.params.attemptId) } }));
+

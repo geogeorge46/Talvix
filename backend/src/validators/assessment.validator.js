@@ -52,6 +52,27 @@ export const candidateAssignmentQuerySchema = z.object({ ...pagination, status: 
 export const reasonSchema = z.object({ reason: text(2000).min(1) }).strict(); export const extendSchema = z.object({ expiresAt: z.coerce.date(), reason: text(2000).min(1) }).strict();
 const answerValue = z.union([z.string().max(MAX_ANSWER_SIZE), z.boolean(), z.array(z.string().max(100)).max(20)]);
 export const saveAnswerSchema = z.object({ questionId: objectId, answer: answerValue.optional(), code: z.string().max(MAX_CODE_SIZE).optional(), language: z.enum(SUPPORTED_CODE_LANGUAGES).optional(), submittedUrls: z.array(z.string().url().max(2000)).max(10).optional(), timeSpentSeconds: z.number().int().nonnegative().max(86400).default(0), flaggedForReview: z.boolean().default(false) }).strict();
+export const technicalDraftSchema = z.object({ type: z.enum(['coding', 'debugging', 'sql', 'work-sample']), language: z.string().max(50).optional(), sourceCode: z.string().max(MAX_CODE_SIZE).optional(), sqlQuery: z.string().max(MAX_CODE_SIZE).optional() }).strict();
+export const codingRunSchema = z.object({ language: z.string().min(1).max(50), sourceCode: z.string().min(1).max(MAX_CODE_SIZE) }).strict();
+export const codingSubmitSchema = z.object({ language: z.string().min(1).max(50), sourceCode: z.string().min(1).max(MAX_CODE_SIZE) }).strict();
+export const sqlRunSchema = z.object({ sqlQuery: z.string().min(1).max(MAX_CODE_SIZE) }).strict();
+export const sqlSubmitSchema = z.object({ sqlQuery: z.string().min(1).max(MAX_CODE_SIZE) }).strict();
+export const systemDesignSchema = z.object({
+  nodes: z.array(z.record(z.string(), z.unknown())).optional().default([]),
+  edges: z.array(z.record(z.string(), z.unknown())).optional().default([]),
+  databaseSchema: z.array(z.record(z.string(), z.unknown())).optional().default([]),
+  apis: z.array(z.record(z.string(), z.unknown())).optional().default([]),
+  explanation: z.record(z.string(), z.unknown()).optional().default({}),
+}).strict();
+export const workSampleSubmitSchema = z.object({
+  submissionType: z.enum(['github', 'zip', 'url', 'file', 'text']),
+  repositoryUrl: z.string().url().max(2000).optional().or(z.literal('')),
+  branch: z.string().max(100).optional().default('main'),
+  hostedUrl: z.string().url().max(2000).optional().or(z.literal('')),
+  fileUrl: z.string().max(2000).optional().or(z.literal('')),
+  fileSize: z.number().int().nonnegative().optional().default(0),
+  textResponse: z.string().max(20000).optional().default(''),
+}).strict();
 const rubricScoreEntry = z.object({ criterionName: text(100).min(1), awardedMarks: z.number().nonnegative(), feedback: text(1000).optional().default('') }).strict();
 export const reviewSchema = z.object({ awardedMarks: z.number().nonnegative().optional(), feedback: text(3000).optional(), rubricScores: z.array(rubricScoreEntry).min(1).max(MAX_RUBRIC_CRITERIA).optional() }).strict().refine((v) => v.awardedMarks !== undefined || v.rubricScores !== undefined, { message: 'Either awardedMarks or rubricScores is required' });
 export const reviewCompleteSchema = z.object({ reason: text(2000).optional() }).strict();

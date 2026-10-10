@@ -13,6 +13,9 @@ import {
   UserCheck,
   Settings,
   Key,
+  ArrowLeft,
+  UserX,
+  Mail,
 } from 'lucide-react';
 import {
   Link,
@@ -157,7 +160,6 @@ export function CompanyOverviewPage() {
       <PageHeader
         title="Company"
         description="The public organization profile and membership status used across Talvix."
-        secondaryActions={<OrgAdminTabs />}
         primaryAction={
           a.canCompany ? (
             <Link
@@ -169,6 +171,7 @@ export function CompanyOverviewPage() {
           ) : undefined
         }
       />
+      <OrgAdminTabs />
       {(location.state as { companySaved?: boolean } | null)?.companySaved && (
         <Alert tone="success" title="Company profile saved">
           Your supported public organization details are up to date.
@@ -671,8 +674,8 @@ export function OrganizationSettingsPage() {
       <PageHeader
         title="Organization settings"
         description="Settings backed by the current company-profile contract."
-        secondaryActions={<OrgAdminTabs />}
       />
+      <OrgAdminTabs />
 
       <div className="ats-metrics-grid">
         <div className="ats-metric-card">
@@ -863,7 +866,6 @@ export function TeamPage() {
       <PageHeader
         title="Team & permissions"
         description="Manage active and removed memberships loaded from your organization."
-        secondaryActions={<OrgAdminTabs />}
         primaryAction={
           <Link
             className="tvx-button tvx-button--primary tvx-button--md"
@@ -873,6 +875,7 @@ export function TeamPage() {
           </Link>
         }
       />
+      <OrgAdminTabs />
       <CompanyLoad includeTeam>
         {(c) => {
           const allTeam = c?.team ?? [];
@@ -1147,11 +1150,12 @@ export function TeamDetailPage() {
     [error, setError] = useState('');
   const update = useUpdateMember(memberId),
     remove = useRemoveMember(memberId);
+
   if (!a.canTeam)
     return (
       <PermissionState description="team.manage is required to access this member." />
     );
-  if (q.isLoading) return <LoadingState label="Loading team member" />;
+  if (q.isLoading) return <LoadingState label="Loading team member details" />;
   if (!member)
     return (
       <ErrorState
@@ -1159,84 +1163,264 @@ export function TeamDetailPage() {
         detail="This member is not present in the current organization response."
       />
     );
+
   const chosen = permissions ?? member.permissions,
     currentRole = role ?? member.role,
     currentStatus = status ?? member.status;
   const added = chosen.filter((p) => !member.permissions.includes(p)),
     removed = member.permissions.filter((p) => !chosen.includes(p));
+
+  const initials = (member.fullName || member.email || 'M')
+    .split(' ')
+    .map((n) => n[0])
+    .join('')
+    .toUpperCase()
+    .slice(0, 2);
+
+  const roleLabelMap: Record<string, string> = {
+    primary_admin: 'Primary Owner & Admin',
+    admin: 'Administrator',
+    hr_admin: 'HR Administrator',
+    recruiter: 'Recruiter',
+    hiring_manager: 'Hiring Manager',
+    member: 'Team Member',
+  };
+
+  const formattedRole = roleLabelMap[currentRole] || currentRole;
+  const isActive = currentStatus === 'active';
+
   return (
-    <main className="org-admin-page">
-      <PageHeader
-        title={member.fullName || 'Team member'}
-        description={member.email}
-      />
+    <main className="org-admin-page" style={{ maxWidth: '1000px', margin: '0 auto', padding: '1.5rem' }}>
+      <div style={{ marginBottom: '1rem' }}>
+        <Button
+          variant="quiet"
+          size="compact"
+          leadingIcon={<ArrowLeft size={16} />}
+          onClick={() => nav('/org/team')}
+          style={{ color: '#64748b', fontSize: '0.8125rem' }}
+        >
+          Back to Team Roster
+        </Button>
+      </div>
+
+      <div
+        style={{
+          background: '#ffffff',
+          border: '1px solid #e2e8f0',
+          borderRadius: '16px',
+          padding: '24px',
+          boxShadow: '0 2px 8px rgba(0, 0, 0, 0.03)',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '20px',
+          flexWrap: 'wrap',
+          marginBottom: '1.5rem',
+        }}
+      >
+        <div
+          style={{
+            width: '64px',
+            height: '64px',
+            borderRadius: '50%',
+            background: 'linear-gradient(135deg, #0284c7 0%, #3b82f6 100%)',
+            color: '#ffffff',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontSize: '1.5rem',
+            fontWeight: 700,
+            boxShadow: '0 4px 12px rgba(2, 132, 199, 0.25)',
+            flexShrink: 0,
+          }}
+        >
+          {initials}
+        </div>
+        <div style={{ flex: 1, minWidth: '220px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+            <h1 style={{ fontSize: '1.5rem', fontWeight: 800, color: '#0f172a', margin: 0, letterSpacing: '-0.02em' }}>
+              {member.fullName || 'Team Member'}
+            </h1>
+            <span
+              style={{
+                background: isActive ? '#dcfce7' : '#fee2e2',
+                color: isActive ? '#15803d' : '#b91c1c',
+                padding: '3px 10px',
+                borderRadius: '9999px',
+                fontSize: '0.75rem',
+                fontWeight: 700,
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '4px',
+              }}
+            >
+              <span
+                style={{
+                  width: '6px',
+                  height: '6px',
+                  borderRadius: '50%',
+                  background: isActive ? '#16a34a' : '#dc2626',
+                }}
+              />
+              {isActive ? 'Active Member' : 'Removed'}
+            </span>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginTop: '6px', flexWrap: 'wrap' }}>
+            <span style={{ fontSize: '0.875rem', color: '#64748b', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+              <Mail size={14} style={{ color: '#94a3b8' }} /> {member.email}
+            </span>
+            <span style={{ fontSize: '0.875rem', color: '#64748b' }}>•</span>
+            <span
+              style={{
+                background: '#e0f2fe',
+                color: '#0369a1',
+                padding: '2px 8px',
+                borderRadius: '6px',
+                fontSize: '0.78125rem',
+                fontWeight: 600,
+              }}
+            >
+              {formattedRole}
+            </span>
+            <span className="job-code-badge" style={{ fontSize: '0.75rem' }}>
+              #TEAM-{member.id.slice(-6).toUpperCase()}
+            </span>
+          </div>
+        </div>
+      </div>
+
       {error && (
-        <Alert tone="danger" title="Action failed">
+        <Alert tone="danger" title="Action failed" style={{ marginBottom: '1.25rem' }}>
           {error}
         </Alert>
       )}
+
       {isOwner && (
-        <Alert tone="info" title="Owner membership is immutable">
-          Talvix does not support changing or removing the organization owner.
+        <Alert tone="info" title="Owner membership is immutable" style={{ marginBottom: '1.25rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <ShieldCheck size={18} style={{ color: '#0284c7', flexShrink: 0 }} />
+            <span>
+              This account is the organization owner. Organization owner permissions and status cannot be edited or removed.
+            </span>
+          </div>
         </Alert>
       )}
+
       <Form
         onSubmit={(e) => {
           e.preventDefault();
           setConfirm('save');
         }}
       >
-        <FormSection heading="Membership">
-          <TextField
-            label="Membership role"
-            value={currentRole}
-            readOnly={isOwner}
-            onChange={(e) => setRole(e.target.value)}
-          />
-          <Select
-            label="Status"
-            value={currentStatus}
-            disabled={isOwner}
-            options={[
-              { value: 'active', label: 'Active' },
-              { value: 'removed', label: 'Removed' },
-            ]}
-            onChange={(e) => setStatus(e.target.value as 'active' | 'removed')}
-          />
-        </FormSection>
-        <FormSection heading="Permission matrix">
+        <Card heading="Membership Configuration" headingLevel={2} style={{ marginBottom: '1.5rem', padding: '24px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '20px', marginTop: '1rem' }}>
+            <TextField
+              label="Membership Role"
+              value={formattedRole}
+              readOnly={isOwner}
+              onChange={(e) => setRole(e.target.value)}
+              hint={isOwner ? 'Role is immutable for organization owner' : 'Organizational role assignment'}
+            />
+            <Select
+              label="Account Status"
+              value={currentStatus}
+              disabled={isOwner}
+              options={[
+                { value: 'active', label: 'Active Member' },
+                { value: 'removed', label: 'Removed' },
+              ]}
+              onChange={(e) => setStatus(e.target.value as 'active' | 'removed')}
+              hint={isOwner ? 'Status is locked for owner' : 'Active members have workspace access'}
+            />
+          </div>
+        </Card>
+
+        <Card heading="Permission Matrix & Capabilities" headingLevel={2} style={{ marginBottom: '1.5rem', padding: '24px' }}>
+          <p style={{ fontSize: '0.84375rem', color: '#64748b', marginTop: '4px', marginBottom: '16px' }}>
+            Configure granular feature permissions granted to this team member across hiring domains.
+          </p>
           <PermissionGroups
             selected={chosen}
             onChange={setPermissions}
             disabled={isOwner}
           />
-        </FormSection>
+        </Card>
+
         <Card
-          heading="Proposed changes"
+          heading="Proposed Changes Review"
           headingLevel={2}
           className="org-change-review"
+          style={{
+            borderRadius: '14px',
+            border: '1px solid #cbd5e1',
+            background: '#ffffff',
+            boxShadow: '0 4px 16px rgba(0,0,0,0.04)',
+            padding: '20px',
+            marginBottom: '1.5rem',
+          }}
         >
-          <p>
-            <strong>Added:</strong> {added.map(title).join(', ') || 'None'}
-          </p>
-          <p>
-            <strong>Removed:</strong> {removed.map(title).join(', ') || 'None'}
-          </p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '8px' }}>
+            {added.length === 0 && removed.length === 0 ? (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#64748b', fontSize: '0.875rem' }}>
+                <CheckCircle2 size={18} style={{ color: '#10b981' }} />
+                <span>No permission or status changes currently pending.</span>
+              </div>
+            ) : (
+              <>
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
+                  <strong style={{ fontSize: '0.875rem', color: '#16a34a', minWidth: '75px' }}>+ Added:</strong>
+                  {added.length > 0 ? (
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                      {added.map((p) => (
+                        <span key={p} style={{ background: '#dcfce7', color: '#15803d', fontSize: '0.75rem', fontWeight: 600, padding: '3px 8px', borderRadius: '6px' }}>
+                          + {title(p)}
+                        </span>
+                      ))}
+                    </div>
+                  ) : (
+                    <span style={{ fontSize: '0.875rem', color: '#94a3b8' }}>None</span>
+                  )}
+                </div>
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
+                  <strong style={{ fontSize: '0.875rem', color: '#dc2626', minWidth: '75px' }}>- Removed:</strong>
+                  {removed.length > 0 ? (
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                      {removed.map((p) => (
+                        <span key={p} style={{ background: '#fee2e2', color: '#b91c1c', fontSize: '0.75rem', fontWeight: 600, padding: '3px 8px', borderRadius: '6px' }}>
+                          - {title(p)}
+                        </span>
+                      ))}
+                    </div>
+                  ) : (
+                    <span style={{ fontSize: '0.875rem', color: '#94a3b8' }}>None</span>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
         </Card>
-        <FormActions>
+
+        <FormActions style={{ display: 'flex', gap: '1rem', justifyContent: 'flex-end', alignItems: 'center' }}>
           <Button
             type="button"
             variant="danger"
+            leadingIcon={<UserX size={16} />}
             disabled={isOwner || remove.isPending}
             onClick={() => setConfirm('remove')}
           >
-            Remove member
+            Remove Member
           </Button>
-          <Button type="submit" disabled={isOwner} loading={update.isPending}>
-            Review and save
+          <Button
+            type="submit"
+            variant="primary"
+            leadingIcon={<CheckCircle2 size={16} />}
+            disabled={isOwner}
+            loading={update.isPending}
+          >
+            Review & Save Changes
           </Button>
         </FormActions>
       </Form>
+
       {confirm && (
         <ConfirmDialog
           open

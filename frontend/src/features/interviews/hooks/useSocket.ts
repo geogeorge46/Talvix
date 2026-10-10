@@ -21,6 +21,7 @@ export interface UseSocketOptions {
   onRescheduled?: (data: any) => void;
   onEnded?: (data: any) => void;
   onError?: (data: { code: string; message: string }) => void;
+  onMediaToggle?: (data: { userId: string; isAudioMuted: boolean; isVideoMuted: boolean }) => void;
 }
 
 export function useSocket(options: UseSocketOptions = {}) {
@@ -39,7 +40,8 @@ export function useSocket(options: UseSocketOptions = {}) {
     onConnectionState,
     onRescheduled,
     onEnded,
-    onError
+    onError,
+    onMediaToggle
   } = options;
 
   useEffect(() => {
@@ -110,6 +112,10 @@ export function useSocket(options: UseSocketOptions = {}) {
       onEnded?.(data);
     });
 
+    socket.on('interview:media-toggle', (data) => {
+      onMediaToggle?.(data);
+    });
+
     socket.on('interview:error', (data) => {
       onError?.(data);
     });
@@ -147,6 +153,12 @@ export function useSocket(options: UseSocketOptions = {}) {
     }
   }, [scheduleId]);
 
+  const emitMediaToggle = useCallback((isAudioMuted: boolean, isVideoMuted: boolean) => {
+    if (socketRef.current && scheduleId) {
+      socketRef.current.emit('interview:media-toggle', { scheduleId, isAudioMuted, isVideoMuted });
+    }
+  }, [scheduleId]);
+
   return {
     socket: socketRef.current,
     isConnected,
@@ -154,6 +166,7 @@ export function useSocket(options: UseSocketOptions = {}) {
     emitOffer,
     emitAnswer,
     emitIceCandidate,
-    emitConnectionState
+    emitConnectionState,
+    emitMediaToggle
   };
 }

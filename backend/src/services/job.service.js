@@ -11,6 +11,7 @@ import { generateUniqueSlug } from '../utils/slug.js';
 import { DOMAIN_EVENTS } from '../constants/domainEvents.js';
 import { platformAdmins } from '../utils/notificationRecipients.js';
 import { publishOptionalDomainEvent } from './domainEvent.service.js';
+import { computeJobContentHash } from './ai.service.js';
 
 const ensureCompanyOperational = (company) => {
   if (!company.isActive || company.verificationStatus !== 'verified') throw new AppError('A verified active company is required', 403);
@@ -55,7 +56,22 @@ export const updateJob = async (companyId, jobId, input, userId) => {
   if (!['draft', 'rejected'].includes(job.status)) throw new AppError('Only draft or rejected jobs can be edited', 409);
   if (job.status === 'rejected') transitionJob(job, 'draft');
   if (input.title && input.title !== job.title) job.slug = await generateUniqueSlug(input.title, (slug) => Job.exists({ company: companyId, slug, _id: { $ne: job.id } }));
-  Object.entries(input).forEach(([key, value]) => job.set(key, value)); ensureValidRanges(job); await job.save();
+  
+  const oldContentHash = computeJobContentHash(job.title, job.description);
+  Object.entries(input).forEach(([key, value]) => job.set(key, value));
+  ensureValidRanges(job);
+  const newContentHash = computeJobContentHash(job.title, job.description);
+
+  if (oldContentHash !== newContentHash) {
+    if (job.intelligence && job.intelligence.status === 'completed') {
+      job.intelligence.status = 'stale';
+    }
+    if (job.quality && job.quality.status === 'completed') {
+      job.quality.status = 'stale';
+    }
+  }
+
+  await job.save();
   await AuditLog.create({
     action: 'job.update',
     actor: userId,
@@ -136,13 +152,15 @@ export const resumeJob = async (company, jobId, userId) => {
 export const closeJob = async (companyId, jobId, userId) => {
   const job = await ownedJob(companyId, jobId);
   const oldValue = { status: job.status };
-  transitionJob(job, 'closed'); await job.save();
+  transitionJob(job, 'closed');
+  job.closedReason = 'manual';
+  await job.save();
   await AuditLog.create({
     action: 'job.close',
     actor: userId,
     company: companyId,
     oldValue,
-    newValue: { status: job.status }
+    newValue: { status: job.status, closedReason: 'manual' }
   });
   await publishOptionalDomainEvent({ type: DOMAIN_EVENTS.JOB_CLOSED, company: String(companyId), recipientIds: [String(job.createdBy)], payload: { companyId: String(companyId), jobId: String(job.id), jobTitle: job.title }, deduplicationKey: `job.closed:${job.id}:${job.updatedAt.toISOString()}` }); return job;
 };

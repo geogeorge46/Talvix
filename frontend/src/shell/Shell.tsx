@@ -171,20 +171,6 @@ export const organizationNavigation: NavigationItem[] = [
     icon: <Building2 />,
   },
   {
-    id: 'team',
-    label: 'Team',
-    to: '/org/team',
-    icon: <Users />,
-    anyPermission: ['team.manage'],
-  },
-  {
-    id: 'settings',
-    label: 'Settings',
-    to: '/org/settings',
-    icon: <Settings />,
-    anyPermission: ['company.manage'],
-  },
-  {
     id: 'analytics',
     label: 'Analytics',
     to: '/org/analytics',
@@ -287,28 +273,36 @@ export function SideNav({
   label: string;
   onSelect?: () => void;
 }) {
+  const location = useLocation();
+
   return (
     <nav className="tvx-side-nav" aria-label={label}>
       <ul>
-        {items.map((item) => (
-          <li key={item.id}>
-            <NavLink
-              onClick={onSelect}
-              to={item.to}
-              end={item.to.split('/').length === 2}
-            >
-              {({ isActive }) => (
-                <>
-                  <span aria-hidden>{item.icon}</span>
-                  <span>{item.label}</span>
-                  {isActive && (
-                    <span className="sr-only"> (current)</span>
-                  )}
-                </>
-              )}
-            </NavLink>
-          </li>
-        ))}
+        {items.map((item) => {
+          const isOrgSection =
+            item.id === 'company' &&
+            (location.pathname.startsWith('/org/company') ||
+              location.pathname.startsWith('/org/team') ||
+              location.pathname.startsWith('/org/settings'));
+
+          const isRootLanding = item.to === '/org' || item.to === '/candidate' || item.to === '/admin';
+
+          return (
+            <li key={item.id}>
+              <NavLink
+                onClick={onSelect}
+                to={item.to}
+                end={isRootLanding}
+                className={({ isActive }) =>
+                  `tvx-nav-link ${isActive || isOrgSection ? 'tvx-nav-link--active' : ''}`
+                }
+              >
+                <span aria-hidden>{item.icon}</span>
+                <span>{item.label}</span>
+              </NavLink>
+            </li>
+          );
+        })}
       </ul>
     </nav>
   );
@@ -494,7 +488,7 @@ function useUnreadCountQuery() {
     queryFn: async () => {
       try {
         const res = await apiRequest<any>('/notifications/unread-count');
-        return Number(res?.count ?? 0);
+        return Number(res?.unreadCount ?? res?.count ?? 0);
       } catch (err) {
         return 0;
       }
@@ -507,10 +501,11 @@ export function NotificationTrigger() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { data: count = 0 } = useUnreadCountQuery();
+  const hasUnread = count > 0;
   return (
-    <div style={{ position: 'relative', display: 'inline-block' }}>
+    <div style={{ position: 'relative', display: 'inline-flex', alignItems: 'center' }}>
       <IconButton
-        icon={<Bell />}
+        icon={<Bell className={hasUnread ? 'text-slate-900' : ''} />}
         aria-label="Notifications"
         variant="quiet"
         onClick={() =>
@@ -521,23 +516,9 @@ export function NotificationTrigger() {
           )
         }
       />
-      {count > 0 && (
-        <span
-          style={{
-            position: 'absolute',
-            top: '2px',
-            right: '2px',
-            background: 'var(--color-action-primary)',
-            color: 'white',
-            borderRadius: '50%',
-            padding: '2px 6px',
-            fontSize: '10px',
-            fontWeight: 'bold',
-            lineHeight: 1,
-            pointerEvents: 'none',
-          }}
-        >
-          {count}
+      {hasUnread && (
+        <span className="absolute -top-0.5 -right-0.5 bg-red-500 text-white rounded-full px-1 py-0.5 text-[10px] font-extrabold leading-none pointer-events-none border-2 border-white shadow-sm z-20 inline-flex items-center justify-center min-w-[18px] h-[18px]">
+          {count > 99 ? '99+' : count}
         </span>
       )}
     </div>

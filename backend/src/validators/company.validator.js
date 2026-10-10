@@ -18,6 +18,12 @@ const publicFields = {
   benefits: z.array(text(150).min(1)).max(50).optional(), technologies: z.array(text(100).min(1)).max(100).optional(),
   officialEmailDomain: z.string().trim().toLowerCase().regex(/^[a-z0-9-]+(\.[a-z0-9-]+)*\.[a-z]{2,}$/, 'Invalid domain format').optional(),
   autoApproveDomainMembers: z.boolean().optional(),
+  legalName: text(150).optional(),
+  entityType: z.enum(['private_limited', 'public_limited', 'llp', 'proprietorship', 'partnership', 'other']).optional(),
+  cin: z.string().trim().toUpperCase().optional(),
+  gstin: z.string().trim().toUpperCase().optional(),
+  udyamRegistrationNumber: z.string().trim().toUpperCase().optional(),
+  registeredAddress: z.object({ street: text(200).optional(), city: text(100).optional(), state: text(100).optional(), postalCode: text(20).optional(), country: text(100).optional() }).strict().optional(),
 };
 export const companyCreateSchema = z.object(publicFields).strict();
 export const companyUpdateSchema = z.object(publicFields).partial().strict().refine((data) => Object.keys(data).length > 0, 'At least one field is required');

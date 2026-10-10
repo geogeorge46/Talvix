@@ -38,6 +38,7 @@ import { executeWorkflow } from './workflow.service.js';
 import { executeAgentTask } from './agent.service.js';
 import { syncHRISData, triggerWebhook } from './integration.service.js';
 import { rotateSecret, logSecurityIncident } from './admin.service.js';
+import { closeExpiredJobs } from './jobCapacity.service.js';
 
 const handleGenerateAuditReport = async (payload) => {
   const { companyId, userId, reportType, format } = payload;
@@ -191,38 +192,7 @@ const handleRevokeSession = async (payload) => {
 };
 
 const handleExpireJobs = async () => {
-  const now = new Date();
-  const expiredJobs = await Job.find({
-    status: { $in: ['published', 'paused'] },
-    applicationDeadline: { $lte: now }
-  });
-
-  for (const job of expiredJobs) {
-    const oldValue = { status: job.status };
-    transitionJob(job, 'closed');
-    await job.save();
-
-    await AuditLog.create({
-      action: 'job.close',
-      actor: job.createdBy,
-      company: job.company,
-      oldValue,
-      newValue: { status: 'closed', reason: 'System Expiry (Deadline Passed)', systemExpired: true }
-    });
-
-    await publishOptionalDomainEvent({
-      type: DOMAIN_EVENTS.JOB_CLOSED,
-      company: String(job.company),
-      recipientIds: [String(job.createdBy)],
-      payload: {
-        companyId: String(job.company),
-        jobId: String(job.id),
-        jobTitle: job.title,
-        reason: 'Application deadline has passed'
-      },
-      deduplicationKey: `job.expired:${job.id}:${job.updatedAt.toISOString()}`
-    });
-  }
+  await closeExpiredJobs();
 };
 
 const handlePublishJobs = async () => {

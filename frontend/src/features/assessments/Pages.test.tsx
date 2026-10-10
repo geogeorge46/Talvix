@@ -480,3 +480,4 @@ describe('recruiter advancement and promotion flow', () => {
     expect(advanceBtn).toBeDisabled();
   });
 });
+

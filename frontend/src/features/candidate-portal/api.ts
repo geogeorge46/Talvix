@@ -129,11 +129,10 @@ export const useNotification = (id: string) =>
 export const useUnreadCount = () =>
   useQuery({
     queryKey: ['candidate', 'notifications', 'unread'],
-    queryFn: async () =>
-      Number(
-        rec(await apiRequest<unknown>('/notifications/unread-count')).count ??
-          0,
-      ),
+    queryFn: async () => {
+      const v = rec(await apiRequest<unknown>('/notifications/unread-count'));
+      return Number(v.unreadCount ?? v.count ?? 0);
+    },
   });
 export const useNotificationMutation = () => {
   const qc = useQueryClient();

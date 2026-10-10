@@ -66,10 +66,23 @@ export const aiGenerateDescriptionSchema = z.object({
   employmentType: z.enum(EMPLOYMENT_TYPES).optional(),
   workMode: z.enum(WORK_MODES).optional(),
   skills: z.array(z.string().trim().max(100)).optional(),
+  requiredSkills: z.array(z.string().trim().max(100)).optional(),
+  preferredSkills: z.array(z.string().trim().max(100)).optional(),
+  responsibilities: z.array(text(500)).optional(),
+  requirements: z.array(text(500)).optional(),
+  preferredQualifications: z.array(text(500)).optional(),
+  educationRequirements: z.array(text(300)).optional(),
+  recruiterNotes: text(3000).optional(),
+  additionalInstructions: text(3000).optional(),
+  notes: text(3000).optional(),
   minimumExperience: z.number().min(0).max(60).optional(),
   maximumExperience: z.number().min(0).max(60).optional(),
   location: text(150).optional(),
-}).strict();
+}).strict().superRefine((value, context) => {
+  if (value.maximumExperience !== undefined && value.minimumExperience !== undefined && value.maximumExperience < value.minimumExperience) {
+    context.addIssue({ code: 'custom', path: ['maximumExperience'], message: 'Maximum experience cannot be lower than minimum experience' });
+  }
+});
 
 
 export const aiSuggestSkillsSchema = z.object({
@@ -81,4 +94,50 @@ export const aiSafetyCheckSchema = z.object({
   title: text(150).min(1),
   description: text(10000).min(1)
 }).strict();
+
+export const aiExtractIntelligencePreviewSchema = z.object({
+  title: text(150).min(1),
+  description: text(10000).optional().default('')
+}).strict();
+
+export const extractJobIntelligenceBodySchema = z.object({
+  forceRefresh: z.boolean().optional().default(false)
+}).strict();
+
+export const aiAnalyzeQualityPreviewSchema = z.object({
+  title: text(150).min(1),
+  description: text(10000).optional().default('')
+}).strict();
+
+export const analyzeJobQualityBodySchema = z.object({
+  forceRefresh: z.boolean().optional().default(false)
+}).strict();
+
+export const aiGenerateBlueprintPreviewSchema = z.object({
+  title: text(150).min(1),
+  description: text(10000).optional().default('')
+}).strict();
+
+export const generateJobBlueprintBodySchema = z.object({
+  forceRefresh: z.boolean().optional().default(false)
+}).strict();
+
+export const regenerateBlueprintSectionSchema = z.object({
+  sectionId: text(100).min(1),
+  feedback: text(1000).optional(),
+  customInstructions: text(1000).optional()
+}).strict();
+
+export const updateJobBlueprintBodySchema = z.object({
+  data: z.record(z.any()).optional(),
+  targetSeniority: z.string().optional(),
+  objectives: z.array(z.string()).optional(),
+  sections: z.array(z.record(z.any())).optional(),
+  totalDurationMinutes: z.number().optional(),
+  totalMarks: z.number().optional(),
+  recommendedPassingPercentage: z.number().optional()
+}).passthrough();
+
+
+
 

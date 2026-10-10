@@ -34,7 +34,6 @@
   border-inline-end: var(--border-thin) solid var(--color-border-default);
   box-shadow: var(--shadow-xs);
   z-index: var(--z-sticky);
-  animation: sidebarSlideIn 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
   scrollbar-width: thin;
   scrollbar-color: var(--color-border-default) transparent;
 }
@@ -120,10 +119,9 @@
   border-radius: var(--radius-md);
   font-weight: var(--weight-semibold);
   font-size: 0.9375rem;
-  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), background-color 0.2s cubic-bezier(0.16, 1, 0.3, 1), color 0.2s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: background-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
 }
 .tvx-side-nav a:hover {
-  transform: translateX(4px);
   background: var(--color-surface-2);
   color: var(--ref-nexa-black);
 }

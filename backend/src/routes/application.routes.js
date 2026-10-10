@@ -3,6 +3,7 @@ import { USER_ROLES } from '../constants/roles.js';
 import { adminApplication, adminApplications, archiveAdminApplication, deleteAdminApplicationNote, overrideAdminApplicationStatus } from '../controllers/adminApplication.controller.js';
 import { myApplication, myApplications, myApplicationTimeline, refreshMyApplicationSnapshot, respondToMyOffer, submitJobApplication, withdrawMyApplication } from '../controllers/application.controller.js';
 import { addManagedApplicationNote, applicationPipeline, assignManagedApplication, bulkManagedApplications, changeManagedApplicationStatus, deleteManagedApplicationNote, jobApplicationStatistics, managedApplication, managedApplicationAiAnalysis, managedApplicationTimeline, managedApplications, rateManagedApplication, tagManagedApplication, updateManagedApplicationNote } from '../controllers/recruiterApplication.controller.js';
+import { getManagedApplicantMatchesHandler, getManagedApplicationMatchDetailsHandler, calculateManagedCandidateMatchHandler, getCandidateJobFitAnalysisHandler } from '../controllers/candidateMatching.controller.js';
 import { getApplicationComments, addApplicationComment, removeApplicationComment } from '../controllers/comment.controller.js';
 import { getCompanyTags, addCompanyTag, removeCompanyTag } from '../controllers/companyTag.controller.js';
 import { authenticate } from '../middleware/auth.js';
@@ -10,6 +11,7 @@ import { authorizePermissions } from '../middleware/authorizePermissions.js';
 import { authorizeRoles } from '../middleware/authorizeRoles.js';
 import { requireCompanyAccess } from '../middleware/companyAccess.js';
 import { adminApplicationsQuerySchema, adminStatusSchema, applicationIdParamsSchema, applicationJobParamsSchema, applicationSubmitSchema, assigneesSchema, bulkOperationSchema, candidateApplicationsQuerySchema, candidateOfferStatusSchema, noteParamsSchema, noteSchema, noteUpdateSchema, pipelineQuerySchema, ratingSchema, recruiterApplicationsQuerySchema, recruiterStatusSchema, tagsSchema, withdrawalSchema, commentCreateSchema, commentParamsSchema, companyTagCreateSchema, companyTagParamsSchema } from '../validators/application.validator.js';
+import { applicantMatchesQuerySchema, candidateMatchParamsSchema, jobMatchParamsSchema } from '../validators/candidateMatch.validator.js';
 import { validateBody, validateParams, validateQuery } from '../validators/validate.js';
 
 export const applicationRouter = Router(); applicationRouter.use(authenticate);
@@ -40,11 +42,16 @@ applicationRouter.patch('/manage/:applicationId/notes/:noteId', ...recruiterAcce
 applicationRouter.delete('/manage/:applicationId/notes/:noteId', ...recruiterAccess('applications.manage'), validateParams(noteParamsSchema), deleteManagedApplicationNote);
 applicationRouter.patch('/manage/:applicationId/rating', ...recruiterAccess('applications.manage'), validateParams(applicationIdParamsSchema), validateBody(ratingSchema), rateManagedApplication);
 applicationRouter.patch('/manage/:applicationId/tags', ...recruiterAccess('applications.manage'), validateParams(applicationIdParamsSchema), validateBody(tagsSchema), tagManagedApplication);
+applicationRouter.get('/manage/jobs/:jobId/matches', ...recruiterAccess('applications.view'), validateParams(jobMatchParamsSchema), validateQuery(applicantMatchesQuerySchema), getManagedApplicantMatchesHandler);
+applicationRouter.get('/manage/:applicationId/match-details', ...recruiterAccess('applications.view'), validateParams(applicationIdParamsSchema), getManagedApplicationMatchDetailsHandler);
+applicationRouter.post('/manage/jobs/:jobId/candidates/:candidateId/match', ...recruiterAccess('applications.view'), validateParams(candidateMatchParamsSchema), calculateManagedCandidateMatchHandler);
 applicationRouter.patch('/manage/:applicationId/assignees', ...recruiterAccess('applications.manage'), validateParams(applicationIdParamsSchema), validateBody(assigneesSchema), assignManagedApplication);
 
 applicationRouter.post('/', candidate, validateBody(applicationSubmitSchema), submitJobApplication);
 applicationRouter.get('/me', candidate, validateQuery(candidateApplicationsQuerySchema), myApplications);
+applicationRouter.get('/me/jobs/:jobId/fit-analysis', candidate, validateParams(jobMatchParamsSchema), getCandidateJobFitAnalysisHandler);
 applicationRouter.get('/me/:applicationId', candidate, validateParams(applicationIdParamsSchema), myApplication);
+
 applicationRouter.patch('/me/:applicationId/withdraw', candidate, validateParams(applicationIdParamsSchema), validateBody(withdrawalSchema), withdrawMyApplication);
 applicationRouter.patch('/me/:applicationId/offer', candidate, validateParams(applicationIdParamsSchema), validateBody(candidateOfferStatusSchema), respondToMyOffer);
 applicationRouter.patch('/me/:applicationId/refresh-snapshot', candidate, validateParams(applicationIdParamsSchema), refreshMyApplicationSnapshot);

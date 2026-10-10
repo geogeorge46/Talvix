@@ -1,5 +1,4 @@
-import { useEffect, useState } from 'react';
-import { CalendarDays } from 'lucide-react';
+import { CalendarDays, ArrowLeft, CheckCircle2, Award, MessageSquare } from 'lucide-react';
 import { Link, useParams } from 'react-router-dom';
 import {
   Alert,
@@ -43,6 +42,17 @@ const tone = (s: string) =>
       : ['reschedule-requested', 'proposed'].includes(s)
         ? 'warning'
         : 'neutral';
+function isInterviewJoinable(schedule?: any) {
+  if (!schedule) return false;
+  if (['completed', 'cancelled', 'expired', 'no-show'].includes(schedule.status)) return false;
+  const schedTime = schedule.scheduledAt || schedule.startTime;
+  if (!schedTime) return true;
+  const joinAvailableAt = schedule.joinAvailableAt
+    ? new Date(schedule.joinAvailableAt).getTime()
+    : new Date(schedTime).getTime() - 5 * 60 * 1000;
+  return new Date().getTime() >= joinAvailableAt;
+}
+
 function Timeline({ p }: { p: CandidateProcess }) {
   return (
     <section className="iv-rail">
@@ -51,36 +61,50 @@ function Timeline({ p }: { p: CandidateProcess }) {
         <span>{p.rounds.length} rounds</span>
       </div>
       <ol>
-        {p.rounds.map((r, i) => (
-          <li key={r.id}>
-            <span className="iv-rail__number">{i + 1}</span>
-            <div>
-              <strong>{r.name}</strong>
-              <p>{label(r.type)}</p>
-              <StatusTag tone={tone(r.status)}>{label(r.status)}</StatusTag>
-              {r.schedule && (
-                <div style={{ marginTop: '8px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                  <p style={{ margin: 0, fontSize: '0.9rem', color: '#475569' }}>
-                    📅 {formatZoned(r.schedule.startTime, r.schedule.timezone)}
-                  </p>
-                  <div style={{ marginTop: '4px', display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
-                    <Link
-                      to={`/candidate/interviews/schedules/${r.schedule.id}/room`}
-                      className="tvx-button tvx-button--primary"
-                      style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '6px 14px', fontSize: '0.85rem', fontWeight: 600, backgroundColor: '#2563eb', color: '#ffffff', borderRadius: '6px', textDecoration: 'none' }}
-                    >
-                      🎥 Enter Native Video Interview ↗
-                    </Link>
-                    <Link to={`/candidate/interviews/schedules/${r.schedule.id}`} style={{ fontSize: '0.85rem', textDecoration: 'underline' }}>
-                      Schedule details
-                    </Link>
+        {p.rounds.map((r, i) => {
+          const canJoin = isInterviewJoinable(r.schedule);
+          const isFinished = ['completed', 'cancelled', 'expired', 'no-show'].includes(r.status ?? '');
+          return (
+            <li key={r.id}>
+              <span className="iv-rail__number">{i + 1}</span>
+              <div>
+                <strong>{r.name}</strong>
+                <p>{label(r.type)}</p>
+                <StatusTag tone={tone(r.status)}>{label(r.status)}</StatusTag>
+                {r.schedule && (
+                  <div style={{ marginTop: '8px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                    <p style={{ margin: 0, fontSize: '0.9rem', color: '#475569' }}>
+                      📅 {formatZoned(r.schedule.startTime, r.schedule.timezone)}
+                    </p>
+                    <div style={{ marginTop: '4px', display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+                      {!isFinished && (
+                        canJoin ? (
+                          <Link
+                            to={`/candidate/interviews/schedules/${r.schedule.id}/room`}
+                            className="tvx-button tvx-button--primary"
+                            style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '6px 14px', fontSize: '0.85rem', fontWeight: 600, backgroundColor: '#2563eb', color: '#ffffff', borderRadius: '6px', textDecoration: 'none' }}
+                          >
+                            🎥 Enter Native Video Interview ↗
+                          </Link>
+                        ) : (
+                          <span
+                            style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '6px 14px', fontSize: '0.85rem', fontWeight: 600, backgroundColor: '#94a3b8', color: '#ffffff', borderRadius: '6px', cursor: 'not-allowed' }}
+                            title="Interview room opens 5 minutes before scheduled start time"
+                          >
+                            🎥 Room Opens 5m Before Start
+                          </span>
+                        )
+                      )}
+                      <Link to={`/candidate/interviews/schedules/${r.schedule.id}`} style={{ fontSize: '0.85rem', textDecoration: 'underline' }}>
+                        Schedule details
+                      </Link>
+                    </div>
                   </div>
-
-                </div>
-              )}
-            </div>
-          </li>
-        ))}
+                )}
+              </div>
+            </li>
+          );
+        })}
       </ol>
     </section>
   );
@@ -151,13 +175,57 @@ export function CandidateInterviewDetailPage() {
       <ErrorState detail={message(q.error)} retry={() => void q.refetch()} />
     );
   const p = q.data;
+  const jobDisplay = (p as any).jobTitle
+    ? `Job: ${(p as any).jobTitle}`
+    : p.jobId?.length === 24
+      ? `Job Application #${p.jobId.slice(-6)}`
+      : `Job ${p.jobId}`;
+
   return (
     <div className="iv-page">
       <PageHeader
-        title="Interview process"
-        description={`Job ${p.jobId}`}
+        eyebrow={
+          <Link
+            to="/candidate/interviews"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              fontSize: '0.875rem',
+              fontWeight: 600,
+              color: '#2563eb',
+              textDecoration: 'none',
+              marginBottom: '4px',
+            }}
+          >
+            <ArrowLeft size={14} /> Back to My Interviews
+          </Link>
+        }
+        title="Interview Process Details"
+        description={jobDisplay}
         secondaryActions={
-          <StatusTag tone={tone(p.status)}>{label(p.status)}</StatusTag>
+          <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+            <Link
+              to="/candidate/interviews"
+              className="tvx-button tvx-button--secondary"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '6px 14px',
+                borderRadius: '6px',
+                textDecoration: 'none',
+                fontWeight: 600,
+                fontSize: '0.85rem',
+                color: '#334155',
+                border: '1px solid #cbd5e1',
+                backgroundColor: '#ffffff',
+              }}
+            >
+              <ArrowLeft size={14} /> Back to List
+            </Link>
+            <StatusTag tone={tone(p.status)}>{label(p.status)}</StatusTag>
+          </div>
         }
       />
       {p.status === 'cancelled' && (
@@ -174,17 +242,48 @@ export function CandidateInterviewDetailPage() {
             team releases it.
           </Alert>
         ) : p.rounds.some((r) => r.feedback.length) ? (
-          p.rounds.flatMap((r) =>
-            r.feedback.map((f, i) => (
-              <div key={`${r.id}-${i}`} className="iv-feedback">
-                <strong>{r.name}</strong>
-                {f.weightedScore !== undefined && (
-                  <span>{f.weightedScore}%</span>
-                )}
-                <p>{f.text || 'No written candidate feedback.'}</p>
-              </div>
-            )),
-          )
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginTop: '12px' }}>
+            {p.rounds.flatMap((r) =>
+              r.feedback.map((f, i) => (
+                <div
+                  key={`${r.id}-${i}`}
+                  style={{
+                    padding: '16px',
+                    borderRadius: '8px',
+                    backgroundColor: '#f8fafc',
+                    border: '1px solid #e2e8f0',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '8px',
+                  }}
+                >
+                  <div style={{ display: 'flex', justify: 'space-between', alignItems: 'center' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <CheckCircle2 size={18} style={{ color: '#16a34a' }} />
+                      <strong style={{ fontSize: '1rem', color: '#0f172a' }}>{r.name}</strong>
+                    </div>
+                    {f.weightedScore !== undefined && (
+                      <span
+                        style={{
+                          backgroundColor: '#dcfce7',
+                          color: '#15803d',
+                          fontWeight: 700,
+                          fontSize: '0.875rem',
+                          padding: '4px 10px',
+                          borderRadius: '9999px',
+                        }}
+                      >
+                        {f.weightedScore}% Score
+                      </span>
+                    )}
+                  </div>
+                  <p style={{ margin: 0, fontSize: '0.9rem', color: '#334155', fontStyle: (f as any).candidateVisibleFeedback || f.text ? 'normal' : 'italic' }}>
+                    {(f as any).candidateVisibleFeedback || f.text || 'No written candidate feedback.'}
+                  </p>
+                </div>
+              )),
+            )}
+          </div>
         ) : (
           <EmptyState
             title="No candidate feedback"
@@ -255,26 +354,50 @@ export function CandidateSchedulePage() {
         <div style={{ marginTop: '16px', padding: '16px', backgroundColor: '#eff6ff', borderRadius: '8px', border: '1px solid #bfdbfe' }}>
           <h4 style={{ margin: '0 0 6px 0', color: '#1e3a8a', fontSize: '1rem', fontWeight: 600 }}>🎥 Native Video Interview Room</h4>
           <p style={{ margin: '0 0 12px 0', fontSize: '0.875rem', color: '#1e40af' }}>
-            Click the button below to enter the waiting room or video interview call inside Talvix.
+            {isInterviewJoinable(s)
+              ? 'Click the button below to enter the waiting room or video interview call inside Talvix.'
+              : 'The interview room unlocks 5 minutes prior to the scheduled start time.'}
           </p>
-          <Link
-            to={`/candidate/interviews/schedules/${s.id}/room`}
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '8px',
-              backgroundColor: '#2563eb',
-              color: '#ffffff',
-              padding: '10px 20px',
-              borderRadius: '6px',
-              fontWeight: 600,
-              fontSize: '0.95rem',
-              textDecoration: 'none',
-              boxShadow: '0 2px 4px rgba(37,99,235,0.2)',
-            }}
-          >
-            🎥 Enter Native Interview Room ↗
-          </Link>
+          {isInterviewJoinable(s) ? (
+            <Link
+              to={`/candidate/interviews/schedules/${s.id}/room`}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '8px',
+                backgroundColor: '#2563eb',
+                color: '#ffffff',
+                padding: '10px 20px',
+                borderRadius: '6px',
+                fontWeight: 600,
+                fontSize: '0.95rem',
+                textDecoration: 'none',
+                boxShadow: '0 2px 4px rgba(37,99,235,0.2)',
+              }}
+            >
+              🎥 Enter Native Interview Room ↗
+            </Link>
+          ) : (
+            <button
+              type="button"
+              disabled
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '8px',
+                backgroundColor: '#94a3b8',
+                color: '#ffffff',
+                padding: '10px 20px',
+                borderRadius: '6px',
+                fontWeight: 600,
+                fontSize: '0.95rem',
+                border: 'none',
+                cursor: 'not-allowed',
+              }}
+            >
+              🎥 Room Opens 5m Before Start
+            </button>
+          )}
         </div>
 
         {s.mode === 'phone' && s.phoneNumber && <p>Phone: {s.phoneNumber}</p>}

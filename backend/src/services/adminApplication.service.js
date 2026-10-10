@@ -3,6 +3,8 @@ import { AppError } from '../shared/errors/AppError.js';
 import { changeApplicationStatus } from '../utils/applicationStatus.js';
 import { buildPagination } from '../utils/pagination.js';
 
+import { reserveHiringCapacity, releaseHiringCapacity, syncJobCapacityAndStatus } from './jobCapacity.service.js';
+
 const find = async (id) => { const application = await Application.findById(id); if (!application) throw new AppError('Application not found', 404); return application; };
 export const listAdminApplications = async (query) => {
   const filter = { isArchived: query.archived }; if (query.company) filter.company = query.company; if (query.job) filter.job = query.job; if (query.candidate) filter.candidate = query.candidate; if (query.status) filter.status = query.status;
@@ -11,6 +13,20 @@ export const listAdminApplications = async (query) => {
   return { applications, pagination: buildPagination(query.page, query.limit, total) };
 };
 export const getAdminApplication = find;
-export const overrideApplicationStatus = async (id, adminId, input) => { const application = await find(id); changeApplicationStatus(application, input.status, adminId, input.reason, { adminOverride: true }); await application.save(); return application; };
+export const overrideApplicationStatus = async (id, adminId, input) => {
+  const application = await find(id);
+  const previousStatus = application.status;
+  if (input.status === 'hired' && previousStatus !== 'hired') {
+    await reserveHiringCapacity(application.job);
+  } else if (previousStatus === 'hired' && input.status !== 'hired') {
+    await releaseHiringCapacity(application.job);
+  }
+  changeApplicationStatus(application, input.status, adminId, input.reason, { adminOverride: true });
+  await application.save();
+  if (input.status === 'hired' || previousStatus === 'hired') {
+    await syncJobCapacityAndStatus(application.job, adminId);
+  }
+  return application;
+};
 export const archiveApplication = async (id) => { const application = await find(id); application.isArchived = true; await application.save(); return application; };
 export const deleteApplicationNoteAsAdmin = async (applicationId, noteId) => { const application = await find(applicationId); const note = application.recruiterNotes.id(noteId); if (!note) throw new AppError('Recruiter note not found', 404); note.deleteOne(); await application.save(); };

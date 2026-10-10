@@ -13,6 +13,7 @@ import { FederatedIdentity } from '../models/FederatedIdentity.js';
 import { createCandidateProfileForUser } from './candidate.service.js';
 import { createRecruiterProfileForUser } from './recruiter.service.js';
 import { publishOptionalDomainEvent } from './domainEvent.service.js';
+import { sendVerificationEmail } from './emailVerification.service.js';
 import { AppError } from '../shared/errors/AppError.js';
 import { env } from '../config/env.js';
 import { generateUniqueSlug } from '../utils/slug.js';
@@ -105,13 +106,21 @@ export const registerUser = async (input) => {
   try {
     const user = await createUserAndRoleProfile(input);
     const tokens = await createSession(user);
+    if (user.role === USER_ROLES.RECRUITER) {
+      try {
+        await sendVerificationEmail(user._id);
+      } catch {
+        // Verification email is non-blocking on registration failure
+      }
+    }
     try {
+      const userIdStr = String(user._id || user.id);
       await publishOptionalDomainEvent({
         type: DOMAIN_EVENTS.ACCOUNT_REGISTERED,
-        recipientIds: [user.id],
-        deduplicationKey: `account.registered:${user.id}`,
+        recipientIds: [userIdStr],
+        deduplicationKey: `account.registered:${userIdStr}`,
         payload: {
-          userId: user.id,
+          userId: userIdStr,
           actionUrl: user.role === USER_ROLES.CANDIDATE ? '/candidate/profile' : '/recruiter/profile',
           actionLabel: 'Complete profile',
         },

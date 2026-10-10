@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from 'react';
-import { Award, FileText, Eye, Download, CheckCircle2, Clock, Sparkles, Users, Search, X } from 'lucide-react';
+import { Award, FileText, Eye, Download, CheckCircle2, Clock, Sparkles, Users, Search, X, UploadCloud, ChevronLeft, Briefcase, Calendar, DollarSign, MapPin, ShieldCheck, ArrowRight } from 'lucide-react';
 import {
   Link as RouterLink,
   NavLink as RouterNavLink,
@@ -247,65 +247,96 @@ function PageControls({
 }
 function OfferTerms({ offer }: { offer: Offer }) {
   return (
-    <div className="od-terms">
-      <dl>
-        <div>
-          <dt>Role</dt>
-          <dd>{offer.title}</dd>
+    <div className="space-y-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="bg-slate-50/70 border border-slate-200/90 rounded-2xl p-4 space-y-1">
+          <div className="flex items-center gap-2 text-xs font-semibold text-slate-400 uppercase tracking-wider">
+            <Briefcase className="w-3.5 h-3.5 text-blue-600" />
+            <span>Role / Title</span>
+          </div>
+          <div className="text-base font-bold text-slate-900 truncate">{offer.title}</div>
         </div>
-        <div>
-          <dt>Employment</dt>
-          <dd>{offer.employmentType ?? 'Not provided'}</dd>
+
+        <div className="bg-slate-50/70 border border-slate-200/90 rounded-2xl p-4 space-y-1">
+          <div className="flex items-center gap-2 text-xs font-semibold text-slate-400 uppercase tracking-wider">
+            <DollarSign className="w-3.5 h-3.5 text-emerald-600" />
+            <span>Compensation</span>
+          </div>
+          <div className="text-base font-bold text-emerald-700">{formatMoney(offer)}</div>
         </div>
-        <div>
-          <dt>Work mode</dt>
-          <dd>{offer.workMode ?? 'Not provided'}</dd>
+
+        <div className="bg-slate-50/70 border border-slate-200/90 rounded-2xl p-4 space-y-1">
+          <div className="flex items-center gap-2 text-xs font-semibold text-slate-400 uppercase tracking-wider">
+            <Clock className="w-3.5 h-3.5 text-indigo-600" />
+            <span>Employment Type</span>
+          </div>
+          <div className="text-base font-bold text-slate-900 capitalize">{offer.employmentType ?? 'Not provided'}</div>
         </div>
-        <div>
-          <dt>Joining date</dt>
-          <dd>{date(offer.joiningDate)}</dd>
+
+        <div className="bg-slate-50/70 border border-slate-200/90 rounded-2xl p-4 space-y-1">
+          <div className="flex items-center gap-2 text-xs font-semibold text-slate-400 uppercase tracking-wider">
+            <MapPin className="w-3.5 h-3.5 text-amber-600" />
+            <span>Work Mode</span>
+          </div>
+          <div className="text-base font-bold text-slate-900 capitalize">{offer.workMode ?? 'Not provided'}</div>
         </div>
-        <div>
-          <dt>Compensation</dt>
-          <dd>{formatMoney(offer)}</dd>
+
+        <div className="bg-slate-50/70 border border-slate-200/90 rounded-2xl p-4 space-y-1">
+          <div className="flex items-center gap-2 text-xs font-semibold text-slate-400 uppercase tracking-wider">
+            <Calendar className="w-3.5 h-3.5 text-blue-600" />
+            <span>Target Joining Date</span>
+          </div>
+          <div className="text-base font-bold text-slate-900">{date(offer.joiningDate)}</div>
         </div>
-        <div>
-          <dt>Valid until</dt>
-          <dd>{date(offer.expiresAt)}</dd>
+
+        <div className="bg-slate-50/70 border border-slate-200/90 rounded-2xl p-4 space-y-1">
+          <div className="flex items-center gap-2 text-xs font-semibold text-slate-400 uppercase tracking-wider">
+            <Clock className="w-3.5 h-3.5 text-rose-500" />
+            <span>Offer Valid Until</span>
+          </div>
+          <div className="text-base font-bold text-slate-900">{date(offer.expiresAt)}</div>
         </div>
-      </dl>
+      </div>
+
       {offer.benefits.length > 0 && (
-        <section>
-          <h3>Benefits</h3>
-          <ul>
+        <div className="bg-white border border-slate-200/90 rounded-2xl p-5 space-y-3">
+          <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+            <Sparkles className="w-4 h-4 text-amber-500" /> Key Benefits & Perks
+          </h3>
+          <ul className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs font-medium text-slate-700">
             {offer.benefits.map((x) => (
-              <li key={x}>{x}</li>
+              <li key={x} className="flex items-center gap-2 bg-slate-50 p-2.5 rounded-xl border border-slate-100">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                <span>{x}</span>
+              </li>
             ))}
           </ul>
-        </section>
+        </div>
       )}
+
       {offer.terms.length > 0 && (
-        <section>
-          <h3>Terms</h3>
-          <ul>
+        <div className="bg-white border border-slate-200/90 rounded-2xl p-5 space-y-3">
+          <h3 className="text-sm font-bold text-slate-900">Standard Terms</h3>
+          <ul className="space-y-1.5 text-xs text-slate-600 list-disc list-inside">
             {offer.terms.map((x) => (
               <li key={x}>{x}</li>
             ))}
           </ul>
-        </section>
+        </div>
       )}
+
       {offer.clauses.length > 0 && (
-        <section>
-          <h3>Clauses</h3>
+        <div className="bg-white border border-slate-200/90 rounded-2xl p-5 space-y-4">
+          <h3 className="text-sm font-bold text-slate-900">Custom Offer Clauses</h3>
           {[...offer.clauses]
             .sort((a, b) => a.order - b.order)
             .map((x) => (
-              <article key={`${x.order}-${x.title}`}>
-                <h4>{x.title}</h4>
-                <p>{x.content}</p>
+              <article key={`${x.order}-${x.title}`} className="p-3 bg-slate-50 rounded-xl border border-slate-100 space-y-1">
+                <h4 className="text-xs font-bold text-slate-800">{x.title}</h4>
+                <p className="text-xs text-slate-600 leading-relaxed">{x.content}</p>
               </article>
             ))}
-        </section>
+        </div>
       )}
     </div>
   );
@@ -1038,17 +1069,32 @@ export function ApprovalQueuePage() {
       ) : q.isError ? (
         <ErrorState detail={errorText(q.error)} />
       ) : q.data?.length ? (
-        <Card>
-          {q.data
-            .filter((o) => o.status === 'pending-approval')
-            .map((o) => (
-              <OfferRow
-                key={o.id}
-                offer={o}
-                to={`/org/offers/approvals/${o.id}`}
-              />
-            ))}
-        </Card>
+        <div className="job-table-card border border-slate-200 rounded-2xl bg-white overflow-hidden shadow-xs">
+          <div className="table-responsive">
+            <table className="job-modern-table" aria-label="Offers pending approval table">
+              <thead>
+                <tr>
+                  <th>OFFER TITLE & CANDIDATE</th>
+                  <th>COMPENSATION</th>
+                  <th>REVISION</th>
+                  <th>STATUS</th>
+                  <th>ACTIONS</th>
+                </tr>
+              </thead>
+              <tbody>
+                {q.data
+                  .filter((o) => o.status === 'pending-approval')
+                  .map((o) => (
+                    <OfferRow
+                      key={o.id}
+                      offer={o}
+                      to={`/org/offers/approvals/${o.id}`}
+                    />
+                  ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
       ) : (
         <EmptyState
           title="Approval queue is clear"
@@ -1064,10 +1110,14 @@ export function ApprovalQueuePage() {
 export function ApprovalDetailPage() {
   const { offerId = '' } = useParams(),
     navigate = useNavigate(),
+    { recruiter } = useAuth(),
     q = useApproval(offerId),
     m = useOfferMutation(),
+    canViewDocs = Boolean(recruiter?.permissions.includes('documents.view')),
+    docs = useOfferDocuments(offerId, true, canViewDocs),
     [reason, setReason] = useState('');
-  if (q.isLoading) return <LoadingState />;
+
+  if (q.isLoading) return <LoadingState label="Loading approval request" />;
   if (!q.data) return <ErrorState detail={errorText(q.error)} />;
   if (q.data.status !== 'pending-approval')
     return (
@@ -1076,58 +1126,124 @@ export function ApprovalDetailPage() {
         description="Only offers currently pending approval can be decided."
       />
     );
+
+  const offer = q.data;
+
   return (
-    <main>
+    <main className="space-y-6 max-w-5xl mx-auto pb-12">
+      <div className="flex items-center gap-2 text-sm text-slate-500">
+        <RouterLink to="/org/offers/approvals" className="flex items-center gap-1 hover:text-slate-900 transition-colors">
+          <ChevronLeft className="w-4 h-4" /> Offer Approvals
+        </RouterLink>
+        <span>/</span>
+        <span className="font-semibold text-slate-800">{offer.candidateName}</span>
+      </div>
+
       <PageHeader
-        title="Offer approval"
-        description={`${q.data.candidateName} · ${q.data.title}`}
+        title={`Approve Offer: ${offer.candidateName}`}
+        eyebrow={`Offer #${offer.offerNumber ?? ''} · Revision ${offer.revisionNumber ?? 1}`}
+        description={`Position: ${offer.title}`}
+        metadata={<StatusTag tone="warning">Pending Approval</StatusTag>}
+        secondaryActions={
+          <RouterLink
+            to={`/org/offers/${offerId}`}
+            className="inline-flex items-center justify-center px-4 py-2 text-sm font-semibold rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 shadow-xs"
+          >
+            View Full Offer Details ↗
+          </RouterLink>
+        }
       />
-      <Card>
-        <OfferTerms offer={q.data} />
-        <Alert tone="info" title="Private review">
-          <p>
-            Approval comments stay inside the recruiter approval workflow and
-            are never shown in candidate views.
-          </p>
-        </Alert>
-        <TextArea
-          label="Rejection reason"
-          value={reason}
-          onChange={(e) => setReason(e.target.value)}
-        />
-        <FormActions>
-          <ConfirmDialog
-            title="Approve offer?"
-            description="The offer becomes eligible to send."
-            confirmLabel="Approve"
-            onConfirm={async () => {
-              await m.mutateAsync({
-                path: `/offers/approvals/${offerId}/approve`,
-                body: {},
-              });
-              navigate(`/org/offers/${offerId}`);
-            }}
-            trigger={<Button>Approve</Button>}
+
+      <Card heading="Offer Terms & Details" headingLevel={2}>
+        <OfferTerms offer={offer} />
+      </Card>
+
+      {canViewDocs && docs.data && docs.data.length > 0 && (
+        <Card heading="Offer Documents & Attachments" headingLevel={2} description="Review attached offer letters or supporting files before decision.">
+          <div className="space-y-2">
+            {docs.data.map((d) => (
+              <div key={d.id} className="p-3 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between gap-3">
+                <div className="flex items-center gap-3 min-w-0">
+                  <FileText className="w-5 h-5 text-blue-600 shrink-0" />
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-slate-900 truncate">{d.displayName}</p>
+                    <p className="text-xs text-slate-500">{formatBytes(d.sizeBytes)} · {d.access}</p>
+                  </div>
+                </div>
+                <Button
+                  variant="secondary"
+                  onClick={() => void safeDownload(`/documents/manage/offers/${offerId}/${d.id}/download`)}
+                  className="!rounded-lg !px-3 !py-1.5 text-xs font-semibold"
+                >
+                  Download
+                </Button>
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
+
+      <Card heading="Review & Decision" headingLevel={2} description="Submit your approval or return this draft to recruiter with feedback.">
+        <div className="space-y-4">
+          <div className="p-4 rounded-xl bg-blue-50/70 border border-blue-200 text-xs text-blue-800 space-y-1">
+            <div className="flex items-center gap-2 font-bold text-blue-900">
+              <ShieldCheck className="w-4 h-4 text-blue-600" /> Confidential Recruiter Approval
+            </div>
+            <p>
+              Approval comments stay inside the recruiter approval workflow and are never shown to candidates.
+            </p>
+          </div>
+
+          <TextArea
+            label="Reviewer Notes / Feedback"
+            placeholder="Optional comments for approval. Required if rejecting to explain needed changes..."
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
           />
-          <ConfirmDialog
-            title="Reject offer?"
-            description="The draft returns for changes."
-            confirmLabel="Reject"
-            variant="destructive"
-            onConfirm={async () => {
-              await m.mutateAsync({
-                path: `/offers/approvals/${offerId}/reject`,
-                body: { reason },
-              });
-              navigate(`/org/offers/${offerId}`);
-            }}
-            trigger={
-              <Button variant="danger" disabled={reason.trim().length < 1}>
-                Reject
-              </Button>
-            }
-          />
-        </FormActions>
+
+          <div className="flex items-center justify-end gap-3 pt-2 border-t border-slate-100">
+            <ConfirmDialog
+              title="Reject offer draft?"
+              description="The offer draft will be returned to the recruiter with your rejection notes."
+              confirmLabel="Reject Offer"
+              variant="destructive"
+              onConfirm={async () => {
+                await m.mutateAsync({
+                  path: `/offers/approvals/${offerId}/reject`,
+                  body: { reason },
+                });
+                navigate(`/org/offers/${offerId}`);
+              }}
+              trigger={
+                <Button
+                  variant="danger"
+                  disabled={reason.trim().length < 1}
+                  className="!rounded-xl !px-5 !py-2.5 font-bold"
+                >
+                  Reject Offer
+                </Button>
+              }
+            />
+
+            <ConfirmDialog
+              title="Approve offer?"
+              description="The offer will be approved and become eligible to send to the candidate."
+              confirmLabel="Approve Offer"
+              onConfirm={async () => {
+                await m.mutateAsync({
+                  path: `/offers/approvals/${offerId}/approve`,
+                  body: { notes: reason },
+                });
+                navigate(`/org/offers/${offerId}`);
+              }}
+              trigger={
+                <Button className="!rounded-xl !px-6 !py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold inline-flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4" /> Approve Offer
+                </Button>
+              }
+            />
+          </div>
+        </div>
       </Card>
     </main>
   );
@@ -1546,10 +1662,81 @@ export function TemplateDetailPage() {
     </main>
   );
 }
+function CandidateOfferCard({ offer }: { offer: Offer }) {
+  const isAccepted = offer.status === 'accepted';
+  const isPending = ['sent', 'viewed'].includes(offer.status);
+  const isNegotiation = offer.status === 'negotiation-requested';
+  const codeBadge = `#OFFER-${offer.id.slice(-6).toUpperCase()}`;
+
+  return (
+    <div className="bg-white border border-slate-200/90 rounded-2xl p-5 shadow-2xs hover:shadow-md hover:border-slate-300 transition-all flex flex-col justify-between space-y-4 group relative overflow-hidden">
+      {/* Top Visual Accent Strip */}
+      <div
+        className={`absolute top-0 left-0 right-0 h-1.5 ${
+          isAccepted
+            ? 'bg-emerald-500'
+            : isNegotiation
+            ? 'bg-amber-500'
+            : isPending
+            ? 'bg-indigo-600'
+            : 'bg-slate-300'
+        }`}
+      />
+
+      <div className="space-y-3 pt-1">
+        {/* Header: Offer ID Badge & Status Tag */}
+        <div className="flex items-center justify-between gap-2">
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-mono font-bold bg-slate-100 text-slate-700 border border-slate-200/80">
+            {codeBadge}
+          </span>
+          <StatusTag tone={offerTone(offer.status)}>
+            {offer.status.replaceAll('-', ' ')}
+          </StatusTag>
+        </div>
+
+        {/* Job Title */}
+        <div>
+          <h3 className="text-lg font-bold text-slate-900 group-hover:text-indigo-600 transition-colors line-clamp-1">
+            {offer.title}
+          </h3>
+          <p className="text-xs text-slate-500 font-medium">Revision {offer.revisionNumber ?? 1}</p>
+        </div>
+
+        {/* Key Offer Details Pills */}
+        <div className="grid grid-cols-2 gap-2 pt-1 text-xs">
+          <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-100 space-y-0.5">
+            <span className="text-[10px] uppercase tracking-wider font-semibold text-slate-400 block">Compensation</span>
+            <span className="font-bold text-emerald-700">{formatMoney(offer)}</span>
+          </div>
+
+          <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-100 space-y-0.5">
+            <span className="text-[10px] uppercase tracking-wider font-semibold text-slate-400 block">Work Mode</span>
+            <span className="font-bold text-slate-800 capitalize">{offer.workMode ?? 'Not specified'}</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Footer: Date & Action Link */}
+      <div className="flex items-center justify-between pt-3 border-t border-slate-100 gap-2">
+        <span className="text-xs text-slate-500 font-medium flex items-center gap-1">
+          <Clock className="w-3.5 h-3.5 text-slate-400" />
+          {offer.expiresAt ? `Expires ${date(offer.expiresAt)}` : 'Valid offer'}
+        </span>
+        <RouterLink
+          to={`/candidate/offers/${offer.id}`}
+          className="inline-flex items-center gap-1 px-4 py-2 text-xs font-bold rounded-xl bg-slate-900 hover:bg-slate-800 text-white transition-all shadow-xs shrink-0"
+        >
+          View Details <ArrowRight className="w-3.5 h-3.5" />
+        </RouterLink>
+      </div>
+    </div>
+  );
+}
+
 export function CandidateOffersPage() {
   const q = useCandidateOffers();
   return (
-    <div className="candidate-page candidate-domain-container">
+    <div className="candidate-page candidate-domain-container space-y-6">
       <div className="candidate-hero-banner-mindease">
         <div className="banner-left-content">
           <div className="banner-icon-badge theme-yellow">
@@ -1566,11 +1753,11 @@ export function CandidateOffersPage() {
       ) : q.isError ? (
         <ErrorState detail={errorText(q.error)} />
       ) : q.data?.length ? (
-        <Card>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {q.data.map((o) => (
-            <OfferRow key={o.id} offer={o} to={`/candidate/offers/${o.id}`} />
+            <CandidateOfferCard key={o.id} offer={o} />
           ))}
-        </Card>
+        </div>
       ) : (
         <EmptyState
           title="No offers yet"
@@ -1911,10 +2098,11 @@ export function UploadControl({
 }) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
   const [state, setState] = useState<'idle' | 'preparing' | 'uploading' | 'success' | 'error'>('idle');
   const [progress, setProgress] = useState(0);
   const [error, setError] = useState('');
-  const [selectedAccess, setSelectedAccess] = useState(access ?? 'company-private');
+  const [selectedAccess, setSelectedAccess] = useState(access ?? 'candidate-visible');
 
   const computedAccept =
     category === 'resume'
@@ -1927,17 +2115,45 @@ export function UploadControl({
 
   const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0] ?? null;
-    setSelectedFile(file);
-    if (state === 'error' || state === 'success') {
-      setState('idle');
-      setError('');
+    if (file) {
+      setSelectedFile(file);
+      if (state === 'error' || state === 'success') {
+        setState('idle');
+        setError('');
+      }
+    }
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!busy) setIsDragging(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+    if (busy) return;
+    const file = e.dataTransfer.files?.[0] ?? null;
+    if (file) {
+      setSelectedFile(file);
+      if (state === 'error' || state === 'success') {
+        setState('idle');
+        setError('');
+      }
     }
   };
 
   const run = async () => {
     if (!selectedFile) {
-      setError('Please select a file first.');
-      setState('error');
+      fileInputRef.current?.click();
       return;
     }
     if (selectedFile.size === 0) {
@@ -1983,40 +2199,95 @@ export function UploadControl({
   };
 
   return (
-    <div className="od-upload">
-      <div>
-        <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, marginBottom: '4px' }}>
-          Select attachment (PDF, Word, TXT, JPG, PNG, WebP)
-        </label>
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept={computedAccept}
-          disabled={busy}
-          onChange={handleFileChange}
-          style={{ display: 'block', marginBottom: '6px' }}
-        />
-        {selectedFile && (
-          <p style={{ color: '#059669', fontSize: '13px', margin: '2px 0 0 0', fontWeight: 500 }}>
-            ✓ {selectedFile.name} ({formatBytes(selectedFile.size)})
-          </p>
-        )}
-      </div>
+    <div className="od-upload space-y-4 p-4 rounded-xl border border-slate-200 bg-slate-50/50 mt-4">
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept={computedAccept}
+        disabled={busy}
+        onChange={handleFileChange}
+        style={{ display: 'none' }}
+      />
+
+      {!selectedFile ? (
+        <div
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+          onDrop={handleDrop}
+          onClick={() => fileInputRef.current?.click()}
+          className={`border-2 border-dashed rounded-xl p-6 text-center cursor-pointer transition-all ${
+            isDragging
+              ? 'border-blue-500 bg-blue-50/80 shadow-inner'
+              : 'border-slate-300 bg-white hover:border-blue-400 hover:bg-slate-50/80'
+          }`}
+        >
+          <div className="flex flex-col items-center justify-center space-y-2">
+            <div className="w-10 h-10 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center">
+              <UploadCloud className="w-5 h-5" />
+            </div>
+            <div className="space-y-1">
+              <p className="text-sm font-semibold text-slate-800">
+                Click to browse or drag & drop offer letter
+              </p>
+              <p className="text-xs text-slate-500">
+                Supports PDF, Word (.docx), TXT, JPG, PNG, WebP
+              </p>
+            </div>
+            <button
+              type="button"
+              className="mt-2 px-3 py-1.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-bold transition-colors cursor-pointer"
+            >
+              Choose File
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div className="bg-white border border-slate-200 rounded-xl p-3 flex items-center justify-between gap-3 shadow-2xs">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-9 h-9 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
+              <FileText className="w-5 h-5" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-slate-900 truncate">
+                {selectedFile.name}
+              </p>
+              <p className="text-xs text-slate-500 font-medium">
+                {formatBytes(selectedFile.size)}
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              setSelectedFile(null);
+              if (fileInputRef.current) fileInputRef.current.value = '';
+            }}
+            disabled={busy}
+            className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+            title="Remove file"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
 
       {path.includes('/manage/offers/') && !replaceId && (
-        <Select
-          label="Candidate access"
-          value={selectedAccess}
-          options={[
-            { value: 'company-private', label: 'Company private' },
-            { value: 'candidate-visible', label: 'Candidate visible' },
-          ]}
-          onChange={(e) => setSelectedAccess(e.target.value)}
-        />
+        <div className="space-y-1">
+          <label className="text-xs font-bold text-slate-700 block">Candidate Visibility Access</label>
+          <Select
+            value={selectedAccess}
+            options={[
+              { value: 'candidate-visible', label: 'Candidate visible (Candidate can view & download)' },
+              { value: 'company-private', label: 'Company private (Internal recruiter access only)' },
+            ]}
+            onChange={(e) => setSelectedAccess(e.target.value)}
+          />
+        </div>
       )}
 
       {state === 'uploading' && <Progress value={progress} label="Upload progress" />}
-      {state === 'preparing' && <p role="status">Preparing upload…</p>}
+      {state === 'preparing' && <p role="status" className="text-xs text-slate-500 font-medium">Preparing upload session…</p>}
       {state === 'success' && (
         <Alert tone="success" title="Upload complete">
           <p>Document uploaded and is being processed.</p>
@@ -2028,8 +2299,22 @@ export function UploadControl({
         </Alert>
       )}
 
-      <Button onClick={() => void run()} loading={busy} disabled={busy || !selectedFile}>
-        {replaceId ? 'Replace' : 'Upload'}
+      <Button
+        onClick={() => void run()}
+        loading={busy}
+        className={`w-full !rounded-xl !py-2.5 font-bold ${
+          selectedFile
+            ? '!bg-blue-600 hover:!bg-blue-700 !text-white'
+            : '!bg-slate-800 hover:!bg-slate-900 !text-white'
+        }`}
+      >
+        {busy
+          ? 'Uploading...'
+          : !selectedFile
+          ? 'Select & Upload Offer File'
+          : replaceId
+          ? 'Replace Document'
+          : 'Upload Offer Attachment'}
       </Button>
     </div>
   );

@@ -7,7 +7,7 @@ import {
   useParams,
   useSearchParams,
 } from 'react-router-dom';
-import { Check, X, ExternalLink, Download, FileText, Globe, CheckCircle2, Clock, Sparkles, Users } from 'lucide-react';
+import { Check, X, ExternalLink, Download, FileText, Globe, CheckCircle2, Clock, Sparkles, Users, MapPin, Briefcase, GraduationCap, Award, Shield, ChevronLeft, Building } from 'lucide-react';
 import { safeDownload, getDocumentUrl } from '../offers-documents/api';
 import { DocumentPreviewDialog } from '../offers-documents/DocumentPreviewDialog';
 import {
@@ -2355,7 +2355,9 @@ export function ApplicationDetailPage() {
                       <div>
                         <small style={{ color: 'var(--color-text-muted)', display: 'block' }}>Overall Score</small>
                         <strong style={{ fontSize: '1.2rem', display: 'block', margin: '4px 0' }}>
-                          {activeAssignment.bestPercentage}%
+                          {typeof activeAssignment.bestPercentage === 'number' && !isNaN(activeAssignment.bestPercentage)
+                            ? `${Math.round(activeAssignment.bestPercentage * 10) / 10}%`
+                            : 'N/A'}
                         </strong>
                       </div>
                       <div>
@@ -2380,14 +2382,16 @@ export function ApplicationDetailPage() {
                     (typeof activeAssignment.bestAttempt === 'string' ? activeAssignment.bestAttempt : undefined) ||
                     (typeof activeAssignment.latestAttempt === 'string' ? activeAssignment.latestAttempt : undefined);
 
+                  const fmtNum = (n?: number | null) => typeof n === 'number' && !isNaN(n) ? Math.round(n * 10) / 10 : 0;
+
                   return (
                     <div className="p-3 bg-slate-50 border border-slate-200 rounded text-sm space-y-2 mt-2">
                       <h4 className="font-semibold">Attempt Score Details</h4>
                       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '8px' }}>
-                        <div><strong>MCQ Score:</strong> {(targetAttempt as any)?.evaluation?.objectiveScore ?? 0} marks</div>
-                        <div><strong>Coding Score:</strong> {(targetAttempt as any)?.evaluation?.codingScore ?? 0} marks</div>
-                        <div><strong>Subjective Score:</strong> {(targetAttempt as any)?.evaluation?.subjectiveScore ?? 0} marks</div>
-                        <div><strong>Total Score:</strong> {(targetAttempt as any)?.evaluation?.totalScore ?? (activeAssignment.bestScore ?? 0)} / {activeAssignment.totalMarks ?? 100} marks</div>
+                        <div><strong>MCQ Score:</strong> {fmtNum((targetAttempt as any)?.evaluation?.objectiveScore)} marks</div>
+                        <div><strong>Coding Score:</strong> {fmtNum((targetAttempt as any)?.evaluation?.codingScore)} marks</div>
+                        <div><strong>Subjective Score:</strong> {fmtNum((targetAttempt as any)?.evaluation?.subjectiveScore)} marks</div>
+                        <div><strong>Total Score:</strong> {fmtNum((targetAttempt as any)?.evaluation?.totalScore ?? activeAssignment.bestScore)} / {activeAssignment.totalMarks ?? 100} marks</div>
                       </div>
                       <div className="pt-2 flex gap-4">
                         <RouterLink
@@ -3396,22 +3400,130 @@ export function CandidatesPage() {
     </div>
   );
 }
+function CandidateTimelineSection({
+  title,
+  icon: Icon,
+  items,
+}: {
+  title: string;
+  icon: React.ComponentType<{ size?: number; className?: string }>;
+  items: EvidenceItem[];
+}) {
+  if (!items.length) return null;
+  return (
+    <Card heading={title} headingLevel={2}>
+      <div className="candidate-timeline-list">
+        {items.map((i, n) => (
+          <div className="candidate-timeline-item" key={`${i.title}-${n}`}>
+            <div className="candidate-timeline-card">
+              <div className="candidate-timeline-header">
+                <div>
+                  <h3 className="candidate-timeline-title">{i.title}</h3>
+                  {i.subtitle && (
+                    <div className="candidate-timeline-subtitle">{i.subtitle}</div>
+                  )}
+                </div>
+                {i.meta && <span className="candidate-timeline-meta">{i.meta}</span>}
+              </div>
+              {i.detail && <p className="candidate-timeline-detail">{i.detail}</p>}
+            </div>
+          </div>
+        ))}
+      </div>
+    </Card>
+  );
+}
+
 function CandidateSections({ c }: { c: CandidateDetail }) {
   return (
     <>
-      <EvidenceSection title="Experience" items={c.experience} />
-      <EvidenceSection title="Education" items={c.education} />
-      <EvidenceSection title="Projects" items={c.projects} />
-      <EvidenceSection title="Certifications" items={c.certifications} />
+      <CandidateTimelineSection
+        title="Professional Experience"
+        icon={Briefcase}
+        items={c.experience}
+      />
+      <CandidateTimelineSection
+        title="Education History"
+        icon={GraduationCap}
+        items={c.education}
+      />
+      {c.projects.length > 0 && (
+        <Card heading="Key Projects" headingLevel={2}>
+          <div style={{ display: 'grid', gap: '12px' }}>
+            {c.projects.map((p, n) => (
+              <div
+                key={`${p.title}-${n}`}
+                style={{
+                  padding: '14px 16px',
+                  background: '#f8fafc',
+                  border: '1px solid #e2e8f0',
+                  borderRadius: '12px',
+                }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '12px' }}>
+                  <strong style={{ fontSize: '0.95rem', color: '#0f172a' }}>{p.title}</strong>
+                  {p.meta && (
+                    <span style={{ fontSize: '0.75rem', background: '#e0e7ff', color: '#4338ca', padding: '2px 8px', borderRadius: '6px', fontWeight: 600 }}>
+                      {p.meta}
+                    </span>
+                  )}
+                </div>
+                {p.detail && (
+                  <p style={{ fontSize: '0.85rem', color: '#475569', marginTop: '6px', margin: '6px 0 0 0', lineHeight: 1.45 }}>
+                    {p.detail}
+                  </p>
+                )}
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
+      {c.certifications.length > 0 && (
+        <Card heading="Certifications & Credentials" headingLevel={2}>
+          <div style={{ display: 'grid', gap: '12px' }}>
+            {c.certifications.map((crt, n) => (
+              <div
+                key={`${crt.title}-${n}`}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: '12px 16px',
+                  background: '#ffffff',
+                  border: '1px solid #e2e8f0',
+                  borderRadius: '12px',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <div style={{ width: '36px', height: '36px', borderRadius: '10px', background: '#fef3c7', color: '#d97706', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <Award size={20} />
+                  </div>
+                  <div>
+                    <strong style={{ display: 'block', fontSize: '0.9rem', color: '#0f172a' }}>{crt.title}</strong>
+                    {crt.subtitle && <span style={{ fontSize: '0.8rem', color: '#64748b' }}>{crt.subtitle}</span>}
+                  </div>
+                </div>
+                {crt.meta && (
+                  <span style={{ fontSize: '0.75rem', color: '#64748b', background: '#f1f5f9', padding: '3px 8px', borderRadius: '6px' }}>
+                    {crt.meta}
+                  </span>
+                )}
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
     </>
   );
 }
+
 export function CandidateDetailPage() {
   const { candidateId = '' } = useParams();
   const { recruiter } = useAuth();
   const canView = Boolean(recruiter?.permissions.includes('applications.view'));
   const q = useCandidate(candidateId, Boolean(candidateId) && canView);
   const navigate = useNavigate();
+
   if (!canView)
     return (
       <PermissionState description="The applications.view permission is required for candidate profiles." />
@@ -3435,82 +3547,179 @@ export function CandidateDetailPage() {
     );
   const c = q.data;
   if (!c) return null;
+
+  const shortCode = `#CND-${c.id.slice(-6).toUpperCase()}`;
+  const initials = c.name
+    .split(' ')
+    .filter(Boolean)
+    .map((n) => n[0])
+    .join('')
+    .slice(0, 2)
+    .toUpperCase() || 'CN';
+
   return (
     <div className="ats-page">
-      <PageHeader
-        title={c.name}
-        eyebrow="Recruiter-visible profile"
-        description={c.headline}
-        secondaryActions={
-          <Button variant="secondary" onClick={() => navigate(-1)}>
-            Back to candidates
-          </Button>
-        }
-      />
+      <div className="candidate-hero-card">
+        <div className="candidate-hero-header">
+          <div className="candidate-hero-identity">
+            <div className="candidate-avatar-xl">{initials}</div>
+            <div className="candidate-hero-info">
+              <div className="candidate-name-row">
+                <h1 className="candidate-hero-name">{c.name}</h1>
+                <span className="candidate-code-tag">{shortCode}</span>
+                <span
+                  className={`job-status-pill job-status-pill--${
+                    c.availability === 'immediately'
+                      ? 'published'
+                      : c.availability === 'notice-period'
+                      ? 'paused'
+                      : 'closed'
+                  }`}
+                >
+                  <span className="job-status-dot" />
+                  {labelStatus(c.availability)}
+                </span>
+              </div>
+              <p className="candidate-hero-headline">{c.headline || 'Candidate Profile'}</p>
+              <div className="candidate-hero-meta">
+                {c.location && (
+                  <span className="candidate-hero-meta-item">
+                    <MapPin size={15} /> {c.location}
+                  </span>
+                )}
+                {c.noticeDays !== undefined && (
+                  <span className="candidate-hero-meta-item">
+                    <Clock size={15} /> Notice period: {c.noticeDays} days
+                  </span>
+                )}
+              </div>
+            </div>
+          </div>
+          <div>
+            <Button
+              variant="secondary"
+              leadingIcon={<ChevronLeft size={16} />}
+              onClick={() => navigate(-1)}
+            >
+              Back to candidates
+            </Button>
+          </div>
+        </div>
+
+        <div className="candidate-stats-grid">
+          <div className="candidate-stat-box">
+            <span className="candidate-stat-label">Availability</span>
+            <span className="candidate-stat-val" style={{ color: '#059669', textTransform: 'capitalize' }}>
+              {labelStatus(c.availability)}
+            </span>
+          </div>
+          <div className="candidate-stat-box">
+            <span className="candidate-stat-label">Skills Listed</span>
+            <span className="candidate-stat-val">{c.skillDetails.length || c.skills.length}</span>
+          </div>
+          <div className="candidate-stat-box">
+            <span className="candidate-stat-label">Experience</span>
+            <span className="candidate-stat-val">{c.experience.length} roles</span>
+          </div>
+          <div className="candidate-stat-box">
+            <span className="candidate-stat-label">Profile Strength</span>
+            <span className="candidate-stat-val" style={{ color: c.completion >= 80 ? '#16a34a' : '#d97706' }}>
+              {c.completion}%
+            </span>
+          </div>
+        </div>
+      </div>
+
       <div className="ats-detail-grid">
         <div className="ats-detail-primary">
-          <Card heading="Candidate evidence" headingLevel={2}>
-            <p>{c.bio || 'No profile summary provided.'}</p>
-            <DescriptionList
-              items={[
-                { term: 'Location', description: c.location },
-                {
-                  term: 'Availability',
-                  description: labelStatus(c.availability),
-                },
-                {
-                  term: 'Notice period',
-                  description:
-                    c.noticeDays === undefined
-                      ? 'Not provided'
-                      : `${c.noticeDays} days`,
-                },
-                {
-                  term: 'Preferred roles',
-                  description: c.preferredRoles.join(', ') || 'Not provided',
-                },
-                {
-                  term: 'Preferred job types',
-                  description:
-                    c.jobTypes.map(labelStatus).join(', ') || 'Not provided',
-                },
-                {
-                  term: 'Preferred locations',
-                  description:
-                    c.preferredLocations.join(', ') || 'Not provided',
-                },
-              ]}
-            />
+          <Card heading="Executive Summary & Preferences" headingLevel={2}>
+            <p style={{ fontSize: '0.95rem', color: '#334155', lineHeight: 1.6, marginTop: 0 }}>
+              {c.bio || 'No profile summary provided.'}
+            </p>
+            <div style={{ marginTop: '16px', paddingTop: '16px', borderTop: '1px solid #f1f5f9' }}>
+              <DescriptionList
+                items={[
+                  { term: 'Current Location', description: c.location || 'Not specified' },
+                  {
+                    term: 'Availability Status',
+                    description: labelStatus(c.availability),
+                  },
+                  {
+                    term: 'Notice Period',
+                    description:
+                      c.noticeDays === undefined
+                        ? 'Not specified'
+                        : `${c.noticeDays} days`,
+                  },
+                  {
+                    term: 'Preferred Roles',
+                    description: c.preferredRoles.join(', ') || 'Flexible',
+                  },
+                  {
+                    term: 'Job Types Preferred',
+                    description:
+                      c.jobTypes.map(labelStatus).join(', ') || 'Flexible',
+                  },
+                  {
+                    term: 'Preferred Locations',
+                    description:
+                      c.preferredLocations.join(', ') || 'Flexible',
+                  },
+                ]}
+              />
+            </div>
           </Card>
-          <Card heading="Skills" headingLevel={2}>
+
+          <Card heading="Skills & Proficiency Matrix" headingLevel={2}>
             {c.skillDetails.length ? (
-              <ul className="ats-skill-list">
+              <div className="candidate-skills-flex">
                 {c.skillDetails.map((s) => (
-                  <li key={s.name}>
-                    <strong>{s.name}</strong>
-                    <span>
-                      {labelStatus(s.proficiency)} · {s.years} years
+                  <div className="candidate-skill-badge" key={s.name}>
+                    <span className="candidate-skill-badge-name">{s.name}</span>
+                    <span className="candidate-skill-badge-meta">
+                      {labelStatus(s.proficiency)} · {s.years} yrs
                     </span>
-                  </li>
+                  </div>
                 ))}
-              </ul>
+              </div>
+            ) : c.skills.length ? (
+              <div className="candidate-skills-flex">
+                {c.skills.map((s) => (
+                  <div className="candidate-skill-badge" key={s}>
+                    <span className="candidate-skill-badge-name">{s}</span>
+                  </div>
+                ))}
+              </div>
             ) : (
-              <p>No skills listed.</p>
+              <p style={{ color: '#64748b', margin: 0 }}>No skills listed on profile.</p>
             )}
           </Card>
+
           <CandidateSections c={c} />
         </div>
-        <aside>
-          <Card heading="Profile completeness" headingLevel={2}>
+
+        <aside style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          <Card heading="Profile Completeness" headingLevel={2}>
             <Progress
               value={c.completion}
               label={`${c.completion}% profile complete`}
             />
-            <p>
-              This view intentionally excludes contact details, salary
-              expectations, resumes and social accounts.
+            <p style={{ fontSize: '0.85rem', color: '#64748b', marginTop: '12px', lineHeight: 1.45 }}>
+              Candidates with higher profile completeness scores provide verified evidence across experience, skills, and certifications.
             </p>
           </Card>
+
+          <div className="candidate-privacy-box">
+            <div className="candidate-privacy-icon">
+              <Shield size={20} />
+            </div>
+            <div className="candidate-privacy-text">
+              <h3>Sanitized Candidate View</h3>
+              <p>
+                To maintain candidate privacy & compliance, personal contact details (email, phone, address, salary expectations) are hidden from recruiter pre-screening views.
+              </p>
+            </div>
+          </div>
         </aside>
       </div>
     </div>

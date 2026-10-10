@@ -1,6 +1,11 @@
+import crypto from 'node:crypto';
 import { invokeAIGateway } from './aiProvider.service.js';
 import { parseJSON } from './jsonParser.service.js';
 import { z } from 'zod';
+import { structuredJobIntelligenceSchema } from '../validators/jobIntelligence.validator.js';
+import { jobQualityAnalysisSchema } from '../validators/jobQuality.validator.js';
+import { assessmentBlueprintDataSchema, blueprintSectionSchema } from '../validators/assessmentBlueprint.validator.js';
+import { AppError } from '../shared/errors/AppError.js';
 
 export const generateJobDescription = async (input, secondArg = {}, thirdArg = {}) => {
   let title = '';
@@ -9,6 +14,11 @@ export const generateJobDescription = async (input, secondArg = {}, thirdArg = {
   let employmentType = '';
   let workMode = '';
   let skills = [];
+  let requiredSkills = [];
+  let preferredSkills = [];
+  let responsibilities = [];
+  let educationRequirements = [];
+  let recruiterNotes = '';
   let minimumExperience;
   let maximumExperience;
   let location = '';
@@ -25,6 +35,11 @@ export const generateJobDescription = async (input, secondArg = {}, thirdArg = {
     employmentType = input.employmentType || '';
     workMode = input.workMode || '';
     skills = Array.isArray(input.skills) ? input.skills : [];
+    requiredSkills = Array.isArray(input.requiredSkills) ? input.requiredSkills : (skills.length ? skills : []);
+    preferredSkills = Array.isArray(input.preferredSkills) ? input.preferredSkills : [];
+    responsibilities = Array.isArray(input.responsibilities) ? input.responsibilities : [];
+    educationRequirements = Array.isArray(input.educationRequirements) ? input.educationRequirements : [];
+    recruiterNotes = input.recruiterNotes || input.additionalInstructions || input.notes || '';
     minimumExperience = input.minimumExperience;
     maximumExperience = input.maximumExperience;
     location = input.location || '';
@@ -47,7 +62,12 @@ export const generateJobDescription = async (input, secondArg = {}, thirdArg = {
     employmentType,
     workMode,
     skills: skills.join(', '),
-    experience: minimumExperience !== undefined ? `${minimumExperience}${maximumExperience ? `-${maximumExperience}` : '+'} years` : '',
+    requiredSkills: requiredSkills.join(', '),
+    preferredSkills: preferredSkills.join(', '),
+    responsibilities: responsibilities.join('; '),
+    educationRequirements: educationRequirements.join('; '),
+    recruiterNotes,
+    experience: minimumExperience !== undefined ? `${minimumExperience}${maximumExperience !== undefined ? `-${maximumExperience}` : '+'} years` : '',
     companyName,
     companyIndustry,
     companyAbout,
@@ -197,3 +217,73 @@ export const evaluateAssessmentAttemptWithAI = async (attemptDetails, candidateD
   });
   return parseJSON(resultText, schema);
 };
+
+export const computeJobContentHash = (title, description, extra = '') => {
+  const content = `${(title || '').trim().toLowerCase()}\n${(description || '').trim()}\n${extra}`;
+  return crypto.createHash('sha256').update(content).digest('hex');
+};
+
+export const extractJobIntelligence = async (title, description, context = {}) => {
+  if (!title || typeof title !== 'string' || !title.trim()) {
+    throw new AppError('Job title is required for AI intelligence extraction', 400);
+  }
+  if (!description || typeof description !== 'string' || !description.trim()) {
+    throw new AppError('Job description is required for AI intelligence extraction', 400);
+  }
+
+  const resultText = await invokeAIGateway('extract_job_intelligence', {
+    title: title.trim(),
+    description: description.trim()
+  }, context);
+
+  return parseJSON(resultText, structuredJobIntelligenceSchema);
+};
+
+export const analyzeJobQuality = async (title, description, context = {}) => {
+  if (!title || typeof title !== 'string' || !title.trim()) {
+    throw new AppError('Job title is required for job quality analysis', 400);
+  }
+  if (!description || typeof description !== 'string' || !description.trim()) {
+    throw new AppError('Job description is required for job quality analysis', 400);
+  }
+
+  const resultText = await invokeAIGateway('analyze_job_quality', {
+    title: title.trim(),
+    description: description.trim()
+  }, context);
+
+  return parseJSON(resultText, jobQualityAnalysisSchema);
+};
+
+export const generateAssessmentBlueprint = async (title, description, intelligenceData = null, context = {}) => {
+  if (!title || typeof title !== 'string' || !title.trim()) {
+    throw new AppError('Job title is required for assessment blueprint generation', 400);
+  }
+  if (!description || typeof description !== 'string' || !description.trim()) {
+    throw new AppError('Job description is required for assessment blueprint generation', 400);
+  }
+
+  const intelligenceContext = intelligenceData ? JSON.stringify(intelligenceData) : 'None';
+
+  const resultText = await invokeAIGateway('generate_assessment_blueprint', {
+    title: title.trim(),
+    description: description.trim(),
+    intelligenceContext
+  }, context);
+
+  return parseJSON(resultText, assessmentBlueprintDataSchema);
+};
+
+export const regenerateBlueprintSection = async (title, sectionTitle, skillsEvaluated = [], customInstructions = '', context = {}) => {
+  const resultText = await invokeAIGateway('regenerate_blueprint_section', {
+    title: title || 'Job Role',
+    sectionTitle: sectionTitle || 'Assessment Section',
+    skillsEvaluated: Array.isArray(skillsEvaluated) ? skillsEvaluated.join(', ') : String(skillsEvaluated),
+    customInstructions: customInstructions || 'Focus on practical technical scenarios'
+  }, context);
+
+  return parseJSON(resultText, blueprintSectionSchema);
+};
+
+
+

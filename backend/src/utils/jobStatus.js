@@ -6,7 +6,7 @@ export const JOB_TRANSITIONS = Object.freeze({
   rejected: ['draft', 'published'],
   published: ['paused', 'closed'],
   paused: ['published', 'closed'],
-  closed: ['archived'],
+  closed: ['archived', 'published'],
   archived: [],
 });
 

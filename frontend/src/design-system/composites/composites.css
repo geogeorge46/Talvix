@@ -56,6 +56,9 @@
   gap: var(--space-3);
   flex-wrap: wrap;
 }
+.tvx-page-header {
+  margin-bottom: var(--space-4);
+}
 .tvx-card__header p,
 .tvx-page-header p {
   color: var(--color-text-muted);
@@ -126,12 +129,12 @@
   position: fixed;
   inset: 0;
   background: var(--color-overlay);
-  z-index: var(--z-overlay);
+  z-index: 9998;
   animation: tvx-fade var(--duration-base) var(--ease-enter);
 }
 .tvx-dialog {
   position: fixed;
-  z-index: var(--z-modal);
+  z-index: 9999;
   top: 50%;
   left: 50%;
   translate: -50% -50%;

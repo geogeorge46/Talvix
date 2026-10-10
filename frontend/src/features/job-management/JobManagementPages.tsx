@@ -39,18 +39,11 @@ import {
   Toolbar,
   UnverifiedCompanyState,
 } from '../../design-system';
-import {
-  allowedActions,
-  emptyDraft,
-  employmentTypes,
-  jobStatuses,
-  statusMeta,
-  toDraft,
-  type JobDraft,
-  type JobView,
-  workModes,
-} from './model';
+import { allowedActions, emptyDraft, employmentTypes, jobStatuses, statusMeta, toDraft, type JobDraft, type JobView, workModes } from './model';
 import { useJobAction, useManagedJob, useManagedJobs, useSaveJob, useCloneJob } from './api';
+import { JobIntelligenceCard } from './JobIntelligenceCard';
+import { JobQualityCard } from './JobQualityCard';
+import { JobBlueprintCard } from './JobBlueprintCard';
 import {
   Briefcase,
   CheckCircle2,
@@ -77,6 +70,47 @@ import {
 import './job-management.css';
 const label = (s: string) =>
   s.replaceAll('-', ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+
+export function extractCleanJobTitle(rawText: string): string {
+  if (!rawText) return '';
+  let text = rawText.trim();
+
+  // 1. If text contains quoted substring (e.g. 'DevOps Engineer...' or "DevOps Engineer..."), extract contents inside quotes
+  const singleQuoteMatch = text.match(/'([^']+)'/);
+  const doubleQuoteMatch = text.match(/"([^"]+)"/);
+
+  if (singleQuoteMatch && singleQuoteMatch[1]) {
+    text = singleQuoteMatch[1];
+  } else if (doubleQuoteMatch && doubleQuoteMatch[1]) {
+    text = doubleQuoteMatch[1];
+  }
+
+  // 2. Remove common recommendation/instruction prefixes
+  text = text
+    .replace(/^Remove the repeated line:\s*/i, '')
+    .replace(/^Remove extraneous text:\s*/i, '')
+    .replace(/^Remove the sentences:\s*/i, '')
+    .replace(/^(Consider\s+)?(changing|updating|setting|using)?\s*(the\s*)?(job\s*)?title\s*(to|is)?\s*:?\s*/i, '')
+    .replace(/^Job Title:\s*/i, '')
+    .replace(/^Title:\s*/i, '')
+    .replace(/^Suggested Title:\s*/i, '')
+    .replace(/^Suggested Replacement:\s*/i, '')
+    .replace(/^Replace with:\s*/i, '')
+    .replace(/^Suggested:\s*/i, '');
+
+  // 3. Remove parenthetical alternative suggestions if present, e.g. "(or Mid-Level/Senior DevOps Engineer/Developer, if applicable)"
+  if (text.includes('(')) {
+    const mainTitle = text.split('(')[0].trim();
+    if (mainTitle.length >= 2) {
+      text = mainTitle;
+    }
+  }
+
+  // 4. Strip surrounding quotes, colons, or punctuation
+  text = text.replace(/^["'`:;]+|["'`:;]+$/g, '').trim();
+
+  return text;
+}
 
 export function JobTabs({ canCreate = true }: { canCreate?: boolean }) {
   return (
@@ -932,6 +966,9 @@ export function JobDetailsPage() {
         </Alert>
       )}
       <div className="job-detail-grid">
+        <JobIntelligenceCard jobId={j.id} initialIntelligence={j.intelligence} />
+        <JobQualityCard jobId={j.id} initialQuality={j.quality} />
+        <JobBlueprintCard jobId={j.id} initialBlueprint={j.blueprint} />
         <Card heading="Role overview">
           <p className="job-description">{j.description}</p>
           <DescriptionList
@@ -1270,8 +1307,27 @@ function AIDescriptionEditor({ jobTitle, value, onApply, onCancel, draft }: AIDe
   const [aiChecking, setAiChecking] = useState(false);
   const [safetyCheckResult, setSafetyCheckResult] = useState<{ isSafe: boolean; riskScore: number; issues: string[] } | null>(null);
 
+  const activeSkills = draft?.skills?.map((s) => s.name).filter(Boolean) ?? [];
+  const activeLocation = [draft?.city, draft?.state, draft?.country].filter(Boolean).join(', ');
+  const activeMinExp = draft?.minimumExperience ? Number(draft.minimumExperience) : undefined;
+  const activeMaxExp = draft?.maximumExperience ? Number(draft.maximumExperience) : undefined;
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', minWidth: '400px', maxWidth: '800px', width: '100%', padding: '4px' }}>
+      {/* Active Form Constraints Display */}
+      <div style={{ padding: '10px 14px', background: 'var(--color-bg-secondary, #f8fafc)', borderRadius: '8px', border: '1px solid var(--color-border, #e2e8f0)', fontSize: '13px' }}>
+        <div style={{ fontWeight: '600', marginBottom: '4px', color: 'var(--color-text-primary, #0f172a)' }}>📋 Active Form Constraints for AI Generation:</div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '6px', color: 'var(--color-text-secondary, #475569)' }}>
+          <div><strong>Title:</strong> {jobTitle || '⚠️ Not entered'}</div>
+          <div><strong>Work Mode:</strong> {draft?.workMode || 'Default'} ({draft?.employmentType || 'Full-time'})</div>
+          <div><strong>Experience:</strong> {activeMinExp !== undefined ? `${activeMinExp}–${activeMaxExp ?? '+'} yrs` : 'Not specified'}</div>
+          <div><strong>Location:</strong> {activeLocation || 'Not specified'}</div>
+          <div style={{ gridColumn: '1 / -1' }}>
+            <strong>Skills ({activeSkills.length}):</strong> {activeSkills.length > 0 ? activeSkills.join(', ') : <span style={{ color: '#d97706' }}>No skills added yet (AI will infer standard skills or click Suggest Skills below)</span>}
+          </div>
+        </div>
+      </div>
+
       <div className="ai-assist-toolbar" style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
         <span style={{ fontSize: '14px', fontWeight: '500', color: 'var(--color-text-secondary)' }}>AI Recruiter Assist:</span>
         <Button
@@ -1285,10 +1341,10 @@ function AIDescriptionEditor({ jobTitle, value, onApply, onCancel, draft }: AIDe
             }
             setAiGenerating(true);
             try {
-              const skills = draft?.skills?.map((s) => s.name).filter(Boolean) ?? [];
-              const location = [draft?.city, draft?.state, draft?.country].filter(Boolean).join(', ');
-              const minExp = draft?.minimumExperience ? Number(draft.minimumExperience) : undefined;
-              const maxExp = draft?.maximumExperience ? Number(draft.maximumExperience) : undefined;
+              const skills = activeSkills;
+              const location = activeLocation;
+              const minExp = activeMinExp;
+              const maxExp = activeMaxExp;
 
               const payload: Record<string, unknown> = {
                 title: jobTitle,
@@ -1315,7 +1371,7 @@ function AIDescriptionEditor({ jobTitle, value, onApply, onCancel, draft }: AIDe
             }
           }}
         >
-          {aiGenerating ? 'Generating...' : 'Generate Description'}
+          {aiGenerating ? 'Generating Description...' : '✨ Generate Description'}
         </Button>
 
 
@@ -1446,18 +1502,25 @@ export function JobFormPage({ mode }: { mode: 'create' | 'edit' }) {
     jobId,
   );
   const initialStored = useMemo(() => readDraft(key), [key]);
-  const [savedDraft, setSavedDraft] = useState<JobDraft | null>(
-    () => initialStored?.draft ?? null,
-  );
-  const [d, setD] = useState(emptyDraft),
-    [dirty, setDirty] = useState(false),
+  const [savedDraft, setSavedDraft] = useState<JobDraft | null>(null);
+  const [d, setD] = useState<JobDraft>(() => initialStored?.draft ?? emptyDraft),
+    [dirty, setDirty] = useState(() => Boolean(initialStored?.draft)),
     [errors, setErrors] = useState<Record<string, string>>({});
   const [aiGenerating, setAiGenerating] = useState(false);
   const [aiSuggesting, setAiSuggesting] = useState(false);
   const [aiChecking, setAiChecking] = useState(false);
   const [safetyCheckResult, setSafetyCheckResult] = useState<{ isSafe: boolean; riskScore: number; issues: string[] } | null>(null);
   const [submittingAndPublishing, setSubmittingAndPublishing] = useState(false);
-  const [archiving, setArchiving] = useState(false);
+  const [aiAdviceModal, setAiAdviceModal] = useState<{ open: boolean; text: string } | null>(null);
+  const [toasts, setToasts] = useState<Array<{ id: string; type: 'success' | 'error' | 'info' | 'warning'; title: string; message?: string }>>([]);
+
+  const showToast = (type: 'success' | 'error' | 'info' | 'warning', title: string, message?: string) => {
+    const id = Math.random().toString(36).substring(2, 9);
+    setToasts((prev) => [...prev, { id, type, title, message }]);
+    setTimeout(() => {
+      setToasts((prev) => prev.filter((t) => t.id !== id));
+    }, 4500);
+  };
   const cloneMutation = useCloneJob();
   const blocker = useBlocker(dirty);
   const [createdWithoutRead, setCreatedWithoutRead] = useState(false);
@@ -1750,37 +1813,22 @@ export function JobFormPage({ mode }: { mode: 'create' | 'edit' }) {
             maxLength={150}
             onChange={(e) => set('title', e.target.value)}
           />
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '12px', marginBottom: '4px' }}>
-            <span style={{ fontSize: '14px', fontWeight: '600', color: 'var(--color-text-secondary)' }}>Job Description</span>
-            <Dialog
-              open={descriptionEditorOpen}
-              onOpenChange={setDescriptionEditorOpen}
-              title="AI Job Description Assistant"
-              trigger={
-                <Button
-                  type="button"
-                  variant="secondary"
-                  size="compact"
-                  style={{ display: 'inline-flex', gap: '4px', alignItems: 'center' }}
-                  onClick={() => setDescriptionEditorOpen(true)}
-                >
-                  ✨ AI Assist
-                </Button>
-              }
-            >
-              <AIDescriptionEditor
-                jobTitle={d.title}
-                value={d.description}
-                draft={d}
-                onApply={(newDesc) => {
-                  set('description', newDesc);
-                  setDescriptionEditorOpen(false);
-                }}
-                onCancel={() => setDescriptionEditorOpen(false)}
-              />
-
-            </Dialog>
-          </div>
+          <Dialog
+            open={descriptionEditorOpen}
+            onOpenChange={setDescriptionEditorOpen}
+            title="AI Job Description Assistant"
+          >
+            <AIDescriptionEditor
+              jobTitle={d.title}
+              value={d.description}
+              draft={d}
+              onApply={(newDesc) => {
+                set('description', newDesc);
+                setDescriptionEditorOpen(false);
+              }}
+              onCancel={() => setDescriptionEditorOpen(false)}
+            />
+          </Dialog>
           <TextArea
             id="description"
             label="Description"
@@ -1789,7 +1837,6 @@ export function JobFormPage({ mode }: { mode: 'create' | 'edit' }) {
             error={errors.description}
             maxLength={10000}
             onChange={(e) => set('description', e.target.value)}
-            hint="Click the 'AI Assist' button above to open the expanded editor."
           />
           <div className="job-form-grid">
             <Select
@@ -1983,6 +2030,89 @@ export function JobFormPage({ mode }: { mode: 'create' | 'edit' }) {
           />
         </FormSection>
 
+        <JobIntelligenceCard jobId={jobId} title={d.title} description={d.description} />
+        <JobQualityCard
+          jobId={jobId}
+          title={d.title}
+          description={d.description}
+          onApplyReplacement={(evidence, replacement, recommendation) => {
+            let cleanEvidence = (evidence || '').trim();
+            let cleanReplacement = (replacement || '').trim();
+            const textToApply = cleanReplacement || replacement || recommendation || '';
+
+            const titleMatch = cleanEvidence.match(/Job Title:\s*"?([^"\n]+)"?/i);
+            if (titleMatch && titleMatch[1]) {
+              cleanEvidence = titleMatch[1].trim();
+            } else {
+              cleanEvidence = cleanEvidence.replace(/^Job Title:\s*"?|"?$/gi, '').trim();
+            }
+
+            const replacementMatch = cleanReplacement.match(/Job Title:\s*"?([^"\n]+)"?/i);
+            if (replacementMatch && replacementMatch[1]) {
+              cleanReplacement = replacementMatch[1].trim();
+            } else {
+              cleanReplacement = cleanReplacement.replace(/^Job Title:\s*"?|"?$/gi, '').trim();
+            }
+
+            cleanReplacement = cleanReplacement.replace(/^["']|["']$/g, '').trim();
+
+            const isTitleSpecific =
+              (evidence || '').toLowerCase().includes('job title') ||
+              (replacement || '').toLowerCase().includes('job title') ||
+              (recommendation || '').toLowerCase().includes('job title') ||
+              cleanReplacement.toLowerCase().startsWith('job title') ||
+              (cleanEvidence.length > 2 && d.title.toLowerCase().includes(cleanEvidence.toLowerCase()));
+
+            let applied = false;
+
+            // 1. Target Job Title directly if finding explicitly concerns the Job Title
+            if (isTitleSpecific && textToApply) {
+              const targetTitle = extractCleanJobTitle(textToApply) || extractCleanJobTitle(cleanReplacement) || cleanReplacement;
+              if (targetTitle) {
+                set('title', targetTitle);
+                applied = true;
+              }
+
+              // Also clean up any instruction header line like "Remove the repeated line: 'DevOps Engineer'" inside d.description!
+              if (d.description) {
+                const cleanedDesc = d.description
+                  .replace(/^Remove the repeated line:\s*'[^'\n]+'\s*/gi, '')
+                  .replace(/^Remove extraneous text:\s*/gi, '')
+                  .trim();
+                if (cleanedDesc !== d.description) {
+                  set('description', cleanedDesc);
+                }
+              }
+            }
+
+            // 2. Target Job Description if evidence matches text in the description
+            if (!applied && d.description) {
+              const isRemoval = /^\s*Remove\s+/i.test(textToApply) || /^\s*Remove\s+/i.test(cleanReplacement);
+              const repText = isRemoval ? '' : textToApply;
+
+              if (evidence && d.description.includes(evidence)) {
+                set('description', d.description.replace(evidence, repText).trim());
+                applied = true;
+              } else if (cleanEvidence && d.description.includes(cleanEvidence)) {
+                set('description', d.description.replace(cleanEvidence, repText).trim());
+                applied = true;
+              } else if (cleanEvidence && cleanEvidence.length > 3 && d.description.toLowerCase().includes(cleanEvidence.toLowerCase())) {
+                const regex = new RegExp(cleanEvidence.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
+                set('description', d.description.replace(regex, repText).trim());
+                applied = true;
+              }
+            }
+
+            // 3. Informational guidance for general advice findings using styled modal
+            if (!applied) {
+              setAiAdviceModal({
+                open: true,
+                text: textToApply || recommendation || 'Review finding recommendation details.'
+              });
+            }
+          }}
+        />
+
         <FormSection
           heading="Skills"
           description="Add exact skill requirements used during review."
@@ -2147,6 +2277,19 @@ export function JobFormPage({ mode }: { mode: 'create' | 'edit' }) {
             >
               {aiSuggesting ? 'Suggesting Skills...' : 'Suggest Skills'}
             </Button>
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => {
+                if (!d.title.trim()) {
+                  alert('Please enter a Job Title first.');
+                  return;
+                }
+                setDescriptionEditorOpen(true);
+              }}
+            >
+              ✨ Generate Description from Skills & Constraints
+            </Button>
           </div>
         </FormSection>
 
@@ -2278,11 +2421,11 @@ export function JobFormPage({ mode }: { mode: 'create' | 'edit' }) {
                         const newJob = (result as { job: { _id: string } }).job;
                         setDirty(false);
                         sessionStorage.removeItem(key);
-                        alert('Job cloned successfully!');
-                        nav(`/org/jobs/${newJob._id}/edit`);
+                        showToast('success', '📋 Job Cloned Successfully', 'Opening cloned job for editing...');
+                        setTimeout(() => nav(`/org/jobs/${newJob._id}/edit`), 500);
                       }
                     } catch (err) {
-                      alert('Failed to clone job: ' + (err as Error).message);
+                      showToast('error', 'Cloning Failed', (err as Error).message);
                     }
                   }}
                 >
@@ -2294,19 +2437,17 @@ export function JobFormPage({ mode }: { mode: 'create' | 'edit' }) {
                   loading={archiving}
                   onClick={async (e) => {
                     e.preventDefault();
-                    if (confirm('Are you sure you want to archive this job?')) {
-                      setDirty(false);
-                      setArchiving(true);
-                      try {
-                        await apiRequest(`/jobs/manage/${jobId}`, { method: 'DELETE' });
-                        sessionStorage.removeItem(key);
-                        alert('Job archived successfully.');
-                        nav('/org/jobs');
-                      } catch (err) {
-                        alert('Failed to archive job: ' + (err as Error).message);
-                      } finally {
-                        setArchiving(false);
-                      }
+                    setDirty(false);
+                    setArchiving(true);
+                    try {
+                      await apiRequest(`/jobs/manage/${jobId}`, { method: 'DELETE' });
+                      sessionStorage.removeItem(key);
+                      showToast('success', '📦 Job Archived', 'Position successfully moved to archive.');
+                      setTimeout(() => nav('/org/jobs'), 500);
+                    } catch (err) {
+                      showToast('error', 'Archiving Failed', (err as Error).message);
+                    } finally {
+                      setArchiving(false);
                     }
                   }}
                 >
@@ -2337,10 +2478,10 @@ export function JobFormPage({ mode }: { mode: 'create' | 'edit' }) {
                   await apiRequest(`/jobs/manage/${savedId}/submit`, { method: 'PATCH' });
                   setDirty(false);
                   sessionStorage.removeItem(key);
-                  alert('Job submitted and published successfully!');
-                  nav('/org/jobs');
+                  showToast('success', '✨ Job Published Successfully!', 'Your job position is live and accepting applications.');
+                  setTimeout(() => nav('/org/jobs'), 800);
                 } catch (err) {
-                  alert('Failed to publish job: ' + (err as Error).message);
+                  showToast('error', 'Publishing Failed', (err as Error).message);
                 } finally {
                   setSubmittingAndPublishing(false);
                 }
@@ -2445,6 +2586,155 @@ export function JobFormPage({ mode }: { mode: 'create' | 'edit' }) {
           </div>
         </div>
       )}
+
+      {/* Styled AI Quality Suggestion Dialog */}
+      <Dialog
+        open={Boolean(aiAdviceModal?.open)}
+        onOpenChange={(open) => {
+          if (!open) setAiAdviceModal(null);
+        }}
+        title="✨ AI Quality Suggestion & Guidance"
+      >
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', maxWidth: '650px', width: '100%', padding: '4px' }}>
+          <div style={{
+            padding: '16px',
+            background: 'var(--color-bg-secondary, #f8fafc)',
+            border: '1px solid var(--color-border, #e2e8f0)',
+            borderRadius: '10px',
+            fontSize: '14px',
+            lineHeight: '1.6',
+            whiteSpace: 'pre-wrap',
+            color: 'var(--color-text-primary, #0f172a)'
+          }}>
+            {aiAdviceModal?.text}
+          </div>
+
+          <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', flexWrap: 'wrap', paddingTop: '8px' }}>
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => {
+                if (aiAdviceModal?.text) {
+                  navigator.clipboard.writeText(aiAdviceModal.text).then(() => {
+                    showToast('success', '📋 Copied to Clipboard', 'AI guidance suggestion copied.');
+                  });
+                }
+              }}
+            >
+              📋 Copy
+            </Button>
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => {
+                if (aiAdviceModal?.text) {
+                  const cleanTitle = extractCleanJobTitle(aiAdviceModal.text);
+                  set('title', cleanTitle || aiAdviceModal.text);
+                  setAiAdviceModal(null);
+                }
+              }}
+            >
+              🏷️ Set as Job Title
+            </Button>
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => {
+                if (aiAdviceModal?.text) {
+                  set('description', d.description ? `${d.description}\n\n${aiAdviceModal.text}` : aiAdviceModal.text);
+                  setAiAdviceModal(null);
+                }
+              }}
+            >
+              ➕ Append to Description
+            </Button>
+            <Button
+              type="button"
+              variant="primary"
+              onClick={() => setAiAdviceModal(null)}
+            >
+              Close
+            </Button>
+          </div>
+        </div>
+      </Dialog>
+
+      {/* Floating Toast Notification Container Stack */}
+      <div
+        style={{
+          position: 'fixed',
+          bottom: '24px',
+          right: '24px',
+          zIndex: 10000,
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '10px',
+          maxWidth: '400px',
+          width: '100%',
+          pointerEvents: 'none',
+        }}
+      >
+        {toasts.map((toast) => (
+          <div
+            key={toast.id}
+            style={{
+              pointerEvents: 'auto',
+              background: '#ffffff',
+              border: `1px solid ${
+                toast.type === 'success' ? '#bbf7d0' : toast.type === 'error' ? '#fecdd3' : toast.type === 'warning' ? '#fef3c7' : '#bae6fd'
+              }`,
+              boxShadow: '0 10px 30px -5px rgba(0, 0, 0, 0.12), 0 4px 12px rgba(0, 0, 0, 0.05)',
+              borderRadius: '12px',
+              padding: '14px 16px',
+              display: 'flex',
+              alignItems: 'flex-start',
+              gap: '12px',
+              animation: 'toastSlideIn 0.3s cubic-bezier(0.16, 1, 0.3, 1)',
+            }}
+          >
+            <div
+              style={{
+                width: '28px',
+                height: '28px',
+                borderRadius: '50%',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0,
+                background:
+                  toast.type === 'success' ? '#f0fdf4' : toast.type === 'error' ? '#fef2f2' : toast.type === 'warning' ? '#fffbeb' : '#f0f9ff',
+                color:
+                  toast.type === 'success' ? '#16a34a' : toast.type === 'error' ? '#dc2626' : toast.type === 'warning' ? '#d97706' : '#0284c7',
+              }}
+            >
+              {toast.type === 'success' ? (
+                <CheckCircle2 size={16} />
+              ) : toast.type === 'error' ? (
+                <XCircle size={16} />
+              ) : (
+                <Sparkles size={16} />
+              )}
+            </div>
+
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: '0.875rem', fontWeight: 600, color: '#0f172a' }}>{toast.title}</div>
+              {toast.message && (
+                <div style={{ fontSize: '0.8125rem', color: '#64748b', marginTop: '2px', lineHeight: 1.4 }}>
+                  {toast.message}
+                </div>
+              )}
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setToasts((prev) => prev.filter((t) => t.id !== toast.id))}
+              style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', padding: '2px' }}
+            >
+              <X size={14} />
+            </button>
+          </div>
+        ))}
+      </div>
     </main>
   );
 }

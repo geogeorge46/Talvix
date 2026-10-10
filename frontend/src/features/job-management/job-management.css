@@ -1113,3 +1113,95 @@
 }
 
 
+
+/* ==========================================================================
+   Enhanced Layout Alignment & Typography for Job Creation & Edit Page
+   ========================================================================== */
+
+.job-form-container {
+  max-width: 1100px;
+  margin: 0 auto;
+  gap: 24px;
+}
+
+.job-form .tvx-form-section {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  padding: 24px 28px;
+  box-shadow: 0 4px 18px -2px rgba(15, 23, 42, 0.04);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.job-form .tvx-form-section:hover {
+  border-color: #cbd5e1;
+  box-shadow: 0 6px 24px -4px rgba(15, 23, 42, 0.06);
+}
+
+.job-form .tvx-form-section__heading {
+  font-size: 1.125rem;
+  font-weight: 700;
+  color: #0f172a;
+  letter-spacing: -0.01em;
+  margin-bottom: 4px;
+}
+
+.job-form .tvx-form-section__description {
+  font-size: 0.8125rem;
+  color: #64748b;
+  margin-bottom: 20px;
+}
+
+.job-form input[type="text"],
+.job-form input[type="number"],
+.job-form input[type="date"],
+.job-form select,
+.job-form textarea {
+  font-family: inherit;
+  font-size: 0.875rem;
+  line-height: 1.6;
+  border-radius: 10px;
+  border: 1px solid #cbd5e1;
+  padding: 10px 14px;
+  color: #0f172a;
+  background-color: #ffffff;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.job-form textarea {
+  min-height: 140px;
+  resize: vertical;
+  letter-spacing: 0.01em;
+}
+
+.job-form input:focus,
+.job-form select:focus,
+.job-form textarea:focus {
+  outline: none;
+  border-color: #0284c7;
+  box-shadow: 0 0 0 4px rgba(2, 132, 199, 0.1);
+}
+
+.job-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px 24px;
+}
+
+@media (max-width: 640px) {
+  .job-form-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Toast Animation */
+@keyframes toastSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(20px) scale(0.94);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}

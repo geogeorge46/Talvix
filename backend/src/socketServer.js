@@ -80,6 +80,14 @@ export const initSocketServer = (httpServer, clientUrl) => {
         return null;
       }
 
+      const now = new Date();
+      const schedTime = schedule.scheduledAt || schedule.startTime;
+      const joinAvailableAt = schedule.joinAvailableAt || (schedTime ? new Date(new Date(schedTime).getTime() - 5 * 60 * 1000) : null);
+
+      if (socket.user.role !== 'admin' && joinAvailableAt && now < new Date(joinAvailableAt)) {
+        return { error: 'INTERVIEW_NOT_OPEN', message: 'Interview room is not available yet' };
+      }
+
       return {
         schedule,
         roleInInterview: isCandidate ? 'candidate' : 'interviewer'
@@ -92,8 +100,11 @@ export const initSocketServer = (httpServer, clientUrl) => {
         const scheduleId = typeof data === 'string' ? data : data?.scheduleId;
         const authResult = await verifyRoomAuthorization(scheduleId);
 
-        if (!authResult) {
-          socket.emit('interview:error', { code: 'WEBRTC_SIGNALING_UNAUTHORIZED', message: 'Unauthorized room access' });
+        if (!authResult || authResult.error) {
+          socket.emit('interview:error', {
+            code: authResult?.error || 'WEBRTC_SIGNALING_UNAUTHORIZED',
+            message: authResult?.message || 'Unauthorized room access'
+          });
           return;
         }
 
@@ -216,6 +227,18 @@ export const initSocketServer = (httpServer, clientUrl) => {
         socket.to(`interview:${scheduleId}`).emit('interview:connection-state', {
           userId: socket.user.id,
           state
+        });
+      }
+    });
+
+    // Media Toggle Update (Audio/Video Mute)
+    socket.on('interview:media-toggle', (data) => {
+      const { scheduleId, isAudioMuted, isVideoMuted } = data || {};
+      if (scheduleId) {
+        socket.to(`interview:${scheduleId}`).emit('interview:media-toggle', {
+          userId: socket.user.id,
+          isAudioMuted,
+          isVideoMuted
         });
       }
     });

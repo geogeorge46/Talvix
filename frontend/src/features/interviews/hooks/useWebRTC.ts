@@ -40,6 +40,10 @@ export function useWebRTC(options: UseWebRTCOptions = {}) {
   const [peerConnectionState, setPeerConnectionState] = useState<string>('disconnected');
   const [isAudioMuted, setIsAudioMuted] = useState(false);
   const [isVideoMuted, setIsVideoMuted] = useState(false);
+  const [remoteMediaState, setRemoteMediaState] = useState<{ isAudioMuted: boolean; isVideoMuted: boolean }>({
+    isAudioMuted: false,
+    isVideoMuted: false,
+  });
   const [mediaError, setMediaError] = useState<string | null>(null);
 
   const pcRef = useRef<RTCPeerConnection | null>(null);
@@ -139,6 +143,13 @@ export function useWebRTC(options: UseWebRTCOptions = {}) {
     onUserLeft: () => {
       setRemoteStream(null);
       setPeerConnectionState('disconnected');
+      setRemoteMediaState({ isAudioMuted: false, isVideoMuted: false });
+    },
+    onMediaToggle: (data) => {
+      setRemoteMediaState({
+        isAudioMuted: Boolean(data.isAudioMuted),
+        isVideoMuted: Boolean(data.isVideoMuted),
+      });
     },
   });
 
@@ -189,12 +200,26 @@ export function useWebRTC(options: UseWebRTCOptions = {}) {
 
       // On Remote Track
       pc.ontrack = (event) => {
-        if (event.streams && event.streams[0]) {
-          setRemoteStream(event.streams[0]);
-        } else {
-          const newStream = new MediaStream([event.track]);
-          setRemoteStream(newStream);
-        }
+        const remoteMedia = (event.streams && event.streams[0]) ? event.streams[0] : new MediaStream([event.track]);
+        setRemoteStream(remoteMedia);
+
+        event.track.onmute = () => {
+          if (event.track.kind === 'video') {
+            setRemoteMediaState((prev) => ({ ...prev, isVideoMuted: true }));
+          }
+          if (event.track.kind === 'audio') {
+            setRemoteMediaState((prev) => ({ ...prev, isAudioMuted: true }));
+          }
+        };
+
+        event.track.onunmute = () => {
+          if (event.track.kind === 'video') {
+            setRemoteMediaState((prev) => ({ ...prev, isVideoMuted: false }));
+          }
+          if (event.track.kind === 'audio') {
+            setRemoteMediaState((prev) => ({ ...prev, isAudioMuted: false }));
+          }
+        };
       };
 
       // On ICE Candidate
@@ -269,22 +294,28 @@ export function useWebRTC(options: UseWebRTCOptions = {}) {
     if (localStreamRef.current) {
       const audioTrack = localStreamRef.current.getAudioTracks()[0];
       if (audioTrack) {
-        audioTrack.enabled = !audioTrack.enabled;
-        setIsAudioMuted(!audioTrack.enabled);
+        const nextState = !audioTrack.enabled;
+        audioTrack.enabled = nextState;
+        const muted = !nextState;
+        setIsAudioMuted(muted);
+        socket.emitMediaToggle(muted, isVideoMuted);
       }
     }
-  }, []);
+  }, [socket.emitMediaToggle, isVideoMuted]);
 
   // Toggle Video Enable/Disable
   const toggleVideo = useCallback(() => {
     if (localStreamRef.current) {
       const videoTrack = localStreamRef.current.getVideoTracks()[0];
       if (videoTrack) {
-        videoTrack.enabled = !videoTrack.enabled;
-        setIsVideoMuted(!videoTrack.enabled);
+        const nextState = !videoTrack.enabled;
+        videoTrack.enabled = nextState;
+        const muted = !nextState;
+        setIsVideoMuted(muted);
+        socket.emitMediaToggle(isAudioMuted, muted);
       }
     }
-  }, []);
+  }, [socket.emitMediaToggle, isAudioMuted]);
 
   // Reconnect WebRTC
   const retryConnection = useCallback(async () => {
@@ -305,6 +336,8 @@ export function useWebRTC(options: UseWebRTCOptions = {}) {
     peerConnectionState,
     isAudioMuted,
     isVideoMuted,
+    isRemoteAudioMuted: remoteMediaState.isAudioMuted,
+    isRemoteVideoMuted: remoteMediaState.isVideoMuted,
     mediaError,
     isConnected: socket.isConnected,
     activeParticipants: socket.activeParticipants,

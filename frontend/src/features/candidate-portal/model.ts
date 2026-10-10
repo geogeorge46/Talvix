@@ -287,16 +287,80 @@ const safeTarget = (
   }
   return undefined;
 };
+const formatNotificationContent = (
+  rawTitle: string,
+  rawMessage: string,
+  type: string,
+  category?: string,
+  data?: Record<string, unknown>
+): { title: string; message: string } => {
+  let title = rawTitle;
+  let message = rawMessage;
+
+  const isGenericTitle = !title || title === 'Talvix update' || title === 'Notification';
+  const isGenericMessage = !message || message === 'You have a new Talvix update.' || message === 'You have a new update.';
+
+  const cat = category || type.split('-')[0] || '';
+  const jobTitle = typeof data?.jobTitle === 'string' ? data.jobTitle : '';
+  const companyName = typeof data?.companyName === 'string' ? data.companyName : '';
+  const prefix = companyName && jobTitle ? `${companyName} · ${jobTitle}` : companyName || jobTitle || '';
+
+  if (isGenericTitle || isGenericMessage) {
+    if (type.includes('offer') || cat === 'offer') {
+      if (isGenericTitle) title = '📄 Job Offer Received';
+      if (isGenericMessage) {
+        message = prefix
+          ? `${prefix}: An official job offer update has been issued. Click to review details.`
+          : 'An official job offer update has been issued. Click to review details.';
+      }
+    } else if (type.includes('interview') || cat === 'interview') {
+      if (isGenericTitle) title = '📅 Interview Update';
+      if (isGenericMessage) {
+        message = prefix
+          ? `${prefix}: You have an update regarding your interview schedule.`
+          : 'You have an update regarding your interview schedule.';
+      }
+    } else if (type.includes('assessment') || cat === 'assessment') {
+      if (isGenericTitle) title = '📋 Assessment Update';
+      if (isGenericMessage) {
+        message = prefix
+          ? `${prefix}: You have an update regarding your technical assessment.`
+          : 'You have an update regarding your technical assessment.';
+      }
+    } else if (type.includes('application') || cat === 'application') {
+      if (isGenericTitle) title = '💼 Application Update';
+      if (isGenericMessage) {
+        message = prefix
+          ? `${prefix}: Your job application status has been updated.`
+          : 'Your job application status has been updated.';
+      }
+    } else if (type.includes('document') || cat === 'document') {
+      if (isGenericTitle) title = '📁 Document Verification';
+      if (isGenericMessage) {
+        message = 'You have an update regarding your uploaded documents.';
+      }
+    } else {
+      if (isGenericTitle) title = '🔔 System Update';
+      if (isGenericMessage) message = 'You have a new notification in Talvix.';
+    }
+  }
+
+  return { title, message };
+};
+
 export const toSafeNotification = (value: unknown): SafeNotification => {
   const v = record(value),
     type = text(v.type),
-    data = record(v.data);
+    category = optionalText(v.category),
+    data = record(v.data),
+    formatted = formatNotificationContent(text(v.title), text(v.message), type, category, data);
+
   return {
     id: id(v),
-    title: text(v.title),
-    message: text(v.message),
+    title: formatted.title,
+    message: formatted.message,
     type,
-    category: optionalText(v.category),
+    category,
     createdAt: text(v.createdAt),
     read: v.isRead === true || v.read === true,
     archived: v.isArchived === true || v.archived === true,

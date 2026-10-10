@@ -13,9 +13,64 @@ const normalize = (result) => ({ provider: 'cloudinary', publicId: result.public
 const memoryUpload = async (input) => { const publicId = input.publicId ?? `${safeFolder(input.folder)}/${randomUUID()}`; safePublicId(publicId); const result = { provider: 'memory', publicId, resourceType: input.resourceType, format: input.fileName.split('.').at(-1), bytes: input.buffer.length, secureUrl: `memory://${publicId}`, version: 1, etag: createHmac('sha256', 'talvix-test').update(input.buffer).digest('hex'), createdAt: new Date() }; memory.set(publicId, { ...result, buffer: input.buffer, mimeType: input.mimeType }); return result; };
 const cloudUpload = (input) => new Promise((resolve, reject) => { configure(); let stream; try { stream = cloudinary.uploader.upload_stream({ folder: safeFolder(input.folder), ...(input.publicId && { public_id: safePublicId(input.publicId).split('/').at(-1) }), resource_type: input.resourceType, type: 'authenticated', use_filename: false, unique_filename: true, overwrite: false, context: input.metadata }, (error, result) => error ? reject(new AppError('File storage upload failed', 502)) : resolve(normalize(result))); stream.end(input.buffer); } catch { reject(new AppError('File storage upload failed', 502)); } });
 
-export const uploadFile = (input) => { if (!env.FILE_UPLOADS_ENABLED || env.FILE_STORAGE_PROVIDER === 'disabled') return disabled(); return env.FILE_STORAGE_PROVIDER === 'memory' ? memoryUpload(input) : cloudUpload(input); };
-export const deleteFile = async ({ publicId, resourceType = 'raw', invalidate = true }) => { safePublicId(publicId); if (env.FILE_STORAGE_PROVIDER === 'memory') return { deleted: memory.delete(publicId) }; if (env.FILE_STORAGE_PROVIDER === 'disabled') return disabled(); configure(); try { const result = await cloudinary.uploader.destroy(publicId, { resource_type: resourceType, invalidate, type: 'authenticated' }); return { deleted: result.result === 'ok' }; } catch { throw new AppError('Stored file deletion failed', 502); } };
-export const createSignedDownloadUrl = async ({ publicId, resourceType = 'raw', expiresAt, attachment }) => { safePublicId(publicId); const maximumExpiry = new Date(Date.now() + env.FILE_SIGNED_URL_TTL_SECONDS * 1000); const boundedExpiry = expiresAt < maximumExpiry ? expiresAt : maximumExpiry; if (env.FILE_STORAGE_PROVIDER === 'memory') { if (!memory.has(publicId)) throw new AppError('Stored file not found', 404); const isTest = env.NODE_ENV === 'test'; const url = isTest ? `https://files.talvix.test/${encodeURIComponent(publicId)}?expires=${boundedExpiry.getTime()}&attachment=${attachment ? '1' : '0'}` : `http://localhost:${env.PORT || 5000}/api/v1/documents/local-view/${encodeURIComponent(publicId)}?attachment=${attachment ? '1' : '0'}`; return { url, expiresAt: boundedExpiry }; } if (env.FILE_STORAGE_PROVIDER === 'disabled') return disabled(); configure(); try { return { url: cloudinary.utils.private_download_url(publicId, '', { resource_type: resourceType, type: 'authenticated', expires_at: Math.floor(boundedExpiry.getTime() / 1000), attachment }), expiresAt: boundedExpiry }; } catch { throw new AppError('Signed download URL generation failed', 502); } };
-export const getFileMetadata = async ({ publicId, resourceType = 'raw' }) => { safePublicId(publicId); if (env.FILE_STORAGE_PROVIDER === 'memory') return memory.get(publicId) ?? null; if (env.FILE_STORAGE_PROVIDER === 'disabled') return disabled(); configure(); try { return await cloudinary.api.resource(publicId, { resource_type: resourceType, type: 'authenticated' }); } catch { throw new AppError('Stored file metadata unavailable', 502); } };
+const isDev = process.env.NODE_ENV === 'development';
+const activeProvider = () => (env.FILE_STORAGE_PROVIDER === 'disabled' && isDev ? 'memory' : env.FILE_STORAGE_PROVIDER);
+const activeUploadsEnabled = () => (isDev ? true : env.FILE_UPLOADS_ENABLED);
+
+export const uploadFile = (input) => {
+  if (!activeUploadsEnabled() || activeProvider() === 'disabled') return disabled();
+  return activeProvider() === 'memory' ? memoryUpload(input) : cloudUpload(input);
+};
+export const deleteFile = async ({ publicId, resourceType = 'raw', invalidate = true }) => {
+  safePublicId(publicId);
+  if (activeProvider() === 'memory') return { deleted: memory.delete(publicId) };
+  if (activeProvider() === 'disabled') return disabled();
+  configure();
+  try {
+    const result = await cloudinary.uploader.destroy(publicId, { resource_type: resourceType, invalidate, type: 'authenticated' });
+    return { deleted: result.result === 'ok' };
+  } catch {
+    throw new AppError('Stored file deletion failed', 502);
+  }
+};
+export const createSignedDownloadUrl = async ({ publicId, resourceType = 'raw', expiresAt, attachment }) => {
+  safePublicId(publicId);
+  const maximumExpiry = new Date(Date.now() + env.FILE_SIGNED_URL_TTL_SECONDS * 1000);
+  const boundedExpiry = expiresAt < maximumExpiry ? expiresAt : maximumExpiry;
+  if (activeProvider() === 'memory') {
+    if (!memory.has(publicId)) throw new AppError('Stored file not found', 404);
+    const isTest = env.NODE_ENV === 'test';
+    const url = isTest
+      ? `https://files.talvix.test/${encodeURIComponent(publicId)}?expires=${boundedExpiry.getTime()}&attachment=${attachment ? '1' : '0'}`
+      : `http://localhost:${env.PORT || 5000}/api/v1/documents/local-view/${encodeURIComponent(publicId)}?attachment=${attachment ? '1' : '0'}`;
+    return { url, expiresAt: boundedExpiry };
+  }
+  if (activeProvider() === 'disabled') return disabled();
+  configure();
+  try {
+    return {
+      url: cloudinary.utils.private_download_url(publicId, '', {
+        resource_type: resourceType,
+        type: 'authenticated',
+        expires_at: Math.floor(boundedExpiry.getTime() / 1000),
+        attachment,
+      }),
+      expiresAt: boundedExpiry,
+    };
+  } catch {
+    throw new AppError('Signed download URL generation failed', 502);
+  }
+};
+export const getFileMetadata = async ({ publicId, resourceType = 'raw' }) => {
+  safePublicId(publicId);
+  if (activeProvider() === 'memory') return memory.get(publicId) ?? null;
+  if (activeProvider() === 'disabled') return disabled();
+  configure();
+  try {
+    return await cloudinary.api.resource(publicId, { resource_type: resourceType, type: 'authenticated' });
+  } catch {
+    throw new AppError('Stored file metadata unavailable', 502);
+  }
+};
 export const resetMemoryStorage = () => memory.clear();
 export const getMemoryFile = (publicId) => memory.get(publicId);

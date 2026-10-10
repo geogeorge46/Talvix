@@ -1,4 +1,5 @@
 import { AppError } from '../shared/errors/AppError.js';
+import { executeLocalHarness } from './codeHarness.service.js';
 
 const LANGUAGE_IDS = {
   javascript: 93,
@@ -37,7 +38,7 @@ export const createDeterministicCodeExecutionAdapter = (outcomes = []) => ({
   })
 });
 
-export const executeCode = async ({ code, language, testCases = [], limits = {} }, adapter = null) => {
+export const executeCode = async ({ code, language, testCases = [], limits = {}, functionName, executionMode }, adapter = null) => {
   if (adapter) {
     return adapter.execute({ code, language, testCases });
   }
@@ -47,28 +48,7 @@ export const executeCode = async ({ code, language, testCases = [], limits = {} 
   const isTest = process.env.NODE_ENV === 'test';
 
   if (isTest || !apiKey) {
-    const results = testCases.map((tc, index) => {
-      const passed = index % 2 === 0;
-      return {
-        passed,
-        weight: tc.weight || 1,
-        input: tc.input,
-        expectedOutput: tc.expectedOutput,
-        actualOutput: passed ? tc.expectedOutput : 'Runtime Error',
-        status: passed ? 'Accepted' : 'Wrong Answer',
-        time: 50,
-        memory: 1024
-      };
-    });
-
-    const passedCount = results.filter(r => r.passed).length;
-    return {
-      status: 'completed',
-      passedTests: passedCount,
-      totalTests: testCases.length,
-      executionTimeMs: results.reduce((sum, r) => sum + r.time, 0),
-      testResults: results
-    };
+    return executeLocalHarness({ code, language, functionName, executionMode, testCases, limits });
   }
 
   const langId = LANGUAGE_IDS[language?.toLowerCase()];

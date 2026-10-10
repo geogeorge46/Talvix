@@ -13,6 +13,11 @@ import {
   X,
   Sparkles,
   Briefcase,
+  CheckCircle2,
+  Clock,
+  User,
+  ArrowRight,
+  ShieldCheck,
 } from 'lucide-react';
 import { useApplications } from '../ats-workspace/api';
 import {
@@ -1146,6 +1151,7 @@ export function CreateAssignmentPage() {
   const [assessmentId, setAssessmentId] = useState(initialAssessmentId);
   const [applicationId, setApplicationId] = useState(initialAppId);
   const [manualInput, setManualInput] = useState(Boolean(initialAppId));
+  const [searchTerm, setSearchTerm] = useState('');
   const [todayStr] = useState(() => new Date().toISOString().slice(0, 10));
   const [availableFrom, setAvailableFrom] = useState(() => new Date().toISOString().slice(0, 10));
   const [expiresAt, setExpiresAt] = useState(() => new Date(Date.now() + 3 * 86400000).toISOString().slice(0, 10));
@@ -1231,16 +1237,42 @@ export function CreateAssignmentPage() {
   };
 
   const assessments = assessmentsQuery.data?.items ?? [];
+  const filteredAssessments = assessments.filter((item) => {
+    if (!searchTerm.trim()) return true;
+    const term = searchTerm.toLowerCase();
+    return (
+      item.title?.toLowerCase().includes(term) ||
+      item.type?.toLowerCase().includes(term) ||
+      item.description?.toLowerCase().includes(term)
+    );
+  });
 
   if (!assessmentId) {
     return (
-      <div className="as-page">
+      <div className="as-page space-y-6">
         <PageHeader
-          title="Assign assessment"
-          description="Choose a published assessment to assign to the candidate application."
+          title="Assign Technical Assessment"
+          description="Select a published assessment from your organization library to configure and issue to candidates."
         />
+
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+          <div className="relative w-full sm:w-96">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+            <input
+              type="text"
+              placeholder="Search assessment title, type, domain..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all"
+            />
+          </div>
+          <div className="text-xs font-semibold text-slate-500 bg-slate-100 px-3 py-1.5 rounded-full">
+            {filteredAssessments.length} Assessment{filteredAssessments.length !== 1 ? 's' : ''} Available
+          </div>
+        </div>
+
         {assessmentsQuery.isLoading ? (
-          <LoadingState label="Loading published assessments" />
+          <LoadingState label="Loading published assessments..." />
         ) : assessmentsQuery.isError ? (
           <ErrorState
             detail={
@@ -1250,54 +1282,60 @@ export function CreateAssignmentPage() {
             }
             retry={() => void assessmentsQuery.refetch()}
           />
-        ) : assessments.length === 0 ? (
+        ) : filteredAssessments.length === 0 ? (
           <EmptyState
-            title="No published assessments"
-            description="You need to create and publish an assessment before assigning it to a candidate."
+            title="No assessments found"
+            description={
+              searchTerm
+                ? `No published assessments matched "${searchTerm}".`
+                : 'You need to create and publish an assessment before assigning it to a candidate.'
+            }
           />
         ) : (
-          <Card heading="Select Assessment" headingLevel={2}>
-            <DataTable
-              rows={assessments}
-              rowKey={(r) => r.id}
-              columns={[
-                {
-                  id: 'title',
-                  header: 'Title',
-                  render: (r) => (
-                    <div>
-                      <strong>{r.title}</strong>
-                      <div className="text-sm text-slate-500">{r.description || 'No description'}</div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+            {filteredAssessments.map((r) => (
+              <div
+                key={r.id}
+                className="group flex flex-col justify-between bg-white border border-slate-200 rounded-xl p-5 shadow-sm hover:shadow-md hover:border-blue-300 transition-all"
+              >
+                <div>
+                  <div className="flex items-start justify-between gap-3 mb-3">
+                    <h3 className="font-bold text-slate-900 text-base group-hover:text-blue-600 transition-colors">
+                      {r.title}
+                    </h3>
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200 shrink-0 capitalize">
+                      {r.type}
+                    </span>
+                  </div>
+                  <p className="text-sm text-slate-600 line-clamp-2 mb-4">
+                    {r.description || 'No description provided.'}
+                  </p>
+                </div>
+
+                <div className="pt-4 border-t border-slate-100 space-y-4">
+                  <div className="grid grid-cols-2 gap-2 text-xs">
+                    <div className="flex items-center gap-1.5 text-slate-600 bg-slate-50 p-2 rounded-lg">
+                      <Clock size={14} className="text-slate-400" />
+                      <span><strong>{r.durationMinutes}</strong> mins</span>
                     </div>
-                  ),
-                },
-                {
-                  id: 'type',
-                  header: 'Type',
-                  render: (r) => r.type,
-                },
-                {
-                  id: 'duration',
-                  header: 'Duration',
-                  render: (r) => `${r.durationMinutes} mins`,
-                },
-                {
-                  id: 'passingPercentage',
-                  header: 'Passing Criteria',
-                  render: (r) => `${r.passingPercentage}% score`,
-                },
-                {
-                  id: 'action',
-                  header: 'Action',
-                  render: (r) => (
-                    <Button variant="secondary" onClick={() => setAssessmentId(r.id)}>
-                      Select
-                    </Button>
-                  ),
-                },
-              ]}
-            />
-          </Card>
+                    <div className="flex items-center gap-1.5 text-slate-600 bg-slate-50 p-2 rounded-lg">
+                      <ShieldCheck size={14} className="text-emerald-500" />
+                      <span><strong>{r.passingPercentage}%</strong> passing</span>
+                    </div>
+                  </div>
+
+                  <Button
+                    variant="primary"
+                    leadingIcon={<ChevronRight size={16} />}
+                    onClick={() => setAssessmentId(r.id)}
+                    style={{ width: '100%' }}
+                  >
+                    Select Assessment
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
         )}
       </div>
     );
@@ -1311,105 +1349,98 @@ export function CreateAssignmentPage() {
   const codingCount = questionsList.filter((q) => q.type === 'coding').length;
 
   return (
-    <form className="as-page" onSubmit={(e) => void submit(e)}>
+    <form className="as-page space-y-6" onSubmit={(e) => void submit(e)}>
       <PageHeader
-        title="Configure assignment details"
-        description="Configure availability timeline and instructions for this assessment assignment."
+        title="Configure & Issue Assignment"
+        description="Select candidate application, schedule availability window, and issue official assessment invitation."
       />
 
       <div className="space-y-6">
         {selectedAssessmentQuery.isLoading ? (
-          <LoadingState label="Loading selected assessment details" />
+          <LoadingState label="Loading selected assessment details..." />
         ) : selectedAssessment ? (
-          <Card heading="Selected Assessment" headingLevel={2}>
-            <div className="flex justify-between items-start">
-              <div>
-                <h3 className="text-lg font-bold">{selectedAssessment.title}</h3>
-                <p className="text-slate-600 mt-1">{selectedAssessment.description}</p>
-                <div className="mt-4 grid grid-cols-2 gap-4 text-sm">
-                  <div><strong>Type:</strong> {selectedAssessment.type}</div>
-                  <div><strong>Duration:</strong> {selectedAssessment.durationMinutes} minutes</div>
-                  <div><strong>MCQ Questions:</strong> {mcqCount}</div>
-                  <div><strong>Coding Challenges:</strong> {codingCount}</div>
-                  <div><strong>Passing Score:</strong> {selectedAssessment.passingPercentage}%</div>
+          <div className="bg-slate-900 text-white rounded-xl p-6 shadow-md relative overflow-hidden">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 relative z-10">
+              <div className="space-y-2">
+                <div className="flex items-center gap-2.5">
+                  <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-blue-500/20 text-blue-300 border border-blue-400/30 capitalize">
+                    {selectedAssessment.type} Assessment
+                  </span>
+                  <span className="text-xs text-slate-400">ID: {selectedAssessment.id}</span>
+                </div>
+                <h2 className="text-2xl font-bold text-white">{selectedAssessment.title}</h2>
+                <p className="text-slate-300 text-sm max-w-2xl">{selectedAssessment.description}</p>
+
+                <div className="pt-2 flex flex-wrap gap-4 text-xs text-slate-300">
+                  <div className="flex items-center gap-1.5 bg-slate-800/80 px-3 py-1.5 rounded-lg border border-slate-700">
+                    <Clock size={14} className="text-blue-400" />
+                    <span>Duration: <strong>{selectedAssessment.durationMinutes} mins</strong></span>
+                  </div>
+                  <div className="flex items-center gap-1.5 bg-slate-800/80 px-3 py-1.5 rounded-lg border border-slate-700">
+                    <Code2 size={14} className="text-emerald-400" />
+                    <span>Challenges: <strong>{codingCount} Coding / {mcqCount} MCQ</strong></span>
+                  </div>
+                  <div className="flex items-center gap-1.5 bg-slate-800/80 px-3 py-1.5 rounded-lg border border-slate-700">
+                    <ShieldCheck size={14} className="text-amber-400" />
+                    <span>Passing Score: <strong>{selectedAssessment.passingPercentage}%</strong></span>
+                  </div>
                 </div>
               </div>
-              <Button variant="secondary" onClick={() => setAssessmentId('')}>
+
+              <Button
+                variant="secondary"
+                leadingIcon={<ChevronLeft size={16} />}
+                onClick={() => setAssessmentId('')}
+                style={{ backgroundColor: '#1e293b', color: '#f8fafc', borderColor: '#334155' }}
+              >
                 Change Assessment
               </Button>
             </div>
-          </Card>
+          </div>
         ) : null}
 
-        <div
-          style={{
-            padding: '14px 16px',
-            backgroundColor: 'var(--color-bg-subtle, #f0f9ff)',
-            border: '1px solid #bae6fd',
-            borderRadius: '8px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            gap: '16px',
-            flexWrap: 'wrap',
-          }}
-        >
-          <div>
-            <strong style={{ color: '#0369a1', fontSize: '14px' }}>
-              Assigning to multiple candidates?
-            </strong>
-            <p style={{ margin: '4px 0 0 0', fontSize: '13px', color: '#0c4a6e' }}>
-              You don&apos;t need to manually type IDs! Go to the ATS Pipeline, select multiple candidates using checkboxes, and click <strong>&quot;Assign Assessment&quot;</strong> to bulk-assign with live eligibility preview.
-            </p>
+        <div className="bg-sky-50 border border-sky-200 rounded-xl p-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+          <div className="flex items-start gap-3">
+            <Sparkles size={20} className="text-sky-600 shrink-0 mt-0.5" />
+            <div>
+              <strong className="text-sky-900 text-sm font-semibold">Bulk Candidate Assignment Available</strong>
+              <p className="text-sky-800 text-xs mt-0.5">
+                Need to assign this assessment to multiple candidates at once? Head to the ATS Pipeline, select candidates using checkboxes, and click <strong>&quot;Assign Assessment&quot;</strong>.
+              </p>
+            </div>
           </div>
           <Link
             to="/org/applications"
-            className="tvx-button tvx-button--secondary"
-            style={{ backgroundColor: '#ffffff', whiteSpace: 'nowrap' }}
+            className="inline-flex items-center justify-center px-4 py-2 text-xs font-semibold text-sky-700 bg-white border border-sky-300 rounded-lg hover:bg-sky-50 shadow-sm shrink-0 transition-all"
           >
             Open ATS Pipeline →
           </Link>
         </div>
 
-        <Card heading="Candidate & Timeline Configuration" headingLevel={2}>
-          <div className="space-y-4">
+        <Card heading="Candidate & Timeline Setup" headingLevel={2}>
+          <div className="space-y-5">
             <div>
-              <div
-                style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  marginBottom: '6px',
-                }}
-              >
-                <span style={{ fontSize: '14px', fontWeight: 600 }}>
-                  Candidate Application
-                </span>
+              <div className="flex items-center justify-between mb-2">
+                <label className="text-xs font-semibold text-slate-700 uppercase tracking-wider">
+                  Target Candidate Application
+                </label>
                 {!initialAppId && (
                   <button
                     type="button"
                     onClick={() => setManualInput(!manualInput)}
-                    style={{
-                      fontSize: '12px',
-                      color: 'var(--color-primary, #0284c7)',
-                      background: 'none',
-                      border: 'none',
-                      cursor: 'pointer',
-                      textDecoration: 'underline',
-                    }}
+                    className="text-xs font-semibold text-blue-600 hover:text-blue-700 hover:underline transition-all"
                   >
-                    {manualInput
-                      ? '← Select from pipeline candidates'
-                      : 'Enter Application ID manually'}
+                    {manualInput ? '← Select from ATS pipeline dropdown' : 'Enter Application ID manually'}
                   </button>
                 )}
               </div>
 
               {!manualInput && !initialAppId ? (
                 applicationsQuery.isLoading ? (
-                  <small className="text-slate-500">
-                    Loading pipeline candidates...
-                  </small>
+                  <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-500 flex items-center gap-2">
+                    <Clock size={14} className="animate-spin text-blue-500" />
+                    <span>Loading candidate applications from pipeline...</span>
+                  </div>
                 ) : (
                   <Select
                     label=""
@@ -1418,11 +1449,11 @@ export function CreateAssignmentPage() {
                     options={[
                       {
                         value: '',
-                        label: '-- Select a candidate from your pipeline --',
+                        label: '-- Select a candidate application from pipeline --',
                       },
                       ...(applicationsQuery.data?.items ?? []).map((app) => ({
                         value: app.id,
-                        label: `${app.candidateName} — ${app.jobTitle} [${label(app.status)}]`,
+                        label: `${app.candidateName} — ${app.jobTitle} [Stage: ${label(app.status)}]`,
                       })),
                     ]}
                   />
@@ -1431,7 +1462,7 @@ export function CreateAssignmentPage() {
                 <TextField
                   label="Application ID"
                   required
-                  placeholder="24-character hexadecimal MongoDB ID"
+                  placeholder="24-character hexadecimal MongoDB Application ID"
                   value={applicationId}
                   onChange={(e) => setApplicationId(e.target.value)}
                   disabled={Boolean(initialAppId)}
@@ -1440,21 +1471,22 @@ export function CreateAssignmentPage() {
             </div>
 
             {checkEligibility.isPending && (
-              <small className="text-slate-500">Evaluating candidate eligibility...</small>
+              <div className="p-3 bg-blue-50/70 border border-blue-200 rounded-xl text-xs text-blue-700 flex items-center gap-2">
+                <Clock size={14} className="animate-spin" />
+                <span>Evaluating candidate eligibility and active assignment rules...</span>
+              </div>
             )}
 
             {eligibilityResult && (
-              <div style={{ padding: '12px', border: '1px solid var(--color-border-subtle, #e2e8f0)', borderRadius: '6px', background: 'var(--color-surface-subtle, #f8fafc)', fontSize: '0.875rem' }}>
+              <div className="p-4 rounded-xl border border-slate-200 bg-slate-50 space-y-3">
                 {eligibilityResult.eligible[0] && (
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div className="flex items-center justify-between gap-3">
                     <div>
-                      <strong>{eligibilityResult.eligible[0].candidateName}</strong>
-                      <span style={{ color: 'var(--color-text-secondary, #64748b)', marginLeft: '8px' }}>
-                        ({eligibilityResult.eligible[0].email})
-                      </span>
+                      <strong className="text-slate-900 text-sm font-semibold">{eligibilityResult.eligible[0].candidateName}</strong>
+                      <span className="text-xs text-slate-500 ml-2">({eligibilityResult.eligible[0].email})</span>
                       {eligibilityResult.eligible[0].jobTitle && (
-                        <div style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary, #64748b)', marginTop: '2px' }}>
-                          Job: {eligibilityResult.eligible[0].jobTitle}
+                        <div className="text-xs text-slate-500 mt-0.5">
+                          Job Applied: <strong>{eligibilityResult.eligible[0].jobTitle}</strong>
                         </div>
                       )}
                     </div>
@@ -1464,25 +1496,25 @@ export function CreateAssignmentPage() {
 
                 {eligibilityResult.alreadyAssigned[0] && (
                   <div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <strong>{eligibilityResult.alreadyAssigned[0].candidateName}</strong>
+                    <div className="flex items-center justify-between gap-3">
+                      <strong className="text-slate-900 text-sm font-semibold">{eligibilityResult.alreadyAssigned[0].candidateName}</strong>
                       <StatusTag tone="warning">
                         Already Assigned ({eligibilityResult.alreadyAssigned[0].existingStatus})
                       </StatusTag>
                     </div>
-                    <p style={{ fontSize: '0.75rem', color: '#b45309', margin: '6px 0 0 0' }}>
-                      An active assignment already exists for this application. Reassigning is blocked until the existing assignment finishes or expires.
+                    <p className="text-xs text-amber-700 mt-1.5">
+                      An active assignment already exists for this application. Reassigning is blocked until the existing assignment completes or expires.
                     </p>
                   </div>
                 )}
 
                 {eligibilityResult.ineligible[0] && (
                   <div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <strong>{eligibilityResult.ineligible[0].candidateName}</strong>
+                    <div className="flex items-center justify-between gap-3">
+                      <strong className="text-slate-900 text-sm font-semibold">{eligibilityResult.ineligible[0].candidateName}</strong>
                       <StatusTag tone="danger">Ineligible</StatusTag>
                     </div>
-                    <p style={{ fontSize: '0.75rem', color: '#b91c1c', margin: '6px 0 0 0' }}>
+                    <p className="text-xs text-red-700 mt-1.5">
                       {eligibilityResult.ineligible[0].reason || 'Application is not in an eligible pipeline stage.'}
                     </p>
                   </div>
@@ -1490,46 +1522,49 @@ export function CreateAssignmentPage() {
               </div>
             )}
 
-            <DateField
-              label="Available date"
-              required
-              min={todayStr}
-              value={availableFrom}
-              error={availableDateError}
-              onChange={(e) => {
-                const nextAvail = e.target.value;
-                setAvailableFrom(nextAvail);
-                if (expiresAt && nextAvail && expiresAt <= nextAvail) {
-                  const nextMinExpiry = new Date(new Date(nextAvail).getTime() + 86400000)
-                    .toISOString()
-                    .slice(0, 10);
-                  setExpiresAt(nextMinExpiry);
-                }
-              }}
-            />
-            <DateField
-              label="Expiry date (Deadline)"
-              required
-              min={minExpiryStr}
-              value={expiresAt}
-              error={expiryDateError}
-              onChange={(e) => setExpiresAt(e.target.value)}
-            />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <DateField
+                label="Available Date (Start)"
+                required
+                min={todayStr}
+                value={availableFrom}
+                error={availableDateError}
+                onChange={(e) => {
+                  const nextAvail = e.target.value;
+                  setAvailableFrom(nextAvail);
+                  if (expiresAt && nextAvail && expiresAt <= nextAvail) {
+                    const nextMinExpiry = new Date(new Date(nextAvail).getTime() + 86400000)
+                      .toISOString()
+                      .slice(0, 10);
+                    setExpiresAt(nextMinExpiry);
+                  }
+                }}
+              />
+              <DateField
+                label="Expiry Date (Submission Deadline)"
+                required
+                min={minExpiryStr}
+                value={expiresAt}
+                error={expiryDateError}
+                onChange={(e) => setExpiresAt(e.target.value)}
+              />
+            </div>
 
             {selectedAssessment && (
               <TextArea
-                label="Immutable Instructions for Candidate"
+                label="Assessment Instructions (Candidate Copy)"
                 disabled
-                value={selectedAssessment.instructions || 'Follow the test screen rules.'}
+                value={selectedAssessment.instructions || 'Follow the test screen rules and complete all requirements before the deadline.'}
               />
             )}
 
-            <div className="pt-4 flex gap-4">
+            <div className="pt-4 flex items-center justify-end gap-3 border-t border-slate-200">
               <Button variant="secondary" onClick={() => setAssessmentId('')}>
-                Back
+                Back to Selection
               </Button>
               <Button
                 type="submit"
+                leadingIcon={<ArrowRight size={16} />}
                 loading={create.isPending}
                 disabled={
                   !assessmentId ||
@@ -1538,15 +1573,15 @@ export function CreateAssignmentPage() {
                   Boolean(eligibilityResult && (eligibilityResult.eligible?.length ?? 0) === 0)
                 }
               >
-                Confirm Assignment
+                Confirm & Issue Assignment
               </Button>
             </div>
 
             {create.isError && (
-              <Alert tone="danger" title="Assignment not created">
+              <Alert tone="danger" title="Assignment Failed">
                 {create.error instanceof Error
                   ? create.error.message
-                  : 'Check the fields.'}
+                  : 'Failed to create assessment assignment. Please check the inputs and try again.'}
               </Alert>
             )}
           </div>

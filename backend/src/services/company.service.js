@@ -18,6 +18,10 @@ import { revokeUserSessions } from '../utils/sessionRevocation.js';
 const supportsTransactions = () => ['ReplicaSetWithPrimary', 'Sharded'].includes(mongoose.connection.client?.topology?.description?.type);
 
 const buildCompany = async (input, userId, session) => {
+  const currentProfile = await RecruiterProfile.findOne({ user: userId }).session(session ?? null);
+  if (currentProfile?.company) {
+    throw new AppError('Recruiter already belongs to an active company', 409);
+  }
   const slug = await generateUniqueSlug(input.name, (candidate) => Company.exists({ slug: candidate }).session(session ?? null));
   const [company] = await Company.create([{
     ...input,
@@ -49,10 +53,17 @@ const buildCompany = async (input, userId, session) => {
 
 export const createCompany = async (userId, input) => {
   const profile = await RecruiterProfile.findOne({ user: userId });
+  if (!profile) throw new AppError('Recruiter profile not found', 404);
+
   const user = await User.findById(userId);
-  const isAllowedOnboarding = user && (user.recruiterVerificationStatus === 'none' || user.recruiterVerificationStatus === 'rejected');
-  if (!profile?.isApproved && !isAllowedOnboarding) throw new AppError('Recruiter approval is required', 403);
-  if (profile.company || await Company.exists({ owner: userId, isActive: true })) throw new AppError('Recruiter already belongs to an active company', 409);
+  if (!user || user.blocked || user.recruiterVerificationStatus === 'suspended') {
+    throw new AppError('Account is suspended or inactive', 403);
+  }
+
+  const hasExistingCompany = Boolean(profile.company) || (await Company.exists({ owner: userId, isActive: true }));
+  if (hasExistingCompany) {
+    throw new AppError('Recruiter already belongs to an active company', 409);
+  }
 
   if (supportsTransactions()) {
     const session = await mongoose.startSession();

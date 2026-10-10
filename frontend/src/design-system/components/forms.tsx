@@ -298,6 +298,7 @@ export type SelectProps = SelectHTMLAttributes<HTMLSelectElement> &
     options: SelectOption[];
     placeholder?: string;
     readOnly?: boolean;
+    hideLabel?: boolean;
   };
 export const Select = forwardRef<HTMLSelectElement, SelectProps>(
   function Select(
@@ -311,14 +312,16 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(
       readOnly,
       onChange,
       loading,
+      hideLabel,
       ...props
     },
     ref,
   ) {
+    const effectiveLabel = hideLabel ? undefined : (label ?? props['aria-label'] ?? 'Select');
     return (
       <FormField
         id={id}
-        label={label ?? props['aria-label'] ?? 'Select'}
+        label={effectiveLabel}
         hint={hint}
         error={error}
       >
@@ -328,6 +331,7 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(
             className="tvx-input"
             {...props}
             id={c.id}
+            aria-label={props['aria-label'] ?? (typeof label === 'string' ? label : undefined)}
             disabled={props.disabled || loading || readOnly}
             aria-busy={loading || undefined}
             aria-readonly={readOnly || undefined}

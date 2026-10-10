@@ -74,3 +74,182 @@ export function useCloneJob() {
     },
   });
 }
+
+const isRealObjectId = (id?: string) => Boolean(id && id !== 'new' && /^[0-9a-fA-F]{24}$/.test(id));
+
+export function useJobIntelligence(jobId: string, enabled = true) {
+  return useQuery({
+    queryKey: ['job-intelligence', jobId],
+    enabled: isRealObjectId(jobId) && enabled,
+    queryFn: () => apiRequest<{ data?: { intelligence?: unknown } }>(`/jobs/manage/${jobId}/intelligence`),
+    select: (res) => (res as any)?.data?.intelligence ?? null,
+    retry: false,
+  });
+}
+
+export function useExtractJobIntelligence(jobId?: string) {
+  const qc = useQueryClient();
+  const isReal = isRealObjectId(jobId);
+  return useMutation({
+    mutationFn: (payload?: { forceRefresh?: boolean; title?: string; description?: string }) => {
+      if (isReal) {
+        return apiRequest<{ data?: { intelligence?: unknown } }>(`/jobs/manage/${jobId}/intelligence/extract`, {
+          method: 'POST',
+          body: { forceRefresh: payload?.forceRefresh ?? true },
+        });
+      }
+      return apiRequest<{ data?: { intelligence?: unknown } }>('/jobs/ai/extract-intelligence', {
+        method: 'POST',
+        body: {
+          title: payload?.title ?? '',
+          description: payload?.description?.trim() || payload?.title || ''
+        },
+      });
+    },
+    onSuccess: () => {
+      if (isReal) {
+        void qc.invalidateQueries({ queryKey: ['job-intelligence', jobId] });
+        void qc.invalidateQueries({ queryKey: ['managed-job', jobId] });
+      }
+    },
+  });
+}
+
+export function useJobQuality(jobId: string, enabled = true) {
+  return useQuery({
+    queryKey: ['job-quality', jobId],
+    enabled: isRealObjectId(jobId) && enabled,
+    queryFn: () => apiRequest<{ data?: { quality?: unknown } }>(`/jobs/manage/${jobId}/quality`),
+    select: (res) => (res as any)?.data?.quality ?? null,
+    retry: false,
+  });
+}
+
+export function useAnalyzeJobQuality(jobId?: string) {
+  const qc = useQueryClient();
+  const isReal = isRealObjectId(jobId);
+  return useMutation({
+    mutationFn: (payload?: { forceRefresh?: boolean; title?: string; description?: string }) => {
+      if (isReal) {
+        return apiRequest<{ data?: { quality?: unknown } }>(`/jobs/manage/${jobId}/quality/analyze`, {
+          method: 'POST',
+          body: { forceRefresh: payload?.forceRefresh ?? true },
+        });
+      }
+      return apiRequest<{ data?: { quality?: unknown } }>('/jobs/ai/analyze-quality', {
+        method: 'POST',
+        body: {
+          title: payload?.title ?? '',
+          description: payload?.description?.trim() || payload?.title || ''
+        },
+      });
+    },
+    onSuccess: () => {
+      if (isReal) {
+        void qc.invalidateQueries({ queryKey: ['job-quality', jobId] });
+        void qc.invalidateQueries({ queryKey: ['managed-job', jobId] });
+      }
+    },
+  });
+}
+
+export function useJobBlueprint(jobId: string, enabled = true) {
+  return useQuery({
+    queryKey: ['job-blueprint', jobId],
+    enabled: isRealObjectId(jobId) && enabled,
+    queryFn: () => apiRequest<{ data?: { blueprint?: unknown } }>(`/jobs/manage/${jobId}/blueprint`),
+    select: (res) => (res as any)?.data?.blueprint ?? null,
+    retry: false,
+  });
+}
+
+export function useGenerateJobBlueprint(jobId?: string) {
+  const qc = useQueryClient();
+  const isReal = isRealObjectId(jobId);
+  return useMutation({
+    mutationFn: (payload?: { forceRefresh?: boolean; title?: string; description?: string }) => {
+      if (isReal) {
+        return apiRequest<{ data?: { blueprint?: unknown } }>(`/jobs/manage/${jobId}/blueprint/generate`, {
+          method: 'POST',
+          body: { forceRefresh: payload?.forceRefresh ?? true },
+        });
+      }
+      return apiRequest<{ data?: { blueprint?: unknown } }>('/jobs/ai/generate-blueprint', {
+        method: 'POST',
+        body: {
+          title: payload?.title ?? '',
+          description: payload?.description?.trim() || payload?.title || ''
+        },
+      });
+    },
+    onSuccess: () => {
+      if (isReal) {
+        void qc.invalidateQueries({ queryKey: ['job-blueprint', jobId] });
+        void qc.invalidateQueries({ queryKey: ['managed-job', jobId] });
+      }
+    },
+  });
+}
+
+export function useRegenerateBlueprintSection(jobId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: { sectionId: string; feedback?: string; customInstructions?: string }) => {
+      return apiRequest<{ data?: { blueprint?: unknown } }>(`/jobs/manage/${jobId}/blueprint/regenerate-section`, {
+        method: 'POST',
+        body: payload,
+      });
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['job-blueprint', jobId] });
+    },
+  });
+}
+
+export function useUpdateJobBlueprint(jobId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: Record<string, unknown>) => {
+      return apiRequest<{ data?: { blueprint?: unknown } }>(`/jobs/manage/${jobId}/blueprint`, {
+        method: 'PATCH',
+        body: { data },
+      });
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['job-blueprint', jobId] });
+    },
+  });
+}
+
+export function useApproveJobBlueprint(jobId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => {
+      return apiRequest<{ data?: { blueprint?: unknown } }>(`/jobs/manage/${jobId}/blueprint/approve`, {
+        method: 'POST',
+      });
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['job-blueprint', jobId] });
+      void qc.invalidateQueries({ queryKey: ['managed-job', jobId] });
+    },
+  });
+}
+
+export function useConvertBlueprintToAssessment(jobId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => {
+      return apiRequest<{ data?: { assessmentId?: string } }>(`/jobs/manage/${jobId}/blueprint/convert`, {
+        method: 'POST',
+      });
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['job-blueprint', jobId] });
+      void qc.invalidateQueries({ queryKey: ['managed-job', jobId] });
+    },
+  });
+}
+
+
+

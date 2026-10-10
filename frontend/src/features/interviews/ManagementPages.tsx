@@ -8,6 +8,7 @@ import {
   Layers,
   Sparkles,
   Search,
+  ArrowLeft,
 } from 'lucide-react';
 import {
   Alert,
@@ -43,6 +44,17 @@ import {
 import { useApplication } from '../ats-workspace/api';
 import { label, type Process, type Template } from './model';
 import { InterviewTabs } from './Pages';
+
+function isInterviewJoinable(schedule?: any) {
+  if (!schedule) return false;
+  if (['completed', 'cancelled', 'expired', 'no-show'].includes(schedule.status)) return false;
+  const schedTime = schedule.scheduledAt || schedule.startTime;
+  if (!schedTime) return true;
+  const joinAvailableAt = schedule.joinAvailableAt
+    ? new Date(schedule.joinAvailableAt).getTime()
+    : new Date(schedTime).getTime() - 5 * 60 * 1000;
+  return new Date().getTime() >= joinAvailableAt;
+}
 
 const has = (items: string[], item: string) => items.includes(item),
   msg = (e: unknown) =>
@@ -609,20 +621,69 @@ export function FeedbackDetailPage() {
   const removeAttachment = (id: string) => {
     setAttachments(attachments.filter((x) => x !== id));
   };
+  const backUrl = scorecard.processId
+    ? `/org/interviews/${scorecard.processId}`
+    : '/org/interviews';
+
   return (
     <div className="iv-page">
       <PageHeader
+        eyebrow={
+          <Link
+            to={backUrl}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              fontSize: '0.875rem',
+              fontWeight: 600,
+              color: '#2563eb',
+              textDecoration: 'none',
+              marginBottom: '4px',
+            }}
+          >
+            <ArrowLeft size={14} /> Back to Interview Process
+          </Link>
+        }
         title={scorecard.name}
         description={`${label(scorecard.type)} scorecard · ${label(scorecard.status)}`}
         secondaryActions={
           <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
             <Link
-              to={`/org/interviews/schedules/${scorecard.schedule?.id || scorecard.roundId}/room`}
-              className="tvx-button tvx-button--primary"
-              style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', backgroundColor: '#2563eb', color: '#ffffff', padding: '6px 14px', borderRadius: '6px', textDecoration: 'none', fontWeight: 600, fontSize: '0.85rem' }}
+              to={backUrl}
+              className="tvx-button tvx-button--secondary"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '6px 14px',
+                borderRadius: '6px',
+                textDecoration: 'none',
+                fontWeight: 600,
+                fontSize: '0.85rem',
+                color: '#334155',
+                border: '1px solid #cbd5e1',
+                backgroundColor: '#ffffff',
+              }}
             >
-              🎥 Enter Native Room ↗
+              <ArrowLeft size={14} /> Back to Process
             </Link>
+            {isInterviewJoinable(scorecard.schedule) ? (
+              <Link
+                to={`/org/interviews/schedules/${scorecard.schedule?.id || scorecard.roundId}/room`}
+                className="tvx-button tvx-button--primary"
+                style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', backgroundColor: '#2563eb', color: '#ffffff', padding: '6px 14px', borderRadius: '6px', textDecoration: 'none', fontWeight: 600, fontSize: '0.85rem' }}
+              >
+                🎥 Enter Native Room ↗
+              </Link>
+            ) : (
+              <span
+                style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', backgroundColor: '#94a3b8', color: '#ffffff', padding: '6px 14px', borderRadius: '6px', fontWeight: 600, fontSize: '0.85rem', cursor: 'not-allowed' }}
+                title="Interview room opens 5 minutes before scheduled start time"
+              >
+                🎥 Room Opens 5m Before Start
+              </span>
+            )}
             <StatusTag tone={immutable ? 'success' : scorecard.overdue ? 'danger' : 'warning'}>
               {immutable ? 'Submitted' : scorecard.overdue ? 'Overdue' : 'Draft'}
             </StatusTag>
@@ -648,6 +709,7 @@ export function FeedbackDetailPage() {
         <TextArea disabled={immutable} label="Strengths (one per line)" value={strengths} onChange={(e) => setStrengths(e.target.value)} />
         <TextArea disabled={immutable} label="Concerns (one per line)" value={concerns} onChange={(e) => setConcerns(e.target.value)} />
         <TextArea disabled={immutable} label="Private notes" hint="Visible only to you and authorized internal users." value={privateNotes} onChange={(e) => setPrivateNotes(e.target.value)} />
+        <TextArea disabled={immutable} label="Candidate-visible feedback" hint="Optional summary feedback visible to the candidate when feedback is released." value={visibleFeedback} onChange={(e) => setVisibleFeedback(e.target.value)} />
         {attachments.length > 0 && (
           <div style={{ marginTop: 'var(--space-4)', borderTop: '1px solid var(--color-border-subtle)', paddingTop: 'var(--space-4)' }}>
             <h3 style={{ marginBlock: 'var(--space-2)' }}>Attachments</h3>

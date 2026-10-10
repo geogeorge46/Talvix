@@ -23,6 +23,15 @@ import {
   FileCheck,
   Eye,
   Sparkles,
+  Play,
+  ShieldCheck,
+  ListChecks,
+  LayoutGrid,
+  List,
+  ArrowRight,
+  ArrowLeft,
+  Trash2,
+  Award,
 } from 'lucide-react';
 import {
   Link,
@@ -78,13 +87,14 @@ import {
 } from './api';
 import {
   formatDate,
+  formatPercentage,
   label,
   type Assessment,
   type Assignment,
   type Question,
   type CohortCandidate,
-  type PromoteCandidatesResult,
 } from './model';
+import { TechnicalAssessmentWorkspace } from './components/technical/TechnicalAssessmentWorkspace';
 import './assessments.css';
 const err = (e: unknown) =>
   e instanceof Error ? e.message : 'The request could not be completed.';
@@ -990,53 +1000,102 @@ function QuestionList({
   onRemove?: (questionId: string) => void;
   isRemoving?: boolean;
 }) {
+  const totalMarks = a.questions.reduce((sum, q) => sum + (q.marks || 0), 0);
+
   return (
-    <Card
-      heading="Questions"
-      headingLevel={2}
-      description="Use the explicit controls to review composition. Dragging is never required."
-      actions={
-        manage && a.status === 'draft' && onAddClick ? (
-          <Button variant="secondary" onClick={onAddClick}>
-            Add question from bank
+    <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs space-y-6">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-4">
+        <div>
+          <div className="flex items-center gap-3">
+            <h2 className="text-lg font-bold text-slate-900">Questions</h2>
+            <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-blue-50 text-blue-700 border border-blue-200">
+              {a.questions.length} total
+            </span>
+            <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-slate-100 text-slate-700 border border-slate-200">
+              {totalMarks} total marks
+            </span>
+          </div>
+          <p className="text-xs text-slate-500 mt-1">
+            Questions configured in this assessment snapshot.
+          </p>
+        </div>
+        {manage && a.status === 'draft' && onAddClick && (
+          <Button
+            variant="secondary"
+            onClick={onAddClick}
+            className="!rounded-xl !px-4 !py-2 border border-slate-300 hover:bg-slate-50 font-semibold inline-flex items-center gap-2"
+          >
+            <Plus className="w-4 h-4 text-blue-600" /> Add question from bank
           </Button>
-        ) : undefined
-      }
-    >
+        )}
+      </div>
+
       {a.questions.length ? (
-        <ol className="as-questions" style={{ listStyle: 'none', padding: 0 }}>
+        <div className="space-y-3">
           {a.questions.map((q, i) => (
-            <li key={q.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '16px', padding: '12px 0', borderBottom: '1px solid var(--color-border-default)' }}>
-              <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flex: 1, minWidth: 0 }}>
-                <span style={{ fontWeight: 600, color: 'var(--color-text-muted)', flexShrink: 0 }}>{i + 1}</span>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <strong style={{ display: 'block', wordBreak: 'break-word' }}>{q.title || q.prompt}</strong>
-                  <small style={{ display: 'block', color: 'var(--color-text-muted)', marginTop: '2px' }}>
-                    {label(q.type)} · {q.marks} marks
-                  </small>
+            <div
+              key={q.id}
+              className="p-4 rounded-xl border border-slate-200/90 bg-slate-50/50 hover:bg-white hover:border-slate-300 transition-all flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 group"
+            >
+              <div className="flex items-start gap-3.5 flex-1 min-w-0">
+                <div className="w-8 h-8 rounded-lg bg-blue-100 text-blue-800 font-bold text-sm flex items-center justify-center shrink-0 mt-0.5">
+                  Q{i + 1}
+                </div>
+                <div className="space-y-1.5 flex-1 min-w-0">
+                  <h4 className="text-sm font-semibold text-slate-900 group-hover:text-blue-600 transition-colors break-words">
+                    {q.title || q.prompt}
+                  </h4>
+                  <div className="flex flex-wrap items-center gap-2 text-xs">
+                    <span className="px-2 py-0.5 rounded-md bg-white border border-slate-200 text-slate-700 font-medium">
+                      {label(q.type)}
+                    </span>
+                    <span className="px-2 py-0.5 rounded-md bg-blue-50 border border-blue-200 text-blue-700 font-semibold">
+                      {q.marks} {q.marks === 1 ? 'mark' : 'marks'}
+                    </span>
+                    {q.topic && (
+                      <span className="px-2 py-0.5 rounded-md bg-slate-100 text-slate-600 font-medium">
+                        {q.topic}
+                      </span>
+                    )}
+                    {q.difficulty && (
+                      <span
+                        className={`px-2 py-0.5 rounded-md font-medium border ${
+                          q.difficulty === 'easy'
+                            ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                            : q.difficulty === 'medium'
+                            ? 'bg-amber-50 text-amber-700 border-amber-200'
+                            : 'bg-rose-50 text-rose-700 border-rose-200'
+                        }`}
+                      >
+                        {label(q.difficulty)}
+                      </span>
+                    )}
+                  </div>
                 </div>
               </div>
+
               {manage && a.status === 'draft' && onRemove && (
-                <div style={{ flexShrink: 0 }}>
+                <div className="shrink-0 self-end sm:self-center">
                   <Button
                     variant="danger"
                     onClick={() => onRemove(q.id)}
                     disabled={isRemoving}
+                    className="!rounded-lg !px-3 !py-1.5 text-xs font-semibold inline-flex items-center gap-1.5"
                   >
-                    Remove
+                    <Trash2 className="w-3.5 h-3.5" /> Remove
                   </Button>
                 </div>
               )}
-            </li>
+            </div>
           ))}
-        </ol>
+        </div>
       ) : (
         <EmptyState
           title="No questions added"
           description="Add questions from the reusable question bank before publishing."
         />
       )}
-    </Card>
+    </div>
   );
 }
 
@@ -2070,27 +2129,34 @@ export function AssessmentDetailPage() {
   };
 
   const existingIds = a.questions.map((q) => q.id);
+  const totalAssessmentMarks = a.questions.reduce((sum, q) => sum + (q.marks || 0), 0);
 
   return (
-    <div className="as-page">
+    <div className="as-page space-y-6">
+      <div className="flex items-center gap-2 text-sm text-slate-500">
+        <Link to="/org/assessments" className="flex items-center gap-1 hover:text-slate-900 transition-colors">
+          <ChevronLeft className="w-4 h-4" /> Assessment Library
+        </Link>
+        <span>/</span>
+        <span className="font-semibold text-slate-800">{a.title}</span>
+      </div>
+
       <PageHeader
         title={a.title}
         description={a.description || 'No description provided.'}
-        metadata={
-          <StatusTag tone={statusTone(a.status)}>{label(a.status)}</StatusTag>
-        }
+        metadata={<StatusTag tone={statusTone(a.status)}>{label(a.status)}</StatusTag>}
         primaryAction={
           manage && a.status === 'draft' ? (
-            <Button onClick={() => void action.mutateAsync('publish')}>
-              Publish
+            <Button onClick={() => void action.mutateAsync('publish')} className="!rounded-xl !px-5 !py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold">
+              Publish Assessment
             </Button>
           ) : undefined
         }
         secondaryActions={
           manage ? (
-            <>
+            <div className="flex items-center gap-2">
               <Link
-                className="tvx-button tvx-button--secondary"
+                className="inline-flex items-center justify-center px-4 py-2 text-sm font-semibold rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 shadow-xs"
                 to={`/org/assessments/${a.id}/edit`}
               >
                 Edit
@@ -2099,82 +2165,121 @@ export function AssessmentDetailPage() {
                 <>
                   {has(recruiter?.permissions ?? [], 'assessments.assign') && (
                     <Link
-                      className="tvx-button tvx-button--primary"
+                      className="inline-flex items-center justify-center px-4 py-2 text-sm font-semibold rounded-xl bg-blue-600 hover:bg-blue-700 text-white shadow-xs"
                       to={`/org/assessments/assignments/new?assessmentId=${a.id}`}
                     >
-                      Assign to candidate
+                      Assign to Candidates
                     </Link>
                   )}
                   <Button
                     variant="secondary"
                     onClick={() => void action.mutateAsync('archive')}
+                    className="!rounded-xl !px-4 !py-2 border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 font-semibold"
                   >
                     Archive
                   </Button>
                 </>
               )}
-            </>
+            </div>
           ) : undefined
         }
       />
+
       {action.isError && (
         <Alert
-          tone={
-            (action.error as ApiError).status === 409 ? 'warning' : 'danger'
-          }
-          title="Assessment changed"
+          tone={(action.error as ApiError).status === 409 ? 'warning' : 'danger'}
+          title="Assessment update error"
         >
-          {err(action.error)} Refresh before trying again.
+          {err(action.error)} Please refresh and try again.
         </Alert>
       )}
 
-      <div className="as-tab-bar" role="tablist" aria-label="Assessment views">
-        <Button
-          variant={activeTab === 'structure' ? 'primary' : 'secondary'}
-          onClick={() => setActiveTab('structure')}
+      {/* Modern Executive Tab Bar */}
+      <div className="flex items-center gap-2 border-b border-slate-200 pb-px overflow-x-auto" role="tablist">
+        <button
+          type="button"
           role="tab"
           aria-selected={activeTab === 'structure'}
+          onClick={() => setActiveTab('structure')}
+          className={`flex items-center gap-2 px-5 py-3 text-sm font-bold border-b-2 transition-all cursor-pointer whitespace-nowrap ${
+            activeTab === 'structure'
+              ? 'border-blue-600 text-blue-600 bg-white rounded-t-xl shadow-2xs'
+              : 'border-transparent text-slate-500 hover:text-slate-800 hover:border-slate-300'
+          }`}
         >
-          Structure & Questions
-        </Button>
-        <Button
-          variant={activeTab === 'leaderboard' ? 'primary' : 'secondary'}
-          onClick={() => setActiveTab('leaderboard')}
+          <ListChecks className="w-4 h-4" /> Structure & Questions ({a.questions?.length || 0})
+        </button>
+
+        <button
+          type="button"
           role="tab"
           aria-selected={activeTab === 'leaderboard'}
+          onClick={() => setActiveTab('leaderboard')}
+          className={`flex items-center gap-2 px-5 py-3 text-sm font-bold border-b-2 transition-all cursor-pointer whitespace-nowrap ${
+            activeTab === 'leaderboard'
+              ? 'border-blue-600 text-blue-600 bg-white rounded-t-xl shadow-2xs'
+              : 'border-transparent text-slate-500 hover:text-slate-800 hover:border-slate-300'
+          }`}
         >
-          Cohort Leaderboard & Results
-        </Button>
+          <Award className="w-4 h-4" /> Cohort Leaderboard & Results
+        </button>
       </div>
 
       {activeTab === 'structure' ? (
-        <>
+        <div className="space-y-6">
+          {/* Quick Metrics Bar */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+            <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-xs space-y-1">
+              <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider block">Duration</span>
+              <div className="text-2xl font-black text-slate-900">{a.durationMinutes} <span className="text-xs font-normal text-slate-500">mins</span></div>
+              <p className="text-xs text-slate-500">Timed session</p>
+            </div>
+
+            <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-xs space-y-1">
+              <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider block">Total Questions</span>
+              <div className="text-2xl font-black text-slate-900">{a.questions?.length || 0}</div>
+              <p className="text-xs text-slate-500">Questions in snapshot</p>
+            </div>
+
+            <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-xs space-y-1">
+              <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider block">Total Marks</span>
+              <div className="text-2xl font-black text-blue-600">{totalAssessmentMarks}</div>
+              <p className="text-xs text-slate-500">Maximum score</p>
+            </div>
+
+            <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-xs space-y-1">
+              <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider block">Passing Threshold</span>
+              <div className="text-2xl font-black text-slate-900">{a.passingPercentage}%</div>
+              <p className="text-xs text-slate-500">Required percentage</p>
+            </div>
+
+            <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-xs space-y-1">
+              <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider block">Back Navigation</span>
+              <div className="text-lg font-bold text-slate-900">{a.allowBackNavigation ? 'Allowed' : 'Disabled'}</div>
+              <p className="text-xs text-slate-500">Question jumping</p>
+            </div>
+          </div>
+
           <div className="as-layout">
-            <Card heading="Definition" headingLevel={2}>
+            <Card heading="Assessment Definition" headingLevel={2}>
               <DescriptionList
                 items={[
-                  { term: 'Type', description: label(a.type) },
-                  {
-                    term: 'Duration',
-                    description: `${a.durationMinutes} minutes`,
-                  },
-                  {
-                    term: 'Passing score',
-                    description: `${a.passingPercentage}%`,
-                  },
-                  {
-                    term: 'Back navigation',
-                    description: a.allowBackNavigation
-                      ? 'Allowed'
-                      : 'Not allowed',
-                  },
+                  { term: 'Assessment Type', description: label(a.type) },
+                  { term: 'Duration', description: `${a.durationMinutes} minutes` },
+                  { term: 'Passing Mark', description: `${a.passingPercentage}%` },
+                  { term: 'Back Navigation', description: a.allowBackNavigation ? 'Allowed' : 'Not allowed' },
+                  { term: 'Shuffle Questions', description: a.shuffleQuestions ? 'Enabled' : 'Disabled' },
+                  { term: 'Negative Marking', description: a.negativeMarking ? `-${a.negativeMarkValue || 0.25}` : 'None' },
                 ]}
               />
-              <h3>Candidate instructions</h3>
-              <p className="as-preserve">
-                {a.instructions || 'No instructions provided.'}
-              </p>
+              <div className="pt-4 border-t border-slate-100 space-y-2">
+                <h3 className="text-sm font-bold text-slate-900">Candidate instructions</h3>
+                <p className="text-sm text-slate-600 leading-relaxed whitespace-pre-wrap">
+                  {a.instructions || 'No instructions provided.'}
+                </p>
+              </div>
             </Card>
+
             <QuestionList
               a={a}
               manage={manage}
@@ -2183,11 +2288,13 @@ export function AssessmentDetailPage() {
               isRemoving={composition.isPending}
             />
           </div>
+
           {composition.isError && (
             <Alert tone="danger" title="Question composition failed">
               {err(composition.error)}
             </Alert>
           )}
+
           <AddQuestionDialog
             open={addOpen}
             onOpenChange={setAddOpen}
@@ -2196,7 +2303,7 @@ export function AssessmentDetailPage() {
             existingIds={existingIds}
             defaultTopic={a.title}
           />
-        </>
+        </div>
       ) : (
         <CohortLeaderboardSection
           assessmentId={a.id}
@@ -2230,6 +2337,144 @@ function AssignmentCard({
     </article>
   );
 }
+
+function CandidateAssessmentCard({ a }: { a: Assignment }) {
+  const isExpired = a.status === 'expired' || (a.expiresAt && Date.parse(a.expiresAt) <= Date.now());
+  const isActive = ['assigned', 'available', 'in-progress'].includes(a.status);
+  const isCompleted = ['completed', 'submitted', 'evaluating'].includes(a.status);
+  const isUrgent = isActive && a.expiresAt && Date.parse(a.expiresAt) - Date.now() < 24 * 60 * 60 * 1000;
+
+  return (
+    <div className="bg-white border border-slate-200/90 rounded-2xl p-5 shadow-2xs hover:shadow-md hover:border-slate-300 transition-all flex flex-col justify-between space-y-4 group relative overflow-hidden">
+      {/* Visual Top Accent Strip */}
+      <div
+        className={`absolute top-0 left-0 right-0 h-1.5 ${
+          a.status === 'in-progress'
+            ? 'bg-indigo-600'
+            : isActive
+            ? 'bg-amber-500'
+            : isCompleted
+            ? 'bg-emerald-500'
+            : 'bg-slate-300'
+        }`}
+      />
+
+      <div className="space-y-3 pt-1">
+        {/* Type Badge & Status Tag */}
+        <div className="flex items-start justify-between gap-2">
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-semibold bg-slate-100 text-slate-700 border border-slate-200/80">
+            <Code2 className="w-3.5 h-3.5 text-indigo-600" /> Technical Assessment
+          </span>
+          {a.status === 'in-progress' ? (
+            <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-indigo-100 text-indigo-800 border border-indigo-200">
+              In Progress
+            </span>
+          ) : isActive ? (
+            <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-slate-900 text-white border border-slate-900">
+              Available
+            </span>
+          ) : isCompleted ? (
+            <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-900 border border-emerald-300">
+              Completed
+            </span>
+          ) : isExpired ? (
+            <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-rose-100 text-rose-900 border border-rose-300">
+              Expired
+            </span>
+          ) : (
+            <StatusTag tone={statusTone(a.status)}>{label(a.status)}</StatusTag>
+          )}
+        </div>
+
+        {/* Assessment Title */}
+        <h3 className="text-base font-bold text-slate-900 group-hover:text-indigo-600 transition-colors line-clamp-2 leading-snug">
+          {a.title}
+        </h3>
+
+        {/* Evaluation / Performance Score Pill */}
+        {a.bestPercentage !== undefined && a.bestPercentage !== null && (
+          <div className="flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-200/80 text-xs">
+            <div className="flex items-center gap-2">
+              <Award className="w-4 h-4 text-indigo-600 shrink-0" />
+              <span className="font-medium text-slate-600">Best Score:</span>
+              <strong className="text-slate-900 font-bold">{formatPercentage(a.bestPercentage)}</strong>
+            </div>
+            {a.passed !== undefined && (
+              <span
+                className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full ${
+                  a.passed
+                    ? 'bg-emerald-100 text-emerald-800'
+                    : 'bg-slate-200 text-slate-700'
+                }`}
+              >
+                {a.passed ? 'Passed' : 'Evaluated'}
+              </span>
+            )}
+          </div>
+        )}
+
+        {/* Expiry / Deadline Info */}
+        <div className="space-y-1 pt-1 text-xs">
+          <div className="flex items-center justify-between text-slate-500">
+            <span className="flex items-center gap-1.5">
+              <Clock className={`w-3.5 h-3.5 ${isUrgent ? 'text-amber-600 animate-pulse' : 'text-slate-400'}`} />
+              Deadline:
+            </span>
+            <span className={`font-semibold ${isUrgent ? 'text-amber-700' : 'text-slate-700'}`}>
+              {formatDate(a.expiresAt)}
+            </span>
+          </div>
+          {isUrgent && (
+            <p className="text-[11px] text-amber-700 font-semibold text-right">
+              ⚠️ Expires in less than 24h
+            </p>
+          )}
+        </div>
+      </div>
+
+      {/* Action Footer Button */}
+      <div className="pt-3 border-t border-slate-100">
+        {a.status === 'in-progress' ? (
+          <Link
+            to={a.attemptId ? `/candidate/assessments/${a.id}/attempt/${a.attemptId}` : `/candidate/assessments/${a.id}`}
+            className="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 text-xs font-bold rounded-xl transition-all shadow-xs border-0 cursor-pointer"
+            style={{ backgroundColor: '#4f46e5', color: '#ffffff' }}
+          >
+            <Play className="w-3.5 h-3.5 text-white fill-current" />
+            <span style={{ color: '#ffffff', fontWeight: 700 }}>Resume Attempt</span>
+          </Link>
+        ) : isActive ? (
+          <Link
+            to={`/candidate/assessments/${a.id}`}
+            className="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 text-xs font-bold rounded-xl transition-all shadow-xs border-0 cursor-pointer"
+            style={{ backgroundColor: '#0f172a', color: '#ffffff' }}
+          >
+            <span style={{ color: '#ffffff', fontWeight: 700 }}>Start Assessment</span>
+            <ArrowRight className="w-3.5 h-3.5 text-white" />
+          </Link>
+        ) : isCompleted ? (
+          <Link
+            to={a.attemptId ? `/candidate/assessments/${a.id}/result/${a.attemptId}` : `/candidate/assessments/${a.id}`}
+            className="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 text-xs font-semibold rounded-xl border border-slate-300 transition-all shadow-2xs cursor-pointer"
+            style={{ backgroundColor: '#f1f5f9', color: '#0f172a' }}
+          >
+            <Eye className="w-3.5 h-3.5 text-slate-700" />
+            <span style={{ color: '#0f172a', fontWeight: 600 }}>View Results & Feedback</span>
+          </Link>
+        ) : (
+          <Link
+            to={`/candidate/assessments/${a.id}`}
+            className="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 text-xs font-semibold rounded-xl border border-slate-200 transition-all cursor-pointer"
+            style={{ backgroundColor: '#f8fafc', color: '#334155' }}
+          >
+            <HelpCircle className="w-3.5 h-3.5 text-slate-500" />
+            <span style={{ color: '#334155', fontWeight: 600 }}>Assessment Details</span>
+          </Link>
+        )}
+      </div>
+    </div>
+  );
+}
 export function AssignmentsPage({
   candidate = false,
 }: {
@@ -2245,14 +2490,24 @@ export function AssignmentsPage({
   const currentPage = Number(p.get('page') || 1);
   const currentStatus = p.get('status') || '';
 
+  // Only pass backend-valid status params to backend query
+  const validBackendStatus = candidate
+    ? (['assigned', 'available', 'in-progress', 'submitted', 'evaluating', 'completed', 'expired', 'cancelled'].includes(currentStatus) ? currentStatus : '')
+    : currentStatus;
+
   const q = useAssignments(
-    `page=${currentPage}&limit=10${currentStatus ? `&status=${currentStatus}` : ''}`,
+    `page=${currentPage}&limit=${candidate ? 50 : 10}${validBackendStatus ? `&status=${validBackendStatus}` : ''}`,
     can,
     candidate,
   );
 
-  // Fetch summary counts for cards when recruiter view
+  const [candidateViewMode, setCandidateViewMode] = useState<'grid' | 'table'>('grid');
+  
+  // Summary query for recruiter counts
   const summaryQ = useAssignments('limit=50', can && !candidate, false);
+
+  // Summary query for candidate counts across all statuses
+  const candidateSummaryQ = useAssignments('limit=50', can && candidate, true);
 
   if (!can)
     return (
@@ -2269,53 +2524,275 @@ export function AssignmentsPage({
   const countExpired = allAssignments.filter((a) => a.status === 'expired').length;
 
   if (candidate) {
+    const candidateRows = rawRows;
+    const allCandAssignments = (candidateSummaryQ.data?.items ?? candidateRows) as Assignment[];
+
+    const activeCount = allCandAssignments.filter((a) =>
+      ['assigned', 'available', 'in-progress'].includes(a.status)
+    ).length;
+    const inProgCount = allCandAssignments.filter((a) => a.status === 'in-progress').length;
+    const compCount = allCandAssignments.filter((a) =>
+      ['completed', 'submitted', 'evaluating'].includes(a.status)
+    ).length;
+    const candTotal = candidateSummaryQ.data?.total ?? allCandAssignments.length;
+
+    const handleCandidateStatusFilter = (statusVal: string) => {
+      const n = new URLSearchParams(p);
+      if (statusVal) n.set('status', statusVal);
+      else n.delete('status');
+      n.set('page', '1');
+      setP(n);
+    };
+
+    const filteredCandidateRows = candidateRows.filter((a) => {
+      if (searchTerm.trim()) {
+        const term = searchTerm.toLowerCase();
+        if (!(a.title || '').toLowerCase().includes(term)) return false;
+      }
+      if (currentStatus) {
+        if (currentStatus === 'action-required') {
+          return ['assigned', 'available', 'in-progress'].includes(a.status);
+        }
+        if (currentStatus === 'submitted-eval') {
+          return ['submitted', 'evaluating'].includes(a.status);
+        }
+        return a.status === currentStatus;
+      }
+      return true;
+    });
+
     return (
-      <div className="candidate-page candidate-domain-container">
+      <div className="candidate-page candidate-domain-container space-y-6">
+        {/* Hero Banner */}
         <div className="candidate-hero-banner-mindease">
           <div className="banner-left-content">
             <div className="banner-icon-badge theme-green">
-              <ClipboardCheck size={22} />
+              <ClipboardCheck size={24} />
             </div>
             <div className="banner-text-details">
-              <h1 className="banner-title">My Assessments</h1>
-              <p className="banner-subtext">Review instructions, deadlines and your assessment progress.</p>
+              <h1 className="banner-title flex items-center gap-2">
+                My Assessments
+                <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800">
+                  {candTotal} Total
+                </span>
+              </h1>
+              <p className="banner-subtext">
+                Review instructions, manage your deadlines, and launch your dedicated technical assessment workspace.
+              </p>
             </div>
           </div>
+          <div className="banner-right-actions hidden sm:flex items-center gap-3">
+            <Link className="banner-action-pill" to="/candidate/applications">
+              <span>View Applications</span>
+              <ChevronRight size={14} />
+            </Link>
+          </div>
         </div>
-        <Select
-          label="Status filter"
-          value={p.get('status') || ''}
-          onChange={(e) => {
-            const n = new URLSearchParams(p);
-            if (e.target.value) n.set('status', e.target.value);
-            else n.delete('status');
-            setP(n);
-          }}
-          options={[
-            'assigned',
-            'available',
-            'in-progress',
-            'submitted',
-            'evaluating',
-            'completed',
-            'expired',
-            'cancelled',
-          ].map((x) => ({ value: x, label: label(x) }))}
-        />
-        {q.isError ? (
+
+        {/* 4 Metric KPI Cards */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div
+            onClick={() => handleCandidateStatusFilter('action-required')}
+            className={`p-4 rounded-2xl border transition-all cursor-pointer ${
+              currentStatus === 'action-required'
+                ? 'bg-amber-50/80 border-amber-300 ring-2 ring-amber-400/20 shadow-xs'
+                : 'bg-white border-slate-200 hover:border-slate-300 shadow-2xs'
+            }`}
+          >
+            <div className="flex items-center justify-between text-slate-500 mb-1">
+              <span className="text-xs font-bold uppercase tracking-wider">Action Required</span>
+              <Clock className="w-4 h-4 text-amber-600" />
+            </div>
+            <div className="text-2xl font-bold text-slate-900">{activeCount}</div>
+            <p className="text-xs text-slate-500 mt-1">Pending or ready to start</p>
+          </div>
+
+          <div
+            onClick={() => handleCandidateStatusFilter('in-progress')}
+            className={`p-4 rounded-2xl border transition-all cursor-pointer ${
+              currentStatus === 'in-progress'
+                ? 'bg-indigo-50/80 border-indigo-300 ring-2 ring-indigo-400/20 shadow-xs'
+                : 'bg-white border-slate-200 hover:border-slate-300 shadow-2xs'
+            }`}
+          >
+            <div className="flex items-center justify-between text-slate-500 mb-1">
+              <span className="text-xs font-bold uppercase tracking-wider">In Progress</span>
+              <Sparkles className="w-4 h-4 text-indigo-600" />
+            </div>
+            <div className="text-2xl font-bold text-slate-900">{inProgCount}</div>
+            <p className="text-xs text-slate-500 mt-1">Drafts currently saved</p>
+          </div>
+
+          <div
+            onClick={() => handleCandidateStatusFilter('completed')}
+            className={`p-4 rounded-2xl border transition-all cursor-pointer ${
+              currentStatus === 'completed'
+                ? 'bg-emerald-50/80 border-emerald-300 ring-2 ring-emerald-400/20 shadow-xs'
+                : 'bg-white border-slate-200 hover:border-slate-300 shadow-2xs'
+            }`}
+          >
+            <div className="flex items-center justify-between text-slate-500 mb-1">
+              <span className="text-xs font-bold uppercase tracking-wider">Completed</span>
+              <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+            </div>
+            <div className="text-2xl font-bold text-slate-900">{compCount}</div>
+            <p className="text-xs text-slate-500 mt-1">Evaluated or submitted</p>
+          </div>
+
+          <div
+            onClick={() => handleCandidateStatusFilter('')}
+            className={`p-4 rounded-2xl border transition-all cursor-pointer ${
+              !currentStatus
+                ? 'bg-slate-100 border-slate-400 ring-2 ring-slate-400/20 shadow-xs'
+                : 'bg-white border-slate-200 hover:border-slate-300 shadow-2xs'
+            }`}
+          >
+            <div className="flex items-center justify-between text-slate-500 mb-1">
+              <span className="text-xs font-bold uppercase tracking-wider">All Assigned</span>
+              <ClipboardCheck className="w-4 h-4 text-slate-600" />
+            </div>
+            <div className="text-2xl font-bold text-slate-900">{candTotal}</div>
+            <p className="text-xs text-slate-500 mt-1">Total assessments</p>
+          </div>
+        </div>
+
+        {/* Filter, Search & View Controls Bar */}
+        <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-2xs space-y-4">
+          <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4">
+            {/* Search Box */}
+            <div className="relative flex-1 max-w-md">
+              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+              <input
+                type="text"
+                placeholder="Search assessments by title..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full pl-9 pr-4 py-2 text-sm border border-slate-200 rounded-xl focus:outline-hidden focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 text-slate-800 placeholder-slate-400"
+              />
+              {searchTerm && (
+                <button
+                  onClick={() => setSearchTerm('')}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs font-bold"
+                >
+                  Clear
+                </button>
+              )}
+            </div>
+
+            {/* Grid vs Table Layout Switcher */}
+            <div className="flex items-center gap-2 shrink-0">
+              <div className="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200">
+                <button
+                  onClick={() => setCandidateViewMode('grid')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all ${
+                    candidateViewMode === 'grid'
+                      ? 'bg-white text-slate-900 shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  <LayoutGrid className="w-3.5 h-3.5" /> Grid
+                </button>
+                <button
+                  onClick={() => setCandidateViewMode('table')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all ${
+                    candidateViewMode === 'table'
+                      ? 'bg-white text-slate-900 shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  <List className="w-3.5 h-3.5" /> Table
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Horizontal Status Pill Filter Tabs */}
+          <div className="flex items-center gap-2 overflow-x-auto pb-1 pt-1 no-scrollbar border-t border-slate-100">
+            {[
+              { id: '', label: 'All' },
+              { id: 'action-required', label: 'Action Required', count: activeCount },
+              { id: 'in-progress', label: 'In Progress', count: inProgCount },
+              { id: 'submitted-eval', label: 'Evaluating / Submitted' },
+              { id: 'completed', label: 'Completed', count: compCount },
+              { id: 'expired', label: 'Expired' },
+            ].map((tab) => {
+              const isActive = currentStatus === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => handleCandidateStatusFilter(tab.id)}
+                  className={`px-3.5 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-all flex items-center gap-1.5 ${
+                    isActive
+                      ? 'bg-slate-900 text-white font-semibold shadow-2xs'
+                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-900'
+                  }`}
+                >
+                  <span>{tab.label}</span>
+                  {typeof tab.count === 'number' && (
+                    <span
+                      className={`px-1.5 py-0.2 rounded-full text-[10px] ${
+                        isActive ? 'bg-slate-700 text-white' : 'bg-slate-200 text-slate-700'
+                      }`}
+                    >
+                      {tab.count}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Assessment Card Grid / Table List */}
+        {q.isPending ? (
+          <LoadingState label="Loading your assigned assessments..." />
+        ) : q.isError ? (
           <ErrorState detail={err(q.error)} retry={() => void q.refetch()} />
+        ) : filteredCandidateRows.length === 0 ? (
+          <EmptyState
+            title="No matching assessments"
+            description={
+              searchTerm || currentStatus
+                ? 'No assessments match your current search or status filter.'
+                : 'You currently have no assigned technical assessments.'
+            }
+            action={
+              (searchTerm || currentStatus) && (
+                <Button
+                  variant="secondary"
+                  onClick={() => {
+                    setSearchTerm('');
+                    handleCandidateStatusFilter('');
+                  }}
+                >
+                  Clear Filters
+                </Button>
+              )
+            }
+          />
+        ) : candidateViewMode === 'grid' ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+            {filteredCandidateRows.map((a) => (
+              <CandidateAssessmentCard key={a.id} a={a} />
+            ))}
+          </div>
         ) : (
           <DataTable
             caption="Assigned assessments"
-            rows={rawRows}
+            rows={filteredCandidateRows}
             rowKey={(a) => a.id}
             isLoading={q.isLoading}
-            empty={<Empty filtered={p.has('status')} />}
+            empty={<Empty filtered={Boolean(searchTerm || currentStatus)} />}
             columns={[
               {
                 id: 'assessment',
-                header: 'Assessment',
-                render: (a) => <strong>{a.title}</strong>,
+                header: 'Assessment Title',
+                render: (a) => (
+                  <div className="space-y-0.5">
+                    <strong className="text-slate-900 text-sm font-bold block">{a.title}</strong>
+                    <span className="text-xs text-slate-500">Technical Assessment</span>
+                  </div>
+                ),
               },
               {
                 id: 'status',
@@ -2327,22 +2804,76 @@ export function AssignmentsPage({
                 ),
               },
               {
+                id: 'score',
+                header: 'Best Score',
+                render: (a) =>
+                  a.bestPercentage !== undefined && a.bestPercentage !== null ? (
+                    <span className="font-bold text-slate-900 text-xs">
+                      {formatPercentage(a.bestPercentage)} {a.passed ? '✓ Passed' : ''}
+                    </span>
+                  ) : (
+                    <span className="text-slate-400 text-xs">—</span>
+                  ),
+              },
+              {
                 id: 'expiry',
                 header: 'Deadline',
-                render: (a) => formatDate(a.expiresAt),
+                render: (a) => (
+                  <span className="text-xs font-medium text-slate-700">{formatDate(a.expiresAt)}</span>
+                ),
               },
             ]}
-            renderNarrow={(a) => <AssignmentCard a={a} candidate={candidate} />}
             rowActions={(a) => (
               <Link
                 className="tvx-button tvx-button--secondary tvx-button--compact"
-                to={`/candidate/assessments/${a.id}`}
+                to={
+                  a.status === 'in-progress' && a.attemptId
+                    ? `/candidate/assessments/${a.id}/attempt/${a.attemptId}`
+                    : `/candidate/assessments/${a.id}`
+                }
               >
-                Open
+                {a.status === 'in-progress' ? 'Resume' : 'Open'}
               </Link>
             )}
           />
         )}
+
+        {/* Proctoring & Assessment Guidelines Info Box */}
+        <div className="bg-gradient-to-br from-slate-900 to-slate-950 text-slate-100 border border-slate-800 rounded-2xl p-6 shadow-md relative overflow-hidden">
+          <div className="flex items-start gap-4">
+            <div className="p-3 bg-indigo-500/20 text-indigo-400 rounded-xl shrink-0">
+              <ShieldCheck className="w-6 h-6" />
+            </div>
+            <div className="space-y-3 flex-1">
+              <h3 className="text-base font-bold text-white flex items-center gap-2">
+                Assessment Environment & Proctoring Guidelines
+              </h3>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs text-slate-300">
+                <div className="flex items-start gap-2 bg-slate-800/50 p-3 rounded-xl border border-slate-800">
+                  <Play className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                  <div>
+                    <strong className="block text-slate-100 font-semibold mb-0.5">Fullscreen Workspace</strong>
+                    Technical coding & debugging challenges enter locked full-screen mode on start.
+                  </div>
+                </div>
+                <div className="flex items-start gap-2 bg-slate-800/50 p-3 rounded-xl border border-slate-800">
+                  <Clock className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                  <div>
+                    <strong className="block text-slate-100 font-semibold mb-0.5">Continuous Countdown</strong>
+                    The timer runs continuously once an attempt is launched until submission or expiration.
+                  </div>
+                </div>
+                <div className="flex items-start gap-2 bg-slate-800/50 p-3 rounded-xl border border-slate-800">
+                  <Code2 className="w-4 h-4 text-blue-400 shrink-0 mt-0.5" />
+                  <div>
+                    <strong className="block text-slate-100 font-semibold mb-0.5">Auto-Saved Drafts</strong>
+                    Your code modifications and answers are synced automatically every few seconds.
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     );
   }
@@ -2642,7 +3173,7 @@ export function AssignmentsPage({
                           </strong>
                           {a.bestPercentage !== undefined && (
                             <span style={{ fontSize: '0.75rem', color: '#16a34a', fontWeight: 600 }}>
-                              Score: {a.bestPercentage}%
+                              Score: {formatPercentage(a.bestPercentage)}
                             </span>
                           )}
                         </div>
@@ -2734,68 +3265,155 @@ export function CandidateAssignmentPage() {
   const start = useStart();
   const nav = useNavigate();
   const [loadedAt] = useState(() => Date.now());
+
   if (q.isLoading)
-    return <LoadingState label="Loading assessment instructions" />;
+    return <LoadingState label="Loading candidate assessment environment..." />;
   if (q.isError)
     return (
       <ErrorState
-        title="Assessment unavailable"
+        title="Assessment Unavailable"
         detail={err(q.error)}
         retry={() => void q.refetch()}
       />
     );
+
   const a = q.data;
   if (!a) return null;
+
   const expired = Date.parse(a.expiresAt) <= loadedAt || a.status === 'expired';
+
   const begin = async () => {
     const x = await start.mutateAsync(a.id);
     const id = (x.attempt as { id?: string; _id?: string })?.id || (x.attempt as { id?: string; _id?: string })?._id;
     if (id) nav(`/candidate/assessments/${a.id}/attempt/${id}`);
   };
+
   return (
-    <div className="as-page">
-      <PageHeader
-        title={a.title}
-        eyebrow="Assessment instructions"
-        description={`Available from ${formatDate(a.availableFrom)} · deadline ${formatDate(a.expiresAt)}`}
-        metadata={
-          <StatusTag tone={statusTone(a.status)}>{label(a.status)}</StatusTag>
-        }
-      />
-      {expired && (
-        <Alert tone="danger" title="Deadline passed">
-          This assessment can no longer be started or changed.
-        </Alert>
-      )}
-      <Card heading="Before you begin" headingLevel={2}>
-        <ul>
-          <li>Your answers are saved only when you select Save answer.</li>
-          <li>Keep this page open during recoverable connection failures.</li>
-          <li>Submitting is final and requires confirmation.</li>
-          <li>No proctoring, compiler or AI evaluation is provided.</li>
-        </ul>
-        {a.attemptId ? (
-          <Link
-            className="tvx-button tvx-button--primary"
-            to={`/candidate/assessments/${a.id}/attempt/${a.attemptId}`}
-          >
-            Continue attempt
-          </Link>
-        ) : (
-          <Button
-            onClick={() => void begin()}
-            loading={start.isPending}
-            disabled={expired || !['assigned', 'available'].includes(a.status)}
-          >
-            Start assessment
-          </Button>
+    <div className="as-page space-y-6">
+      <div className="flex items-center gap-2 text-sm text-slate-500">
+        <Link to="/candidate/assessments" className="flex items-center gap-1 hover:text-slate-900 transition-colors">
+          <ChevronLeft className="w-4 h-4" /> My Assessments
+        </Link>
+        <span>/</span>
+        <span className="font-semibold text-slate-800">{a.title}</span>
+      </div>
+
+      {/* Main Header Banner */}
+      <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs space-y-6">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 pb-6 border-b border-slate-100">
+          <div className="space-y-1">
+            <div className="flex items-center gap-3">
+              <h1 className="text-2xl font-bold text-slate-900">{a.title}</h1>
+              <StatusTag tone={statusTone(a.status)}>{label(a.status)}</StatusTag>
+            </div>
+            <p className="text-slate-500 text-sm flex items-center gap-2 flex-wrap">
+              <span>Available: <strong>{formatDate(a.availableFrom)}</strong></span>
+              <span>•</span>
+              <span className="text-amber-700 font-semibold">Deadline: {formatDate(a.expiresAt)}</span>
+            </p>
+          </div>
+
+          <div className="shrink-0">
+            {a.attemptId ? (
+              <Link
+                className="inline-flex items-center justify-center gap-2 px-6 py-3 text-sm font-bold rounded-xl bg-blue-600 hover:bg-blue-700 text-white shadow-xs transition-all"
+                to={`/candidate/assessments/${a.id}/attempt/${a.attemptId}`}
+              >
+                <Play className="w-4 h-4 fill-current" /> Continue Attempt
+              </Link>
+            ) : (
+              <Button
+                onClick={() => void begin()}
+                loading={start.isPending}
+                disabled={expired || !['assigned', 'available'].includes(a.status)}
+                className="!rounded-xl !px-6 !py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold shadow-xs text-sm inline-flex items-center gap-2"
+              >
+                <Play className="w-4 h-4 fill-current" /> Start Assessment
+              </Button>
+            )}
+          </div>
+        </div>
+
+        {expired && (
+          <Alert tone="danger" title="Deadline Expired">
+            The deadline for this assessment has passed ({formatDate(a.expiresAt)}). Further attempts or submissions are locked.
+          </Alert>
         )}
+
+        {/* Assessment Specs Grid */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="bg-slate-50 rounded-xl p-4 border border-slate-100 space-y-1">
+            <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider block">Duration</span>
+            <div className="text-2xl font-black text-slate-900">{a.durationMinutes || 60} <span className="text-xs font-normal text-slate-500">mins</span></div>
+            <p className="text-xs text-slate-500">Timed attempt session</p>
+          </div>
+
+          <div className="bg-slate-50 rounded-xl p-4 border border-slate-100 space-y-1">
+            <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider block">Total Questions</span>
+            <div className="text-2xl font-black text-slate-900">{a.questionsCount || (a.questions?.length ?? 'N/A')}</div>
+            <p className="text-xs text-slate-500">Coding, SQL & MCQ tasks</p>
+          </div>
+
+          <div className="bg-slate-50 rounded-xl p-4 border border-slate-100 space-y-1">
+            <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider block">Passing Threshold</span>
+            <div className="text-2xl font-black text-slate-900">{a.passingPercentage || 60}%</div>
+            <p className="text-xs text-slate-500">Target score to pass</p>
+          </div>
+
+          <div className="bg-slate-50 rounded-xl p-4 border border-slate-100 space-y-1">
+            <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider block">Attempts Remaining</span>
+            <div className="text-2xl font-black text-slate-900">{a.attemptsRemaining ?? (a.maximumAttempts ? a.maximumAttempts - a.attemptsUsed : 1)}</div>
+            <p className="text-xs text-slate-500">Out of {a.maximumAttempts || 1} allowed</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Checklist Card */}
+      <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs space-y-4">
+        <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+          <ShieldCheck className="w-5 h-5 text-blue-600" /> Candidate Guidelines & Checklist
+        </h3>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+          <div className="flex items-start gap-3 p-3.5 bg-slate-50 rounded-xl border border-slate-100">
+            <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
+            <div>
+              <strong className="text-slate-900 block font-semibold">Automatic Code Execution</strong>
+              <span className="text-slate-600 text-xs">Coding and SQL tasks run automatically against public test cases while editing.</span>
+            </div>
+          </div>
+
+          <div className="flex items-start gap-3 p-3.5 bg-slate-50 rounded-xl border border-slate-100">
+            <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
+            <div>
+              <strong className="text-slate-900 block font-semibold">Final Solution Submission</strong>
+              <span className="text-slate-600 text-xs">Selecting &quot;Submit Solution&quot; runs all test cases (including hidden tests) and locks your task response.</span>
+            </div>
+          </div>
+
+          <div className="flex items-start gap-3 p-3.5 bg-slate-50 rounded-xl border border-slate-100">
+            <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
+            <div>
+              <strong className="text-slate-900 block font-semibold">Timer & Auto-Submit</strong>
+              <span className="text-slate-600 text-xs">The countdown timer runs continuously once started. Upon expiry, all saved work is auto-submitted.</span>
+            </div>
+          </div>
+
+          <div className="flex items-start gap-3 p-3.5 bg-slate-50 rounded-xl border border-slate-100">
+            <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
+            <div>
+              <strong className="text-slate-900 block font-semibold">Stable Internet Connection</strong>
+              <span className="text-slate-600 text-xs">Maintain a stable connection during the attempt session for seamless draft auto-saving.</span>
+            </div>
+          </div>
+        </div>
+
         {start.isError && (
-          <Alert tone="danger" title="Could not start">
+          <Alert tone="danger" title="Could Not Start Assessment">
             {err(start.error)}
           </Alert>
         )}
-      </Card>
+      </div>
     </div>
   );
 }
@@ -3206,6 +3824,52 @@ export function AttemptPage() {
       lock.current = false;
     }
   };
+  if (question && ['coding', 'debugging', 'sql'].includes(question.type)) {
+    return (
+      <>
+        <TechnicalAssessmentWorkspace
+          attemptId={a.id}
+          assessmentTitle={a.title}
+          expiresAt={a.expiresAt}
+          questions={a.questions}
+          initialIndex={index}
+          initialAnswers={drafts}
+          allowBackNavigation={a.allowBackNavigation}
+          isAttemptDisabled={disabled}
+          onExpire={() => setExpired(true)}
+          onClose={() => nav('/candidate/assessments')}
+          onAnswerSaved={(qId, val) => setDrafts((prev) => ({ ...prev, [qId]: val }))}
+          onNavigate={(idx) => setIndex(idx)}
+          onSubmitAttempt={() => setConfirm(true)}
+        />
+        {(expired || deadlineExpired) && (
+          <Alert tone="danger" title="Time expired">
+            Saving and submission are disabled. Contact the hiring organization if you need help.
+          </Alert>
+        )}
+        <Dialog
+          open={confirm}
+          onOpenChange={setConfirm}
+          title="Submit assessment?"
+          description="This is final. You will not be able to change answers after submission."
+          busy={submit.isPending}
+          footer={
+            <>
+              <Button variant="secondary" onClick={() => setConfirm(false)}>
+                Keep working
+              </Button>
+              <Button onClick={() => void final()} loading={submit.isPending}>
+                Submit final answers
+              </Button>
+            </>
+          }
+        >
+          <p>Confirm only when every intended answer has been saved.</p>
+        </Dialog>
+      </>
+    );
+  }
+
   return (
     <div className="as-page">
       <PageHeader

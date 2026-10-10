@@ -361,10 +361,14 @@ const getMockResponse = (promptText) => {
   const isJson = promptText.includes('JSON') || promptText.includes('json');
   let text = 'Mock AI text response.';
 
+  if (!isJson && promptText.includes('Updated Version 2')) {
+    return 'Updated Version 2 Output generated';
+  }
+
   if (!isJson && (promptText.includes('Write a comprehensive, professional job description') || promptText.includes('Write a professional job description') || promptText.includes('generate_job_description'))) {
     const titleMatch = promptText.match(/position "([^"]+)"/) || promptText.match(/title: "([^"]+)"/);
     const title = titleMatch ? titleMatch[1] : 'Software Engineer';
-    const companyMatch = promptText.match(/Company: ([^\n]+)/);
+    const companyMatch = promptText.match(/- Company Name:\s*([^\n]+)/) || promptText.match(/Company Name:\s*([^\n]+)/) || promptText.match(/Company:\s*([^\n]+)/);
     const companyName = companyMatch && companyMatch[1].trim() ? companyMatch[1].trim() : 'Our Company';
     const industryMatch = promptText.match(/Industry: ([^\n]+)/);
     const industry = industryMatch && industryMatch[1].trim() ? industryMatch[1].trim() : 'Technology';
@@ -710,15 +714,42 @@ ${benefitsList}`;
   return text;
 };
 
+const VALID_GEMINI_MODELS = ['gemini-2.5-flash', 'gemini-2.5-pro', 'gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-1.5-pro'];
+const VALID_OPENROUTER_MODELS = ['google/gemini-2.5-flash', 'google/gemini-2.0-flash-001', 'google/gemini-flash-1.5', 'meta-llama/llama-3.3-70b-instruct'];
+
+export const normalizeModel = (providerName, model) => {
+  if (providerName === 'openrouter') {
+    if (!model || typeof model !== 'string' || model.includes('3.6') || model.includes('exp:free') || !VALID_OPENROUTER_MODELS.some(m => model.startsWith(m))) {
+      return 'google/gemini-2.5-flash';
+    }
+    return model;
+  }
+  if (!model || typeof model !== 'string' || model.includes('3.6') || !VALID_GEMINI_MODELS.includes(model)) {
+    return 'gemini-2.5-flash';
+  }
+  return model;
+};
+
+const parseRetryAfter = (response) => {
+  const header = response?.headers?.get?.('retry-after');
+  if (!header) return undefined;
+  const sec = parseInt(header, 10);
+  if (!isNaN(sec)) return sec * 1000;
+  const dateMs = Date.parse(header);
+  if (!isNaN(dateMs)) return Math.max(0, dateMs - Date.now());
+  return undefined;
+};
+
 /**
  * Dispatches physical provider requests (Gemini or OpenRouter).
  */
-const callProvider = async (provider, model, promptText) => {
+const callProvider = async (provider, rawModel, promptText) => {
   const apiKey = provider.apiKey || (provider.name === 'openrouter' ? process.env.OPENROUTER_API_KEY : process.env.GEMINI_API_KEY) || 'mock-key';
+  const model = normalizeModel(provider.name, rawModel);
 
   if (provider.name === 'gemini') {
     // Under testing or mock/placeholder key environments, execute mock responses
-    if (process.env.NODE_ENV === 'test' || isMockOrPlaceholderKey(apiKey)) {
+    if (isMockOrPlaceholderKey(apiKey)) {
       const text = getMockResponse(promptText);
       return {
         text,
@@ -744,49 +775,35 @@ const callProvider = async (provider, model, promptText) => {
         }
       );
     } catch (networkErr) {
-      if (process.env.NODE_ENV === 'development') {
-        console.warn(`[AI Gateway] Gemini network request failed (${networkErr.message}). Falling back to mock generator.`);
-        const text = getMockResponse(promptText);
-        return {
-          text,
-          inputTokens: Math.ceil(promptText.length / 4),
-          outputTokens: Math.ceil(text.length / 4),
-          durationMs: 50
-        };
-      }
-      throw new AppError(`Gemini Network Error: ${networkErr.message}`, 502);
+      const err = new AppError(`Gemini Network Error: ${networkErr.message}`, 502);
+      err.isTransient = true;
+      throw err;
     }
 
     const durationMs = Date.now() - start;
 
     if (!response.ok) {
       const errText = await response.text();
-      if (process.env.NODE_ENV === 'development') {
-        console.warn(`[AI Gateway] Gemini call returned status ${response.status} (${errText.slice(0, 120)}). Falling back to mock generator.`);
-        const text = getMockResponse(promptText);
-        return {
-          text,
-          inputTokens: Math.ceil(promptText.length / 4),
-          outputTokens: Math.ceil(text.length / 4),
-          durationMs
-        };
-      }
-      throw new AppError(`Gemini Provider Error: ${response.status} - ${errText}`, response.status);
+      const status = response.status;
+      const retryAfterMs = parseRetryAfter(response);
+      const err = new AppError(`Gemini Provider Error: ${status} - ${errText}`, status);
+      err.retryAfterMs = retryAfterMs;
+      err.isTransient = status === 429 || status === 502 || status === 503 || status === 504;
+      throw err;
     }
 
     const data = await response.json();
     let text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
 
     if (!text || !text.trim()) {
-      if (process.env.NODE_ENV === 'development') {
-        console.warn('[AI Gateway] Gemini returned empty response text. Falling back to mock generator in development.');
-        text = getMockResponse(promptText);
-      } else if (data.promptFeedback?.blockReason) {
+      if (data.promptFeedback?.blockReason) {
         throw new AppError(`Gemini blocked prompt: ${data.promptFeedback.blockReason}`, 422);
       } else if (data.candidates?.[0]?.finishReason === 'SAFETY') {
         throw new AppError('Gemini response blocked by content safety filters.', 422);
       } else {
-        throw new AppError('Gemini returned an empty response.', 502);
+        const err = new AppError('Gemini returned an empty response.', 502);
+        err.isTransient = true;
+        throw err;
       }
     }
 
@@ -797,7 +814,7 @@ const callProvider = async (provider, model, promptText) => {
   } else if (provider.name === 'openrouter') {
     const key = apiKey;
 
-    if (process.env.NODE_ENV === 'test' || isMockOrPlaceholderKey(key)) {
+    if (isMockOrPlaceholderKey(key)) {
       const text = getMockResponse(promptText);
       return {
         text,
@@ -818,52 +835,39 @@ const callProvider = async (provider, model, promptText) => {
           'Authorization': `Bearer ${key}`
         },
         body: JSON.stringify({
-          model: model || 'google/gemini-2.0-flash-exp:free',
-          messages: [{ role: 'user', content: promptText }]
+          model,
+          messages: [{ role: 'user', content: promptText }],
+          max_tokens: 4000
         })
       });
     } catch (networkErr) {
-      if (process.env.NODE_ENV === 'development') {
-        console.warn(`[AI Gateway] OpenRouter network request failed (${networkErr.message}). Falling back to mock generator.`);
-        const text = getMockResponse(promptText);
-        return {
-          text,
-          inputTokens: Math.ceil(promptText.length / 4),
-          outputTokens: Math.ceil(text.length / 4),
-          durationMs: 50
-        };
-      }
-      throw new AppError(`OpenRouter Network Error: ${networkErr.message}`, 502);
+      const err = new AppError(`OpenRouter Network Error: ${networkErr.message}`, 502);
+      err.isTransient = true;
+      throw err;
     }
 
     const durationMs = Date.now() - start;
 
     if (!response.ok) {
       const errText = await response.text();
-      if (process.env.NODE_ENV === 'development') {
-        console.warn(`[AI Gateway] OpenRouter call returned status ${response.status} (${errText.slice(0, 120)}). Falling back to mock generator.`);
-        const text = getMockResponse(promptText);
-        return {
-          text,
-          inputTokens: Math.ceil(promptText.length / 4),
-          outputTokens: Math.ceil(text.length / 4),
-          durationMs
-        };
-      }
-      throw new AppError(`OpenRouter Provider Error: ${response.status} - ${errText}`, response.status);
+      const status = response.status;
+      const retryAfterMs = parseRetryAfter(response);
+      const err = new AppError(`OpenRouter Provider Error: ${status} - ${errText}`, status);
+      err.retryAfterMs = retryAfterMs;
+      err.isTransient = status === 429 || status === 502 || status === 503 || status === 504;
+      throw err;
     }
 
     const data = await response.json();
     let text = data.choices?.[0]?.message?.content || '';
 
     if (!text || !text.trim()) {
-      if (process.env.NODE_ENV === 'development') {
-        console.warn('[AI Gateway] OpenRouter returned empty response text. Falling back to mock generator in development.');
-        text = getMockResponse(promptText);
-      } else if (data.error) {
+      if (data.error) {
         throw new AppError(`OpenRouter Error: ${data.error.message || JSON.stringify(data.error)}`, 502);
       } else {
-        throw new AppError('OpenRouter returned an empty response.', 502);
+        const err = new AppError('OpenRouter returned an empty response.', 502);
+        err.isTransient = true;
+        throw err;
       }
     }
 
@@ -893,34 +897,28 @@ export const invokeAIGateway = async (promptKey, promptVariables, context = {}) 
   // 3. Render prompt (verifies constraints + injection filter check)
   const { promptText, version } = await renderPrompt(promptKey, promptVariables);
 
-  // 4. Resolve provider
-  let providerName = config.primaryProvider;
+  // 4. Resolve primary and secondary providers
+  let primaryProviderName = config.primaryProvider;
 
   if (process.env.OPENROUTER_API_KEY && !isMockOrPlaceholderKey(process.env.OPENROUTER_API_KEY) && !config.primaryProviderManualOverride) {
-    providerName = 'openrouter';
+    primaryProviderName = 'openrouter';
   }
 
-  let activeProvider = await AIProvider.findOne({ name: providerName, isActive: true }).select('+apiKey');
-
-  if (!activeProvider && config.fallbackProvider) {
-    providerName = config.fallbackProvider;
-    activeProvider = await AIProvider.findOne({ name: providerName, isActive: true }).select('+apiKey');
-  }
+  let activeProvider = await AIProvider.findOne({ name: primaryProviderName, isActive: true }).select('+apiKey');
 
   if (!activeProvider) {
-    if (providerName === 'openrouter') {
+    if (primaryProviderName === 'openrouter') {
       activeProvider = {
         name: 'openrouter',
-        displayName: 'OpenRouter (Fallback)',
+        displayName: 'OpenRouter',
         isActive: true,
         costPerInputToken: 0,
         costPerOutputToken: 0
       };
     } else {
-      // Setup system fallback details if DB has no configs loaded
       activeProvider = {
         name: 'gemini',
-        displayName: 'Google Gemini (Fallback)',
+        displayName: 'Google Gemini',
         isActive: true,
         costPerInputToken: 0.000000075,
         costPerOutputToken: 0.0000003
@@ -928,13 +926,13 @@ export const invokeAIGateway = async (promptKey, promptVariables, context = {}) 
     }
   }
 
-  let targetModel = config.modelMappings?.[promptKey] || config.modelMappings?.fast || (activeProvider.name === 'openrouter' ? 'google/gemini-2.0-flash-exp:free' : 'gemini-2.5-flash');
-
+  let rawModel = config.modelMappings?.[promptKey] || config.modelMappings?.fast || (activeProvider.name === 'openrouter' ? 'google/gemini-2.5-flash' : 'gemini-2.5-flash');
+  let targetModel = normalizeModel(activeProvider.name, rawModel);
 
   // 5. Query Cache
   let cacheKey = null;
   if (config.cachingEnabled) {
-    cacheKey = generateCacheKey(promptKey, promptVariables, activeProvider.name, targetModel);
+    cacheKey = generateCacheKey(promptKey, promptVariables, activeProvider.name, targetModel, companyId, version);
     const cachedResponse = await getCache(cacheKey);
     if (cachedResponse !== null) {
       // Record cache hit
@@ -959,17 +957,75 @@ export const invokeAIGateway = async (promptKey, promptVariables, context = {}) 
     }
   }
 
-  // 6. Invoke call with Retry wrapper
+  // 6. Model & Provider Fallback Candidate Chain
+  const getModelFallbackChain = (provName, requestedModel) => {
+    if (provName === 'openrouter') {
+      const candidates = [requestedModel, 'google/gemini-2.5-flash', 'google/gemini-flash-1.5'];
+      return [...new Set(candidates.map(m => normalizeModel('openrouter', m)))];
+    }
+    const candidates = [requestedModel, 'gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash'];
+    return [...new Set(candidates.map(m => normalizeModel('gemini', m)))];
+  };
+
   let result;
-  try {
-    result = await executeWithRetry(
-      () => callProvider(activeProvider, targetModel, promptText),
-      {
-        maxRetries: config.retryCount,
-        initialDelayMs: config.retryBackoffMs
+  let lastError = null;
+  const modelChain = getModelFallbackChain(activeProvider.name, targetModel);
+
+  for (const m of modelChain) {
+    try {
+      result = await executeWithRetry(
+        () => callProvider(activeProvider, m, promptText),
+        {
+          maxRetries: config.retryCount ?? 3,
+          initialDelayMs: config.retryBackoffMs ?? 1000
+        }
+      );
+      targetModel = m;
+      lastError = null;
+      break;
+    } catch (err) {
+      lastError = err;
+    }
+  }
+
+  // If primary provider failed completely, attempt secondary fallback provider if available
+  if (!result && lastError) {
+    let secondaryProviderName = config.fallbackProvider || (activeProvider.name === 'gemini' ? 'openrouter' : 'gemini');
+    let secondaryProvider = null;
+
+    if (secondaryProviderName && secondaryProviderName !== activeProvider.name) {
+      secondaryProvider = await AIProvider.findOne({ name: secondaryProviderName, isActive: true }).select('+apiKey');
+      if (!secondaryProvider) {
+        const key = secondaryProviderName === 'openrouter' ? process.env.OPENROUTER_API_KEY : process.env.GEMINI_API_KEY;
+        if (key && !isMockOrPlaceholderKey(key)) {
+          secondaryProvider = { name: secondaryProviderName, displayName: secondaryProviderName, isActive: true };
+        }
       }
-    );
-  } catch (error) {
+    }
+
+    if (secondaryProvider) {
+      const secModelChain = getModelFallbackChain(secondaryProvider.name, normalizeModel(secondaryProvider.name, null));
+      for (const sm of secModelChain) {
+        try {
+          result = await executeWithRetry(
+            () => callProvider(secondaryProvider, sm, promptText),
+            {
+              maxRetries: config.retryCount ?? 3,
+              initialDelayMs: config.retryBackoffMs ?? 1000
+            }
+          );
+          activeProvider = secondaryProvider;
+          targetModel = sm;
+          lastError = null;
+          break;
+        } catch (err) {
+          lastError = err;
+        }
+      }
+    }
+  }
+
+  if (!result || !result.text || !result.text.trim()) {
     // Log failed execution
     await logUsage({
       companyId,
@@ -983,13 +1039,13 @@ export const invokeAIGateway = async (promptKey, promptVariables, context = {}) 
       cost: 0,
       durationMs: 0,
       status: 'failed',
-      errorMessage: error.message,
+      errorMessage: lastError?.message || 'AI service unavailable',
       ipAddress,
       userAgent,
       requestPayload: { promptVariables },
       responsePayload: null
     });
-    throw error;
+    throw new AppError('AI Generation Service is temporarily unavailable. Please try again shortly.', 503);
   }
 
   // 7. Calculate costs
@@ -1021,3 +1077,4 @@ export const invokeAIGateway = async (promptKey, promptVariables, context = {}) 
 
   return result.text;
 };
+

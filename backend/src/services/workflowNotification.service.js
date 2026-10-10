@@ -59,14 +59,30 @@ const formatMessage = (domain, action, payload) => {
     return prefix ? `${prefix}: ${round} ${detail}.` : `${round} ${detail}.`;
   }
   if (domain === 'assessment') {
-    const title = payload.assessmentTitle ? `"${payload.assessmentTitle}"` : 'Assessment';
-    const dateStr = payload.expiresAt ? new Date(payload.expiresAt).toLocaleDateString('en-US', { dateStyle: 'medium' }) : '';
-    const dueNotice = dateStr ? ` (Due ${dateStr})` : '';
-    const detail = action === 'assigned' ? `has been assigned to you${dueNotice}`
-      : action === 'result-released' ? 'results are now available'
-      : action === 'expired' ? 'has expired'
-      : 'update';
-    return prefix ? `${prefix}: ${title} ${detail}.` : `${title} ${detail}.`;
+    const title = payload.assessmentTitle ? `"${payload.assessmentTitle}"` : 'Technical Assessment';
+    const availStr = payload.availableFrom ? new Date(payload.availableFrom).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' }) : '';
+    const expStr = payload.expiresAt ? new Date(payload.expiresAt).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' }) : '';
+
+    if (action === 'assigned') {
+      const timeInfo = [];
+      if (availStr) timeInfo.push(`Available: ${availStr}`);
+      if (expStr) timeInfo.push(`Deadline: ${expStr}`);
+      const timeNotice = timeInfo.length ? ` (${timeInfo.join(' | ')})` : '';
+      return prefix
+        ? `${prefix}: ${title} has been assigned for your job application${timeNotice}. Please complete it before the deadline.`
+        : `${title} has been assigned to you by your recruiter${timeNotice}. Please complete it before the deadline.`;
+    }
+    if (action === 'result-released') {
+      return prefix
+        ? `${prefix}: Results for ${title} are now released. View your scores and evaluation breakdown now.`
+        : `Results for ${title} are now released. View your scores and evaluation breakdown now.`;
+    }
+    if (action === 'expired') {
+      return prefix
+        ? `${prefix}: Submission window for ${title} has expired.`
+        : `Submission window for ${title} has expired.`;
+    }
+    return prefix ? `${prefix}: ${title} notification update.` : `${title} notification update.`;
   }
   if (domain === 'offer') {
     const num = payload.offerNumber ? ` (${payload.offerNumber})` : '';

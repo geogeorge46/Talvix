@@ -25,6 +25,7 @@ import {
   CalendarX,
   Sparkles,
   Copy,
+  ArrowLeft,
 } from 'lucide-react';
 import {
   Link,
@@ -58,6 +59,17 @@ import {
 } from '../../design-system';
 import { useAuth } from '../../auth/AuthProvider';
 import { useCompany } from '../organization-admin/api';
+
+function isInterviewJoinable(schedule?: any) {
+  if (!schedule) return false;
+  if (['completed', 'cancelled', 'expired', 'no-show'].includes(schedule.status)) return false;
+  const schedTime = schedule.scheduledAt || schedule.startTime;
+  if (!schedTime) return true;
+  const joinAvailableAt = schedule.joinAvailableAt
+    ? new Date(schedule.joinAvailableAt).getTime()
+    : new Date(schedTime).getTime() - 5 * 60 * 1000;
+  return new Date().getTime() >= joinAvailableAt;
+}
 import {
   useProcess,
   useProcessAction,
@@ -1285,10 +1297,48 @@ export function ProcessDetailPage() {
   return (
     <div className="iv-page">
       <PageHeader
+        eyebrow={
+          <Link
+            to="/org/interviews"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              fontSize: '0.875rem',
+              fontWeight: 600,
+              color: '#2563eb',
+              textDecoration: 'none',
+              marginBottom: '4px',
+            }}
+          >
+            <ArrowLeft size={14} /> Back to Interviews List
+          </Link>
+        }
         title={p.candidateName ? `Interview Process: ${p.candidateName}` : "Interview runbook"}
         description={`${p.candidateName ? `Candidate: ${p.candidateName}` : `Candidate ID: ${p.candidateId}`}${p.jobTitle ? ` · Job: ${p.jobTitle}` : ''} · Application ${p.applicationId}`}
         secondaryActions={
-          <StatusTag tone={tone(p.status)}>{label(p.status)}</StatusTag>
+          <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+            <Link
+              to="/org/interviews"
+              className="tvx-button tvx-button--secondary"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '6px 14px',
+                borderRadius: '6px',
+                textDecoration: 'none',
+                fontWeight: 600,
+                fontSize: '0.85rem',
+                color: '#334155',
+                border: '1px solid #cbd5e1',
+                backgroundColor: '#ffffff',
+              }}
+            >
+              <ArrowLeft size={14} /> Back to List
+            </Link>
+            <StatusTag tone={tone(p.status)}>{label(p.status)}</StatusTag>
+          </div>
         }
       />
       {p.status === 'cancelled' && (
@@ -1391,8 +1441,23 @@ function LiveRound({ processId, round, index, canSchedule, canEvaluate }: { proc
     }
   }, [open, round.schedule, timezone]);
 
-  const companyQuery = useCompany(open && canSchedule, true);
+  const companyQuery = useCompany(true, true);
   const teamMembers = (companyQuery.data?.team ?? []).filter((m) => m.status === 'active');
+  const teamMap = new Map<string, string>(
+    teamMembers.map((m) => [String(m.recruiterId || (m as any)._id || (m as any).id), m.fullName || m.email])
+  );
+
+  const formatInterviewer = (rawId: string) => {
+    const clean = String(rawId).trim();
+    if (clean === defaultUserId) return user?.fullName ? `${user.fullName} (Me)` : 'Me';
+    if (teamMap.has(clean)) return teamMap.get(clean)!;
+    if (clean.length === 24) return `Interviewer #${clean.slice(-4)}`;
+    return clean;
+  };
+
+  const interviewerDisplay = round.interviewerIds?.length
+    ? round.interviewerIds.map(formatInterviewer).join(', ')
+    : 'Unassigned';
 
   const interviewerOptions = [
     { value: defaultUserId, label: `Me (${user?.fullName || 'Current Recruiter'})` },
@@ -1433,17 +1498,26 @@ function LiveRound({ processId, round, index, canSchedule, canEvaluate }: { proc
     <article>
       <header><div><small>Round {index + 1} · {label(round.type)}</small><h3>{round.name}</h3></div><StatusTag tone={tone(round.status ?? 'pending')}>{label(round.status ?? 'pending')}</StatusTag></header>
       <p>{round.description || `${round.durationMinutes} minute structured interview`}</p>
-      <dl className="iv-round__meta"><div><dt>Duration</dt><dd>{round.durationMinutes} min</dd></div><div><dt>Interviewers</dt><dd>{round.interviewerIds?.length ? round.interviewerIds.join(', ') : 'Unassigned'}</dd></div><div><dt>Schedule</dt><dd>{round.schedule ? formatZoned(round.schedule.startTime, round.schedule.timezone) : 'Not scheduled'}</dd></div><div><dt>Mode</dt><dd>{round.schedule ? `${label(round.schedule.mode)} · ${label(round.schedule.meetingProvider)}` : '—'}</dd></div></dl>
+      <dl className="iv-round__meta"><div><dt>Duration</dt><dd>{round.durationMinutes} min</dd></div><div><dt>Interviewers</dt><dd>{interviewerDisplay}</dd></div><div><dt>Schedule</dt><dd>{round.schedule ? formatZoned(round.schedule.startTime, round.schedule.timezone) : 'Not scheduled'}</dd></div><div><dt>Mode</dt><dd>{round.schedule ? `${label(round.schedule.mode)} · ${label(round.schedule.meetingProvider)}` : '—'}</dd></div></dl>
       {action.isError && <Alert tone="danger" title="Round action failed">{err(action.error)}</Alert>}
       <div className="iv-actions">
-        {(round.scheduledInterview || round.schedule?.id) && (
-          <Link
-            to={`/org/interviews/schedules/${round.scheduledInterview || round.schedule?.id}/room`}
-            className="tvx-button tvx-button--primary"
-            style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', backgroundColor: '#2563eb', color: '#ffffff', padding: '6px 14px', borderRadius: '6px', textDecoration: 'none', fontWeight: 600, fontSize: '0.85rem' }}
-          >
-            🎥 Enter Native Interview Room ↗
-          </Link>
+        {(round.scheduledInterview || round.schedule?.id) && !['completed', 'cancelled', 'expired'].includes(round.status ?? '') && (
+          isInterviewJoinable(round.schedule) ? (
+            <Link
+              to={`/org/interviews/schedules/${round.scheduledInterview || round.schedule?.id}/room`}
+              className="tvx-button tvx-button--primary"
+              style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', backgroundColor: '#2563eb', color: '#ffffff', padding: '6px 14px', borderRadius: '6px', textDecoration: 'none', fontWeight: 600, fontSize: '0.85rem' }}
+            >
+              🎥 Enter Native Interview Room ↗
+            </Link>
+          ) : (
+            <span
+              style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', backgroundColor: '#94a3b8', color: '#ffffff', padding: '6px 14px', borderRadius: '6px', fontWeight: 600, fontSize: '0.85rem', cursor: 'not-allowed' }}
+              title="Interview room opens 5 minutes before scheduled start time"
+            >
+              🎥 Room Opens 5m Before Start
+            </span>
+          )
         )}
         {canSchedule && ['pending','scheduled'].includes(round.status ?? '') && <Button onClick={() => setOpen(true)}>{scheduled ? 'Reschedule' : 'Schedule round'}</Button>}
         {canEvaluate && round.status === 'scheduled' && <Button onClick={() => void action.mutateAsync({ action: 'start' })}>Start round</Button>}
@@ -1622,9 +1696,15 @@ export function CalendarPage() {
 
                           <div className="iv-event-actions">
                             {s.id ? (
-                              <Link to={`/org/interviews/schedules/${s.id}/room`} className="iv-join-btn" style={{ backgroundColor: '#2563eb', color: '#ffffff', border: 'none', fontWeight: 600 }}>
-                                <Video size={13} /> Enter Native Room ↗
-                              </Link>
+                              isInterviewJoinable(s) ? (
+                                <Link to={`/org/interviews/schedules/${s.id}/room`} className="iv-join-btn" style={{ backgroundColor: '#2563eb', color: '#ffffff', border: 'none', fontWeight: 600 }}>
+                                  <Video size={13} /> Enter Native Room ↗
+                                </Link>
+                              ) : (
+                                <span className="iv-join-btn" style={{ backgroundColor: '#94a3b8', color: '#ffffff', border: 'none', fontWeight: 600, cursor: 'not-allowed' }} title="Interview room opens 5 minutes before scheduled start time">
+                                  <Video size={13} /> Opens 5m Before Start
+                                </span>
+                              )
                             ) : s.meetingUrl ? (
                               <a href={s.meetingUrl} target="_blank" rel="noopener noreferrer" className="iv-join-btn">
                                 <Video size={13} /> Join Meeting

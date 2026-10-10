@@ -312,9 +312,10 @@ export function TalentPoolPage() {
         primaryAction={
           <Button
             type="button"
+            variant="primary"
+            leadingIcon={<UserPlus size={16} />}
             onClick={() => setIsAddOpen(true)}
           >
-            <UserPlus size={16} style={{ marginRight: '8px' }} />
             Add Candidate
           </Button>
         }
@@ -322,50 +323,54 @@ export function TalentPoolPage() {
 
       {/* Pipeline Summary Metrics */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px', marginBottom: '24px' }}>
-        <MetricCard label="Total Talent Pool" value={pagination.total} metadata="Candidates in pool" />
-        <MetricCard label="Silver Medalists" value={members.filter(m => m.status === 'silver-medalist').length} metadata="Reached final stages" />
-        <MetricCard label="Interested Prospects" value={members.filter(m => m.status === 'interested').length} metadata="Actively interested" />
+        <MetricCard label="Total Talent Pool" value={pagination.total} metadata="Candidates in pool" icon={<Users size={20} />} />
+        <MetricCard label="Silver Medalists" value={members.filter(m => m.status === 'silver-medalist').length} metadata="Reached final stages" icon={<Sparkles size={20} />} />
+        <MetricCard label="Interested Prospects" value={members.filter(m => m.status === 'interested').length} metadata="Actively interested" icon={<UserPlus size={20} />} />
       </div>
 
       {/* Filters Toolbar */}
-      <Toolbar
-        label="Talent Pool Filters"
-        start={
-          <SearchField
-            label="Search candidate name or bio"
-            defaultValue={search}
-            onSearch={(v) => updateParams({ search: v })}
-          />
-        }
-        end={
-          <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
-            <Select
-              aria-label="Filter by pool status"
-              value={status}
-              options={[
-                { value: '', label: 'All Statuses' },
-                { value: 'sourced', label: 'Sourced' },
-                { value: 'interested', label: 'Interested' },
-                { value: 'contacted', label: 'Contacted' },
-                { value: 'silver-medalist', label: 'Silver Medalist' },
-                { value: 'archived', label: 'Archived' },
-              ]}
-              onChange={(e) => updateParams({ status: e.target.value })}
-            />
-
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'var(--color-surface-2)', padding: '4px 12px', borderRadius: 'var(--border-radius-md)' }}>
-              <Sparkles size={16} className="text-premium" />
-              <Select
-                aria-label="Smart Job Match Sorting"
-                placeholder="Select Job to Rank..."
-                value={matchJobId}
-                options={jobs.map((j) => ({ value: j.id || j._id || '', label: j.title }))}
-                onChange={(e) => updateParams({ matchJobId: e.target.value })}
+      <div style={{ marginBottom: '24px' }}>
+        <Toolbar
+          label="Talent Pool Filters"
+          start={
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <SearchField
+                placeholder="Search candidate name, bio, or skill..."
+                defaultValue={search}
+                onSearch={(v) => updateParams({ search: v })}
               />
             </div>
-          </div>
-        }
-      />
+          }
+          end={
+            <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
+              <Select
+                aria-label="Filter by pool status"
+                value={status}
+                options={[
+                  { value: '', label: 'All Statuses' },
+                  { value: 'sourced', label: 'Sourced' },
+                  { value: 'interested', label: 'Interested' },
+                  { value: 'contacted', label: 'Contacted' },
+                  { value: 'silver-medalist', label: 'Silver Medalist' },
+                  { value: 'archived', label: 'Archived' },
+                ]}
+                onChange={(e) => updateParams({ status: e.target.value })}
+              />
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'var(--color-surface-2)', padding: '4px 12px', borderRadius: 'var(--radius-md, 8px)', border: '1px solid var(--color-border-subtle)' }}>
+                <Sparkles size={16} style={{ color: 'var(--color-primary)', flexShrink: 0 }} />
+                <Select
+                  aria-label="Smart Job Match Sorting"
+                  placeholder="Select Job to Rank..."
+                  value={matchJobId}
+                  options={jobs.map((j) => ({ value: j.id || j._id || '', label: j.title }))}
+                  onChange={(e) => updateParams({ matchJobId: e.target.value })}
+                />
+              </div>
+            </div>
+          }
+        />
+      </div>
 
       {/* Main Results Listing */}
       {loading ? (
@@ -377,8 +382,18 @@ export function TalentPoolPage() {
           title="No candidates found"
           description={
             search || status || matchJobId
-              ? 'Try adjusting your filters or active job match sorting.'
+              ? 'Try adjusting your search query, status filters, or job match ranking.'
               : 'Your talent pool is currently empty. Add candidates to get started.'
+          }
+          action={
+            <Button
+              type="button"
+              variant="primary"
+              leadingIcon={<UserPlus size={16} />}
+              onClick={() => setIsAddOpen(true)}
+            >
+              Add Candidate
+            </Button>
           }
         />
       ) : (

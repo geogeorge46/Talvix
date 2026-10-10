@@ -25,6 +25,17 @@ const companySchema = new mongoose.Schema({
   suspendedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null }, suspendedAt: { type: Date, default: null },
   owner: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, index: true },
   officialEmailDomain: { type: String, lowercase: true, trim: true, default: '' },
+  legalName: { type: String, trim: true, maxlength: 150, default: '' },
+  entityType: { type: String, enum: ['private_limited', 'public_limited', 'llp', 'proprietorship', 'partnership', 'other'], default: 'private_limited' },
+  cin: { type: String, trim: true, uppercase: true, default: '' },
+  gstin: { type: String, trim: true, uppercase: true, default: '' },
+  udyamRegistrationNumber: { type: String, trim: true, uppercase: true, default: '' },
+  registeredAddress: {
+    type: new mongoose.Schema({ street: String, city: String, state: String, postalCode: String, country: String }, { _id: false }),
+    default: () => ({})
+  },
+  domainVerified: { type: Boolean, default: false },
+  domainVerifiedAt: { type: Date, default: null },
   autoApproveDomainMembers: { type: Boolean, default: false },
   resumeDownloadLimit: { type: Number, default: null },
   autoApproveJobs: { type: Boolean, default: false },

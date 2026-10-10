@@ -264,7 +264,7 @@ export const toCandidateProcess = (v: unknown): CandidateProcess => {
               ? list(y.feedback).map((f) => {
                   const z = obj(f);
                   return {
-                    text: str(z.candidateVisibleFeedback),
+                    text: str(z.candidateVisibleFeedback || z.text || z.feedback),
                     weightedScore:
                       typeof z.weightedScore === 'number'
                         ? z.weightedScore

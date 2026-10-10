@@ -161,15 +161,21 @@ export const createJoinRequest = async (userId, companyId, ipAddress = 'Unknown'
     throw new AppError('Company not found or is inactive', 404);
   }
 
-  // Domain Verification Auto-Approval Flow
+  // Domain Verification Auto-Approval Flow (Phase 3 Strict Requirements)
   const userDomain = user.email.split('@')[1]?.toLowerCase();
   const companyDomain = company.officialEmailDomain?.toLowerCase();
+  const isUserEmailVerified = Boolean(user.emailVerified || user.isVerified);
+  const isCompanyDomainVerified = Boolean(company.domainVerified);
+  const isCompanyVerified = company.verificationStatus === 'verified';
+  const isAutoApproveEnabled = Boolean(company.autoApproveDomainMembers);
 
   if (
     companyDomain &&
     userDomain === companyDomain &&
-    company.autoApproveDomainMembers &&
-    company.verificationStatus === 'verified'
+    isUserEmailVerified &&
+    isCompanyDomainVerified &&
+    isCompanyVerified &&
+    isAutoApproveEnabled
   ) {
     // Auto-join immediately
     const member = await CompanyMember.create({

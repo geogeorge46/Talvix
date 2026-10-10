@@ -44,7 +44,7 @@ export const authorizePermissions = (...requiredPermissions) => async (request, 
       profile.permissions.includes(permission) && membership?.permissions.includes(permission));
       
     const requiresVerifiedCompany = requiredPermissions.some((permission) =>
-      permission.startsWith('jobs.') ||
+      permission.startsWith('jobs.publish') ||
       permission.startsWith('applications.') ||
       permission.startsWith('assessments.') ||
       permission.startsWith('interviews.') ||

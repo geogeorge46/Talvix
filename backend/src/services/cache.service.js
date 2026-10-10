@@ -4,8 +4,8 @@ import { AICache } from '../models/AICache.js';
 /**
  * Generates a stable unique hash key for caching.
  */
-export const generateCacheKey = (promptKey, promptVariables, providerName, modelName) => {
-  const rawString = JSON.stringify({ promptKey, promptVariables, providerName, modelName });
+export const generateCacheKey = (promptKey, promptVariables, providerName, modelName, companyId = null, promptVersion = null) => {
+  const rawString = JSON.stringify({ promptKey, promptVariables, providerName, modelName, companyId: companyId ? String(companyId) : null, promptVersion });
   return crypto.createHash('sha256').update(rawString).digest('hex');
 };
 

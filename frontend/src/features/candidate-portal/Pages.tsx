@@ -87,6 +87,8 @@ import {
   Search,
   CheckCheck,
   Archive,
+  ChevronLeft,
+  RefreshCw,
 } from 'lucide-react';
 import './candidate-portal.css';
 const message = (error: unknown) =>
@@ -2616,19 +2618,21 @@ export function CandidateJobDetailPage() {
                 eligibility decision.
               </p>
               {job.resumeRequired && (
-                <div style={{ marginTop: '12px', marginBottom: '16px', padding: '12px', border: '1px dashed var(--color-border)', borderRadius: '6px' }}>
-                  <h3 style={{ fontSize: '0.95rem', fontWeight: 'bold', marginBottom: '8px' }}>Resume required</h3>
+                <div style={{ marginTop: '16px', marginBottom: '16px' }}>
+                  <h3 style={{ fontSize: '0.95rem', fontWeight: 600, color: '#0f172a', marginBottom: '8px' }}>Resume required</h3>
                   {profile.isPending || resume.isPending ? (
                     <LoadingState label="Checking profile resume..." />
                   ) : profile.isError ? (
                     <p style={{ color: 'var(--color-danger)' }}>Could not check profile resume status.</p>
                   ) : hasResume ? (
-                    <div>
-                      <p style={{ color: 'var(--color-success)', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                        ✓ Resume ready: <strong>{resumeDisplayName}</strong>
-                      </p>
-                      <p style={{ fontSize: '0.85rem', marginTop: '4px' }}>
-                        You can replace it in your <Link to="/candidate/profile" style={{ textDecoration: 'underline' }}>Profile</Link>.
+                    <div style={{ padding: '12px 14px', background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '10px', overflowWrap: 'anywhere', wordBreak: 'break-word' }}>
+                      <div style={{ color: '#15803d', fontSize: '0.875rem', fontWeight: 500, lineHeight: 1.4 }}>
+                        <span style={{ color: '#16a34a', fontWeight: 700, marginRight: '4px' }}>✓</span>
+                        <span>Resume ready: </span>
+                        <strong style={{ color: '#0f172a', fontWeight: 600, overflowWrap: 'anywhere', wordBreak: 'break-word' }}>{resumeDisplayName}</strong>
+                      </div>
+                      <p style={{ fontSize: '0.8rem', marginTop: '6px', margin: '6px 0 0 0', color: '#475569' }}>
+                        You can replace it in your <Link to="/candidate/profile" style={{ color: '#2563eb', textDecoration: 'underline' }}>Profile</Link>.
                       </p>
                     </div>
                   ) : (
@@ -2636,16 +2640,18 @@ export function CandidateJobDetailPage() {
                       <p style={{ color: 'var(--color-warning)', marginBottom: '8px', fontSize: '0.85rem' }}>
                         A resume is required to apply for this job. Please upload one here:
                       </p>
-                      <UploadControl
-                        entityType="candidate-profile"
-                        entityId={profile.data?.id}
-                        category="resume"
-                        path="/documents/me/resume"
-                        onDone={() => {
-                          void profile.refetch();
-                          void resume.refetch();
-                        }}
-                      />
+                      <div className="mindease-upload-wrapper">
+                        <UploadControl
+                          entityType="candidate-profile"
+                          entityId={profile.data?.id}
+                          category="resume"
+                          path="/documents/me/resume"
+                          onDone={() => {
+                            void profile.refetch();
+                            void resume.refetch();
+                          }}
+                        />
+                      </div>
                     </div>
                   )}
                 </div>
@@ -2824,162 +2830,401 @@ export function CandidateApplicationsPage() {
 
 export function CandidateApplicationDetailPage() {
   const { applicationId = '' } = useParams();
-  const q = useApplication(applicationId),
-    timeline = useApplicationTimeline(applicationId),
-    mutation = useApplicationMutation(),
-    offers = useSafeCandidateOffers();
+  const q = useApplication(applicationId);
+  const timeline = useApplicationTimeline(applicationId);
+  const mutation = useApplicationMutation();
+  const offers = useSafeCandidateOffers();
   const [confirm, setConfirm] = useState(false);
   const [withdrawalReason, setWithdrawalReason] = useState('');
-  if (q.isPending) return <LoadingState label="Loading application" />;
+
+  if (q.isPending) return <LoadingState label="Loading application details..." />;
   if (q.isError)
     return (
       <ErrorState title="Application unavailable" detail={message(q.error)} />
     );
+
   const a = q.data;
+
+  const stages = [
+    { key: 'submitted', label: 'Submitted', icon: CheckCircle2 },
+    { key: 'under-review', label: 'Under Review', icon: Eye },
+    { key: 'assessment-pending', label: 'Screening / Assessment', icon: ClipboardCheck },
+    { key: 'interview-scheduled', label: 'Interview Stage', icon: Calendar },
+    { key: 'offer-sent', label: 'Decision & Offer', icon: Award },
+  ];
+
+  const getStageIndex = (statusStr: string) => {
+    const s = (statusStr || '').toLowerCase();
+    if (s.includes('offer') || s.includes('hired') || s.includes('accepted')) return 4;
+    if (s.includes('interview')) return 3;
+    if (s.includes('assessment') || s.includes('shortlisted')) return 2;
+    if (s.includes('review')) return 1;
+    return 0;
+  };
+
+  const currentStageIdx = getStageIndex(a.status || 'submitted');
+
+  const matchingOffer = offers.data?.find(
+    (o) => o.applicationId === a.id || (o as any).application === a.id || (o as any).applicationId === a.id,
+  );
+
   return (
-    <div className="candidate-page candidate-domain-container">
-      <PageHeader
-        title={a.jobTitle || 'Application detail'}
-        description={a.companyName}
-      />
-      <div className="candidate-detail-grid">
-        <Card>
-          <h2>Current stage</h2>
-          <StatusTag>{a.status}</StatusTag>
-          <p>Submitted {date(a.appliedAt)}</p>
-          <div className="candidate-inline-links">
-            <Link to={`/candidate/documents/applications/${a.id}`}>
-              Application documents
-            </Link>
-            {a.status === 'interview-scheduled' && (
-              <Link to="/candidate/interviews" style={{ fontWeight: 600, color: 'var(--color-primary)' }}>
-                Go to Interview Hub & Join Meeting ↗
-              </Link>
-            )}
-            {['offer-sent', 'offer-created', 'offer-pending', 'offer-accepted', 'hired'].includes(a.status) && (() => {
-              const matchingOffer = offers.data?.find(
-                (o) => o.applicationId === a.id || (o as any).application === a.id || (o as any).applicationId === a.id,
-              );
-              if (matchingOffer) {
-                return (
+    <div className="candidate-page candidate-domain-container animated-entrance" style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+      
+      {/* Top Hero Banner */}
+      <div className="candidate-hero-banner-mindease">
+        <div className="banner-left-content">
+          <div className="banner-icon-badge theme-purple">
+            <Briefcase size={24} />
+          </div>
+          <div className="banner-text-details">
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap', marginBottom: '6px' }}>
+              <span className="job-code-badge">#APP-{a.id.slice(-6).toUpperCase()}</span>
+              <StatusTag>{a.status}</StatusTag>
+            </div>
+            <h1 className="banner-title" style={{ fontSize: '24px', margin: 0, fontWeight: 700 }}>
+              {a.jobTitle || 'Application Detail'}
+            </h1>
+            <div className="banner-subtext" style={{ display: 'flex', alignItems: 'center', gap: '14px', marginTop: '6px', fontSize: '14px', color: '#64748b' }}>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', fontWeight: 600, color: '#0f172a' }}>
+                <Building2 size={16} style={{ color: '#6366f1' }} /> {a.companyName}
+              </span>
+              <span>•</span>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
+                <Clock size={16} /> Submitted {date(a.appliedAt)}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <div className="banner-right-actions">
+          <Link className="banner-action-pill secondary" to="/candidate/applications" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+            <ChevronLeft size={16} />
+            <span>All Applications</span>
+          </Link>
+        </div>
+      </div>
+
+      {/* Hiring Stage Progress Tracker */}
+      <div className="section-card-mindease delay-1 animated-entrance">
+        <div className="section-card-header" style={{ marginBottom: '16px' }}>
+          <div className="section-card-header-icon" style={{ background: '#f0f9ff', color: '#0284c7' }}>
+            <Sparkles size={20} />
+          </div>
+          <div>
+            <h3 className="section-card-header-title">Hiring Stage Tracker</h3>
+            <p className="section-card-header-subtext">Live application progress overview</p>
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', overflowX: 'auto', padding: '12px 0 6px 0' }}>
+          {stages.map((st, idx) => {
+            const isCompleted = idx < currentStageIdx;
+            const isCurrent = idx === currentStageIdx;
+            const IconComp = st.icon;
+
+            return (
+              <div
+                key={st.key}
+                style={{
+                  flex: 1,
+                  minWidth: '120px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  position: 'relative',
+                  textAlign: 'center',
+                }}
+              >
+                <div
+                  style={{
+                    width: '40px',
+                    height: '40px',
+                    borderRadius: '50%',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    background: isCompleted ? '#10b981' : isCurrent ? '#0f172a' : '#f1f5f9',
+                    color: isCompleted || isCurrent ? '#ffffff' : '#94a3b8',
+                    border: isCurrent ? '3px solid #0284c7' : 'none',
+                    boxShadow: isCurrent ? '0 0 16px rgba(2, 132, 199, 0.35)' : 'none',
+                    zIndex: 2,
+                    marginBottom: '8px',
+                    transition: 'all 0.25s ease',
+                  }}
+                >
+                  <IconComp size={20} />
+                </div>
+                <span
+                  style={{
+                    fontSize: '12px',
+                    fontWeight: isCurrent ? 700 : 500,
+                    color: isCurrent ? '#0f172a' : isCompleted ? '#059669' : '#64748b',
+                  }}
+                >
+                  {st.label}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* 2-Column Responsive Layout */}
+      <div className="profile-layout-grid delay-2 animated-entrance">
+        
+        {/* Left Column: Banners, Actions & Documents */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+          
+          {/* Action Callout Banners */}
+          {['offer-sent', 'offer-created', 'offer-pending', 'offer-accepted', 'hired'].includes(a.status) && (
+            <div className="section-card-mindease" style={{ background: 'linear-gradient(135deg, #ecfdf5 0%, #f0fdf4 100%)', border: '1px solid #a7f3d0' }}>
+              <div className="section-card-header">
+                <div className="section-card-header-icon" style={{ background: '#10b981', color: '#ffffff' }}>
+                  <Award size={22} />
+                </div>
+                <div>
+                  <h3 className="section-card-header-title" style={{ color: '#065f46' }}>Official Job Offer Ready!</h3>
+                  <p className="section-card-header-subtext" style={{ color: '#047857' }}>
+                    {a.companyName} has issued an official job offer for your review and response.
+                  </p>
+                </div>
+              </div>
+              <div style={{ marginTop: '14px' }}>
+                {matchingOffer ? (
                   <Link
                     to={`/candidate/offers/${matchingOffer.id}`}
-                    style={{
-                      fontWeight: 600,
-                      color: '#047857',
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: '6px',
-                      background: '#ecfdf5',
-                      padding: '8px 12px',
-                      borderRadius: '6px',
-                      border: '1px solid #a7f3d0',
-                      marginTop: '8px',
-                      textDecoration: 'none',
-                    }}
+                    className="btn-pill-dark"
+                    style={{ background: '#059669', borderColor: '#047857', color: '#ffffff', display: 'inline-flex', alignItems: 'center', gap: '8px', textDecoration: 'none' }}
                   >
-                    🎉 View Job Offer & Respond 📄↗
+                    <Sparkles size={16} />
+                    <span>🎉 View Job Offer & Respond 📄↗</span>
                   </Link>
-                );
-              }
-              if (a.status === 'offer-pending') {
-                return (
-                  <span
-                    style={{
-                      fontWeight: 500,
-                      color: '#92400e',
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: '6px',
-                      background: '#fef3c7',
-                      padding: '8px 12px',
-                      borderRadius: '6px',
-                      border: '1px solid #fde68a',
-                      marginTop: '8px',
-                      fontSize: '0.9rem',
-                    }}
-                  >
-                    ⏳ An official job offer is currently being prepared by the company.
+                ) : (
+                  <span style={{ fontSize: '13px', color: '#92400e', fontWeight: 500 }}>
+                    ⏳ Your official offer document is being prepared by the company.
                   </span>
-                );
-              }
-              return null;
-            })()}
-          </div>
-          <Button
-            variant="secondary"
-            disabled={mutation.isPending}
-            onClick={() =>
-              mutation.mutate({
-                path: `/applications/me/${a.id}/refresh-snapshot`,
-              })
-            }
-          >
-            Refresh submitted job snapshot
-          </Button>
-          {withdrawable.has(a.status) && (
-            <>
-              <FormField
-                label="Reason for withdrawal"
-                required
-                hint="Shared with the organization, up to 1,000 characters."
+                )}
+              </div>
+            </div>
+          )}
+
+          {a.status === 'interview-scheduled' && (
+            <div className="section-card-mindease" style={{ background: 'linear-gradient(135deg, #eff6ff 0%, #f0f9ff 100%)', border: '1px solid #bfdbfe' }}>
+              <div className="section-card-header">
+                <div className="section-card-header-icon" style={{ background: '#2563eb', color: '#ffffff' }}>
+                  <Calendar size={22} />
+                </div>
+                <div>
+                  <h3 className="section-card-header-title" style={{ color: '#1e40af' }}>Interview Scheduled!</h3>
+                  <p className="section-card-header-subtext" style={{ color: '#1d4ed8' }}>
+                    Your interview has been scheduled. Join your video room directly from the Interview Hub.
+                  </p>
+                </div>
+              </div>
+              <div style={{ marginTop: '14px' }}>
+                <Link
+                  to="/candidate/interviews"
+                  className="btn-pill-dark"
+                  style={{ background: '#2563eb', color: '#ffffff', display: 'inline-flex', alignItems: 'center', gap: '8px', textDecoration: 'none' }}
+                >
+                  <ExternalLink size={16} />
+                  <span>Go to Interview Hub & Join Meeting ↗</span>
+                </Link>
+              </div>
+            </div>
+          )}
+
+          {/* Quick Actions & Documents Card */}
+          <div className="section-card-mindease">
+            <div className="section-card-header">
+              <div className="section-card-header-icon" style={{ background: '#f1f5f9', color: '#0f172a' }}>
+                <FileText size={20} />
+              </div>
+              <div>
+                <h3 className="section-card-header-title">Application Files & Snapshot</h3>
+                <p className="section-card-header-subtext">Access submitted materials or refresh snapshot</p>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px', marginTop: '6px' }}>
+              <Link
+                className="btn-pill-light"
+                to={`/candidate/documents/applications/${a.id}`}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', textDecoration: 'none' }}
               >
-                {({ id, describedBy, invalid }) => (
+                <FolderGit2 size={16} />
+                <span>View Application Documents</span>
+              </Link>
+
+              <Button
+                variant="secondary"
+                disabled={mutation.isPending}
+                onClick={() =>
+                  mutation.mutate({
+                    path: `/applications/me/${a.id}/refresh-snapshot`,
+                  })
+                }
+                style={{ borderRadius: '9999px', fontSize: '13px' }}
+              >
+                <RefreshCw size={14} className={mutation.isPending ? 'animate-spin' : ''} />
+                <span>Refresh Submitted Job Snapshot</span>
+              </Button>
+            </div>
+          </div>
+
+          {/* Withdrawal Card */}
+          {withdrawable.has(a.status) && (
+            <div className="section-card-mindease" style={{ border: '1px solid #fecdd3', background: '#fff5f5', overflow: 'visible', padding: '24px' }}>
+              <div className="section-card-header">
+                <div className="section-card-header-icon" style={{ background: '#ffe4e6', color: '#e11d48' }}>
+                  <LogOut size={20} />
+                </div>
+                <div>
+                  <h3 className="section-card-header-title" style={{ color: '#9f1239' }}>Withdraw Application</h3>
+                  <p className="section-card-header-subtext" style={{ color: '#be123c' }}>
+                    If you no longer wish to be considered, you may withdraw your application.
+                  </p>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginTop: '16px' }}>
+                <div>
+                  <label htmlFor="withdrawal-reason" style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: '#9f1239', marginBottom: '6px' }}>
+                    Reason for withdrawal <span style={{ color: '#e11d48' }}>*</span>
+                  </label>
                   <TextArea
-                    id={id}
-                    aria-describedby={describedBy}
-                    aria-invalid={invalid}
+                    id="withdrawal-reason"
                     required
                     maxLength={1000}
+                    rows={3}
                     value={withdrawalReason}
-                    onChange={(event) =>
-                      setWithdrawalReason(event.target.value)
-                    }
+                    placeholder="Please enter your reason for withdrawing..."
+                    onChange={(event) => setWithdrawalReason(event.target.value)}
+                    style={{
+                      width: '100%',
+                      borderRadius: '10px',
+                      border: '1px solid #fca5a5',
+                      padding: '10px 12px',
+                      fontSize: '14px',
+                      background: '#ffffff',
+                      color: '#0f172a',
+                    }}
                   />
-                )}
-              </FormField>
-              <Button
-                variant="danger"
-                disabled={!withdrawalReason.trim()}
-                onClick={() => setConfirm(true)}
-              >
-                Withdraw application
-              </Button>
-            </>
+                  <span style={{ display: 'block', fontSize: '12px', color: '#be123c', marginTop: '4px' }}>
+                    Shared with the hiring team (up to 1,000 characters).
+                  </span>
+                </div>
+
+                <div style={{ paddingTop: '4px', display: 'flex' }}>
+                  <Button
+                    type="button"
+                    variant="danger"
+                    className="withdraw-btn-premium"
+                    disabled={!withdrawalReason.trim() || mutation.isPending}
+                    onClick={() => setConfirm(true)}
+                  >
+                    <span>Withdraw Application</span>
+                  </Button>
+                </div>
+              </div>
+            </div>
           )}
+
           {mutation.isError && (
             <Alert tone="danger" title="Action failed">
               {message(mutation.error)}
             </Alert>
           )}
-        </Card>
-        <Card>
-          <h2>Safe timeline</h2>
-          {timeline.isPending ? (
-            <LoadingState label="Loading timeline" />
-          ) : timeline.isError ? (
-            <ErrorState
-              title="Timeline unavailable"
-              detail={message(timeline.error)}
-            />
-          ) : (
-            <ol className="candidate-timeline">
-              {timeline.data.map((item, i) => (
-                <li key={`${item.changedAt}-${i}`}>
-                  <strong>{item.to}</strong>
-                  <span>{date(item.changedAt)}</span>
-                </li>
-              ))}
-            </ol>
-          )}
-        </Card>
+        </div>
+
+        {/* Right Column: Activity Timeline & Security Guarantee */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+          
+          {/* Safe Timeline Card */}
+          <div className="section-card-mindease">
+            <div className="section-card-header">
+              <div className="section-card-header-icon" style={{ background: '#f0fdf4', color: '#16a34a' }}>
+                <Clock size={20} />
+              </div>
+              <div>
+                <h3 className="section-card-header-title">Hiring Timeline</h3>
+                <p className="section-card-header-subtext">Stage transition audit log</p>
+              </div>
+            </div>
+
+            {timeline.isPending ? (
+              <LoadingState label="Loading timeline..." />
+            ) : timeline.isError ? (
+              <ErrorState title="Timeline unavailable" detail={message(timeline.error)} />
+            ) : (
+              <div className="candidate-timeline-container" style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginTop: '8px' }}>
+                {timeline.data.map((item, i) => (
+                  <div
+                    key={`${item.changedAt}-${i}`}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'flex-start',
+                      gap: '12px',
+                      position: 'relative',
+                      paddingBottom: i < timeline.data.length - 1 ? '12px' : '0',
+                      borderBottom: i < timeline.data.length - 1 ? '1px dashed #e2e8f0' : 'none',
+                    }}
+                  >
+                    <div
+                      style={{
+                        width: '28px',
+                        height: '28px',
+                        borderRadius: '50%',
+                        background: '#f1f5f9',
+                        color: '#0f172a',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        flexShrink: 0,
+                        fontSize: '12px',
+                        fontWeight: 700,
+                      }}
+                    >
+                      {i + 1}
+                    </div>
+
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: '14px', fontWeight: 600, color: '#0f172a' }}>
+                        {item.to}
+                      </div>
+                      <div style={{ fontSize: '12px', color: '#64748b', marginTop: '2px' }}>
+                        {date(item.changedAt)}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Privacy Guarantee Card */}
+          <div className="section-card-mindease" style={{ background: '#f8fafc' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <ShieldCheck size={22} style={{ color: '#0284c7', flexShrink: 0 }} />
+              <div>
+                <h4 style={{ margin: 0, fontSize: '14px', fontWeight: 600, color: '#0f172a' }}>Candidate Privacy Guaranteed</h4>
+                <p style={{ margin: '2px 0 0 0', fontSize: '12px', color: '#64748b', lineHeight: 1.4 }}>
+                  Your application data is encrypted and accessible only by authorized recruiters at {a.companyName}.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+
       </div>
+
       <ConfirmDialog
         open={confirm}
         onOpenChange={setConfirm}
         title="Withdraw application?"
         description="The organization will no longer consider this application. This action may not be reversible."
-        confirmLabel="Withdraw"
+        confirmLabel="Withdraw Application"
         variant="destructive"
         onConfirm={() => {
           mutation.mutate({
@@ -3172,60 +3417,100 @@ export function CandidateNotificationDetailPage() {
   const q = useNotification(notificationId),
     m = useNotificationMutation(),
     navigate = useNavigate();
-  if (q.isPending) return <LoadingState label="Loading notification" />;
+
+  if (q.isPending) return <LoadingState label="Loading notification details..." />;
   if (q.isError)
     return (
       <ErrorState title="Notification unavailable" detail={message(q.error)} />
     );
+
   const n = q.data;
   const d = n.data || {};
+  const isAssessmentNotif = (n.type && n.type.includes('assessment')) || (n.category && n.category.includes('assessment'));
+
   return (
-    <div className="candidate-page candidate-domain-container">
-      <PageHeader
-        title={n.title}
-        description={`Received ${date(n.createdAt)} · ${n.category || n.type}`}
-        secondaryActions={
-          <StatusTag tone={n.read ? 'neutral' : 'warning'}>
-            {n.read ? 'Read' : 'Unread'}
-          </StatusTag>
-        }
-      />
-      <Card heading="Notification summary" headingLevel={2}>
-        <p style={{ fontSize: '1rem', lineHeight: '1.6', color: '#1e293b', marginBottom: '16px' }}>
-          {n.message}
-        </p>
+    <div className="candidate-page candidate-domain-container space-y-6">
+      <div className="flex items-center gap-2 text-sm text-slate-500">
+        <button
+          type="button"
+          onClick={() => navigate('/candidate/notifications')}
+          className="flex items-center gap-1 hover:text-slate-900 transition-colors cursor-pointer"
+        >
+          <ChevronLeft className="w-4 h-4" /> Notifications
+        </button>
+        <span>/</span>
+        <span className="font-semibold text-slate-800">Notification Detail</span>
+      </div>
 
-        {(d.companyName || d.jobTitle || d.startTime || d.expiresAt) && (
-          <div style={{ marginTop: '16px', padding: '16px', borderRadius: '8px', backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            {Boolean(d.companyName || d.jobTitle) && (
-              <div style={{ fontSize: '0.9rem', color: '#334155' }}>
-                <strong>Role & Company:</strong> {String(d.companyName || '')} {Boolean(d.companyName && d.jobTitle) && '·'} {String(d.jobTitle || '')}
-              </div>
-            )}
-            {Boolean(d.startTime) && (
-              <div style={{ fontSize: '0.9rem', color: '#334155' }}>
-                <strong>Scheduled Time:</strong> {new Date(String(d.startTime)).toLocaleString(undefined, { dateStyle: 'full', timeStyle: 'short' })}
-              </div>
-            )}
-            {Boolean(d.expiresAt) && (
-              <div style={{ fontSize: '0.9rem', color: '#334155' }}>
-                <strong>Deadline:</strong> {new Date(String(d.expiresAt)).toLocaleString(undefined, { dateStyle: 'full', timeStyle: 'short' })}
-              </div>
-            )}
+      <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs space-y-6">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-slate-100">
+          <div className="space-y-1">
+            <div className="flex items-center gap-3">
+              <h1 className="text-xl font-bold text-slate-900">{n.title || 'Talvix Notification'}</h1>
+              <StatusTag tone={n.read ? 'neutral' : 'warning'}>
+                {n.read ? 'Read' : 'Unread'}
+              </StatusTag>
+            </div>
+            <p className="text-xs text-slate-400">
+              Received {date(n.createdAt)} • Category: <span className="font-semibold capitalize text-slate-600">{n.category || n.type || 'General'}</span>
+            </p>
           </div>
-        )}
+        </div>
 
-        <div className="candidate-inline-links" style={{ marginTop: '24px', display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+        <div className="space-y-4">
+          <p className="text-base text-slate-700 leading-relaxed font-normal">
+            {n.message}
+          </p>
+
+          {(d.companyName || d.jobTitle || d.availableFrom || d.startTime || d.expiresAt) && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 pt-2">
+              {Boolean(d.companyName || d.jobTitle) && (
+                <div className="bg-slate-50 rounded-xl p-3.5 border border-slate-100 space-y-1">
+                  <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider block">Target Job & Company</span>
+                  <span className="text-sm font-bold text-slate-900 block">
+                    {String(d.jobTitle || 'Applied Role')}
+                  </span>
+                  <span className="text-xs text-slate-500 block">
+                    {String(d.companyName || 'Talvix Partner')}
+                  </span>
+                </div>
+              )}
+
+              {Boolean(d.availableFrom || d.startTime) && (
+                <div className="bg-slate-50 rounded-xl p-3.5 border border-slate-100 space-y-1">
+                  <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider block">Available From</span>
+                  <span className="text-sm font-bold text-slate-900 block">
+                    {new Date(String(d.availableFrom || d.startTime)).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}
+                  </span>
+                </div>
+              )}
+
+              {Boolean(d.expiresAt) && (
+                <div className="bg-slate-50 rounded-xl p-3.5 border border-slate-100 space-y-1">
+                  <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider block">Submission Deadline</span>
+                  <span className="text-sm font-bold text-amber-700 block">
+                    {new Date(String(d.expiresAt)).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}
+                  </span>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        <div className="flex items-center gap-3 pt-4 border-t border-slate-100 flex-wrap">
           {n.target && (
             <Button
               variant="primary"
               onClick={() => {
+                if (!n.read) m.mutate({ path: `/notifications/${n.id}/read` });
                 if (n.target) navigate(n.target);
               }}
+              className="!rounded-xl !px-5 !py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold shadow-xs"
             >
-              Open related item ↗
+              {isAssessmentNotif ? 'Take / View Assessment ↗' : 'Open Related Item ↗'}
             </Button>
           )}
+
           <Button
             variant="secondary"
             onClick={() =>
@@ -3233,9 +3518,11 @@ export function CandidateNotificationDetailPage() {
                 path: `/notifications/${n.id}/${n.read ? 'unread' : 'read'}`,
               })
             }
+            className="!rounded-xl !px-4 !py-2.5 border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 font-semibold"
           >
-            Mark {n.read ? 'unread' : 'read'}
+            Mark {n.read ? 'Unread' : 'Read'}
           </Button>
+
           <Button
             variant="danger"
             onClick={() =>
@@ -3244,11 +3531,12 @@ export function CandidateNotificationDetailPage() {
                 { onSuccess: () => navigate('/candidate/notifications') },
               )
             }
+            className="!rounded-xl !px-4 !py-2.5 bg-rose-600 hover:bg-rose-700 text-white font-semibold"
           >
             Delete
           </Button>
         </div>
-      </Card>
+      </div>
     </div>
   );
 }
