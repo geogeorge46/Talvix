@@ -4,7 +4,7 @@ import { z } from 'zod';
 const environmentSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   PORT: z.coerce.number().int().positive().max(65535).default(5000),
-  CLIENT_URL: z.url(),
+  CLIENT_URL: z.url().transform((val) => val.replace(/\/+$/, '')),
   MONGODB_URI: z.string().trim().min(1, 'MONGODB_URI is required'),
   JWT_ACCESS_SECRET: z.string().min(32, 'JWT_ACCESS_SECRET must contain at least 32 characters'),
   JWT_REFRESH_SECRET: z.string().min(32, 'JWT_REFRESH_SECRET must contain at least 32 characters'),
@@ -21,7 +21,7 @@ const environmentSchema = z.object({
   EMAIL_FROM_ADDRESS: z.email().default('no-reply@example.com'),
   EMAIL_REPLY_TO: z.union([z.email(), z.literal('')]).default(''),
   EMAIL_ENABLED: z.enum(['true', 'false']).transform((value) => value === 'true').default(false),
-  APP_FRONTEND_URL: z.url().default('http://localhost:5173'),
+  APP_FRONTEND_URL: z.url().default('http://localhost:5173').transform((val) => val.replace(/\/+$/, '')),
   EMAIL_MAX_ATTEMPTS: z.coerce.number().int().min(1).max(10).default(3),
   FILE_STORAGE_PROVIDER:z.enum(['disabled','memory','cloudinary']).default('memory'),FILE_UPLOADS_ENABLED:z.enum(['true','false']).transform(v=>v==='true').default(true),CLOUDINARY_CLOUD_NAME:z.string().trim().optional(),CLOUDINARY_API_KEY:z.string().trim().optional(),CLOUDINARY_API_SECRET:z.string().trim().optional(),FILE_MAX_IMAGE_MB:z.coerce.number().positive().max(20).default(5),FILE_MAX_DOCUMENT_MB:z.coerce.number().positive().max(50).default(10),FILE_MAX_ASSESSMENT_ATTACHMENT_MB:z.coerce.number().positive().max(100).default(20),  FILE_SIGNED_URL_TTL_SECONDS:z.coerce.number().int().min(60).max(3600).default(300),FILE_MAX_USER_STORAGE_MB:z.coerce.number().positive().max(1000).default(100),
   GOOGLE_CLIENT_ID: z.string().trim().optional(),

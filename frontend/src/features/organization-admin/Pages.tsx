@@ -946,7 +946,7 @@ export function TeamPage() {
                   <div className="ats-metric-card__body">
                     <span className="ats-metric-card__label">Your Role</span>
                     <span className="ats-metric-card__val" style={{ textTransform: 'capitalize', fontSize: '1.25rem' }}>
-                      {a.recruiter?.role || 'Admin'}
+                      {(a.recruiter?.isCompanyOwner ? 'Owner' : a.user?.role) || 'Admin'}
                     </span>
                     <span className="ats-metric-card__sub">Full team management</span>
                   </div>
@@ -1289,20 +1289,24 @@ export function TeamDetailPage() {
       </div>
 
       {error && (
-        <Alert tone="danger" title="Action failed" style={{ marginBottom: '1.25rem' }}>
-          {error}
-        </Alert>
+        <div style={{ marginBottom: '1.25rem' }}>
+          <Alert tone="danger" title="Action failed">
+            {error}
+          </Alert>
+        </div>
       )}
 
       {isOwner && (
-        <Alert tone="info" title="Owner membership is immutable" style={{ marginBottom: '1.25rem' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <ShieldCheck size={18} style={{ color: '#0284c7', flexShrink: 0 }} />
-            <span>
-              This account is the organization owner. Organization owner permissions and status cannot be edited or removed.
-            </span>
-          </div>
-        </Alert>
+        <div style={{ marginBottom: '1.25rem' }}>
+          <Alert tone="info" title="Owner membership is immutable">
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <ShieldCheck size={18} style={{ color: '#0284c7', flexShrink: 0 }} />
+              <span>
+                This account is the organization owner. Organization owner permissions and status cannot be edited or removed.
+              </span>
+            </div>
+          </Alert>
+        </div>
       )}
 
       <Form
@@ -1311,95 +1315,95 @@ export function TeamDetailPage() {
           setConfirm('save');
         }}
       >
-        <Card heading="Membership Configuration" headingLevel={2} style={{ marginBottom: '1.5rem', padding: '24px' }}>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '20px', marginTop: '1rem' }}>
-            <TextField
-              label="Membership Role"
-              value={formattedRole}
-              readOnly={isOwner}
-              onChange={(e) => setRole(e.target.value)}
-              hint={isOwner ? 'Role is immutable for organization owner' : 'Organizational role assignment'}
-            />
-            <Select
-              label="Account Status"
-              value={currentStatus}
-              disabled={isOwner}
-              options={[
-                { value: 'active', label: 'Active Member' },
-                { value: 'removed', label: 'Removed' },
-              ]}
-              onChange={(e) => setStatus(e.target.value as 'active' | 'removed')}
-              hint={isOwner ? 'Status is locked for owner' : 'Active members have workspace access'}
-            />
-          </div>
-        </Card>
+        <div style={{ marginBottom: '1.5rem' }}>
+          <Card heading="Membership Configuration" headingLevel={2}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '20px', marginTop: '1rem', padding: '8px' }}>
+              <TextField
+                label="Membership Role"
+                value={formattedRole}
+                readOnly={isOwner}
+                onChange={(e) => setRole(e.target.value)}
+                hint={isOwner ? 'Role is immutable for organization owner' : 'Organizational role assignment'}
+              />
+              <Select
+                label="Account Status"
+                value={currentStatus}
+                disabled={isOwner}
+                options={[
+                  { value: 'active', label: 'Active Member' },
+                  { value: 'removed', label: 'Removed' },
+                ]}
+                onChange={(e) => setStatus(e.target.value as 'active' | 'removed')}
+                hint={isOwner ? 'Status is locked for owner' : 'Active members have workspace access'}
+              />
+            </div>
+          </Card>
+        </div>
 
-        <Card heading="Permission Matrix & Capabilities" headingLevel={2} style={{ marginBottom: '1.5rem', padding: '24px' }}>
-          <p style={{ fontSize: '0.84375rem', color: '#64748b', marginTop: '4px', marginBottom: '16px' }}>
-            Configure granular feature permissions granted to this team member across hiring domains.
-          </p>
-          <PermissionGroups
-            selected={chosen}
-            onChange={setPermissions}
-            disabled={isOwner}
-          />
-        </Card>
+        <div style={{ marginBottom: '1.5rem' }}>
+          <Card heading="Permission Matrix & Capabilities" headingLevel={2}>
+            <div style={{ padding: '8px' }}>
+              <p style={{ fontSize: '0.84375rem', color: '#64748b', marginTop: '4px', marginBottom: '16px' }}>
+                Configure granular feature permissions granted to this team member across hiring domains.
+              </p>
+              <PermissionGroups
+                selected={chosen}
+                onChange={setPermissions}
+                disabled={isOwner}
+              />
+            </div>
+          </Card>
+        </div>
 
-        <Card
-          heading="Proposed Changes Review"
-          headingLevel={2}
-          className="org-change-review"
-          style={{
-            borderRadius: '14px',
-            border: '1px solid #cbd5e1',
-            background: '#ffffff',
-            boxShadow: '0 4px 16px rgba(0,0,0,0.04)',
-            padding: '20px',
-            marginBottom: '1.5rem',
-          }}
-        >
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '8px' }}>
-            {added.length === 0 && removed.length === 0 ? (
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#64748b', fontSize: '0.875rem' }}>
-                <CheckCircle2 size={18} style={{ color: '#10b981' }} />
-                <span>No permission or status changes currently pending.</span>
-              </div>
-            ) : (
-              <>
-                <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
-                  <strong style={{ fontSize: '0.875rem', color: '#16a34a', minWidth: '75px' }}>+ Added:</strong>
-                  {added.length > 0 ? (
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
-                      {added.map((p) => (
-                        <span key={p} style={{ background: '#dcfce7', color: '#15803d', fontSize: '0.75rem', fontWeight: 600, padding: '3px 8px', borderRadius: '6px' }}>
-                          + {title(p)}
-                        </span>
-                      ))}
-                    </div>
-                  ) : (
-                    <span style={{ fontSize: '0.875rem', color: '#94a3b8' }}>None</span>
-                  )}
+        <div style={{ marginBottom: '1.5rem' }}>
+          <Card
+            heading="Proposed Changes Review"
+            headingLevel={2}
+            className="org-change-review"
+          >
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '8px', padding: '8px' }}>
+              {added.length === 0 && removed.length === 0 ? (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#64748b', fontSize: '0.875rem' }}>
+                  <CheckCircle2 size={18} style={{ color: '#10b981' }} />
+                  <span>No permission or status changes currently pending.</span>
                 </div>
-                <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
-                  <strong style={{ fontSize: '0.875rem', color: '#dc2626', minWidth: '75px' }}>- Removed:</strong>
-                  {removed.length > 0 ? (
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
-                      {removed.map((p) => (
-                        <span key={p} style={{ background: '#fee2e2', color: '#b91c1c', fontSize: '0.75rem', fontWeight: 600, padding: '3px 8px', borderRadius: '6px' }}>
-                          - {title(p)}
-                        </span>
-                      ))}
-                    </div>
-                  ) : (
-                    <span style={{ fontSize: '0.875rem', color: '#94a3b8' }}>None</span>
-                  )}
-                </div>
-              </>
-            )}
-          </div>
-        </Card>
+              ) : (
+                <>
+                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
+                    <strong style={{ fontSize: '0.875rem', color: '#16a34a', minWidth: '75px' }}>+ Added:</strong>
+                    {added.length > 0 ? (
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                        {added.map((p) => (
+                          <span key={p} style={{ background: '#dcfce7', color: '#15803d', fontSize: '0.75rem', fontWeight: 600, padding: '3px 8px', borderRadius: '6px' }}>
+                            + {title(p)}
+                          </span>
+                        ))}
+                      </div>
+                    ) : (
+                      <span style={{ fontSize: '0.875rem', color: '#94a3b8' }}>None</span>
+                    )}
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
+                    <strong style={{ fontSize: '0.875rem', color: '#dc2626', minWidth: '75px' }}>- Removed:</strong>
+                    {removed.length > 0 ? (
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                        {removed.map((p) => (
+                          <span key={p} style={{ background: '#fee2e2', color: '#b91c1c', fontSize: '0.75rem', fontWeight: 600, padding: '3px 8px', borderRadius: '6px' }}>
+                            - {title(p)}
+                          </span>
+                        ))}
+                      </div>
+                    ) : (
+                      <span style={{ fontSize: '0.875rem', color: '#94a3b8' }}>None</span>
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
+          </Card>
+        </div>
 
-        <FormActions style={{ display: 'flex', gap: '1rem', justifyContent: 'flex-end', alignItems: 'center' }}>
+        <FormActions align="end">
           <Button
             type="button"
             variant="danger"

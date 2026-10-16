@@ -974,29 +974,30 @@ export function ManagedOfferDetailPage() {
         }
       />
       {o.negotiation && (
-        <Alert
-          tone="warning"
-          title="Candidate Negotiation Request"
-          style={{ marginBottom: '16px' }}
-        >
-          {o.negotiation.message && (
-            <p style={{ marginTop: '4px', fontWeight: 500 }}>
-              💬 Candidate Note: &ldquo;{o.negotiation.message}&rdquo;
-            </p>
-          )}
-          {o.negotiation.requestedChanges && Object.keys(o.negotiation.requestedChanges).length > 0 && (
-            <div style={{ marginTop: '8px', fontSize: '0.9rem' }}>
-              <strong>Requested Changes:</strong>
-              <ul style={{ margin: '4px 0 0 16px', padding: 0 }}>
-                {Object.entries(o.negotiation.requestedChanges).map(([k, v]) => (
-                  <li key={k}>
-                    <strong>{k.replace(/([A-Z])/g, ' $1').toLowerCase()}</strong>: {typeof v === 'object' ? JSON.stringify(v) : String(v)}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-        </Alert>
+        <div style={{ marginBottom: '16px' }}>
+          <Alert
+            tone="warning"
+            title="Candidate Negotiation Request"
+          >
+            {o.negotiation.message && (
+              <p style={{ marginTop: '4px', fontWeight: 500 }}>
+                💬 Candidate Note: &ldquo;{o.negotiation.message}&rdquo;
+              </p>
+            )}
+            {o.negotiation.requestedChanges && Object.keys(o.negotiation.requestedChanges).length > 0 && (
+              <div style={{ marginTop: '8px', fontSize: '0.9rem' }}>
+                <strong>Requested Changes:</strong>
+                <ul style={{ margin: '4px 0 0 16px', padding: 0 }}>
+                  {Object.entries(o.negotiation.requestedChanges).map(([k, v]) => (
+                    <li key={k}>
+                      <strong>{k.replace(/([A-Z])/g, ' $1').toLowerCase()}</strong>: {typeof v === 'object' ? JSON.stringify(v) : String(v)}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </Alert>
+        </div>
       )}
       <div className="od-split">
         <Card heading="Offer terms">
@@ -1025,7 +1026,7 @@ export function ManagedOfferDetailPage() {
                 style={{
                   display: 'inline-flex',
                   alignItems: 'center',
-                  justify: 'center',
+                  justifyContent: 'center',
                   gap: '6px',
                   width: '100%',
                   marginTop: '12px',
@@ -1809,14 +1810,18 @@ export function CandidateOfferDetailPage() {
         </Alert>
       )}
       {m.isError && (
-        <Alert tone="danger" title="Action failed" style={{ marginBottom: '16px' }}>
-          <p>{errorText(m.error)}</p>
-        </Alert>
+        <div style={{ marginBottom: '16px' }}>
+          <Alert tone="danger" title="Action failed">
+            <p>{errorText(m.error)}</p>
+          </Alert>
+        </div>
       )}
       {m.isSuccess && (
-        <Alert tone="success" title="Response recorded" style={{ marginBottom: '16px' }}>
-          <p>Your offer response has been successfully saved and communicated to the employer.</p>
-        </Alert>
+        <div style={{ marginBottom: '16px' }}>
+          <Alert tone="success" title="Response recorded">
+            <p>Your offer response has been successfully saved and communicated to the employer.</p>
+          </Alert>
+        </div>
       )}
       <div className="od-split">
         <Card heading="Offer terms">

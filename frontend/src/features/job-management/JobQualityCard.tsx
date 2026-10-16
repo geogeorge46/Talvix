@@ -46,15 +46,15 @@ export function JobQualityCard({ jobId, title = '', description = '', initialQua
   const getStatusTag = () => {
     switch (status) {
       case 'completed':
-        return <StatusTag status="verified" label="Analysis Complete" />;
+        return <StatusTag tone="success">Analysis Complete</StatusTag>;
       case 'stale':
-        return <StatusTag status="warning" label="Stale (Job Edited)" />;
+        return <StatusTag tone="warning">Stale (Job Edited)</StatusTag>;
       case 'pending':
-        return <StatusTag status="info" label="Analyzing..." />;
+        return <StatusTag tone="info">Analyzing...</StatusTag>;
       case 'failed':
-        return <StatusTag status="rejected" label="Analysis Failed" />;
+        return <StatusTag tone="danger">Analysis Failed</StatusTag>;
       default:
-        return <StatusTag status="draft" label="Not Analyzed" />;
+        return <StatusTag tone="neutral">Not Analyzed</StatusTag>;
     }
   };
 
@@ -79,7 +79,7 @@ export function JobQualityCard({ jobId, title = '', description = '', initialQua
         <Button
           type="button"
           variant="secondary"
-          size="sm"
+          size="compact"
           onClick={handleAnalyze}
           disabled={analyzeMutation.isPending || (!isRealId && !title.trim())}
           className="flex items-center gap-2 self-start md:self-auto"
@@ -91,11 +91,10 @@ export function JobQualityCard({ jobId, title = '', description = '', initialQua
 
       {/* Stale Warning Banner */}
       {status === 'stale' && (
-        <Alert variant="warning" className="my-4">
+        <Alert tone="warning" title="Job Description Modified">
           <div className="flex items-start gap-2">
             <AlertTriangle className="w-4 h-4 mt-0.5 text-amber-600 shrink-0" />
             <div>
-              <p className="text-sm font-medium text-amber-900">Job Description Modified</p>
               <p className="text-xs text-amber-700 mt-0.5">
                 The job post text was modified after quality analysis. Click 'Re-analyze Quality' for an updated assessment.
               </p>
@@ -106,7 +105,7 @@ export function JobQualityCard({ jobId, title = '', description = '', initialQua
 
       {/* Error Alert */}
       {(analyzeMutation.isError || (status === 'failed' && quality?.error)) && (
-        <Alert variant="error" className="my-4">
+        <Alert tone="danger" title="Quality Analysis Error">
           <div className="flex items-start gap-2">
             <AlertCircle className="w-4 h-4 mt-0.5 text-red-600 shrink-0" />
             <div>
@@ -249,7 +248,7 @@ export function JobQualityCard({ jobId, title = '', description = '', initialQua
                           <Button
                             type="button"
                             variant="secondary"
-                            size="sm"
+                            size="compact"
                             onClick={() => onApplyReplacement(finding.evidence || '', finding.proposedReplacement, finding.recommendation)}
                             className="flex items-center gap-1.5 text-xs text-indigo-700 border-indigo-200 hover:bg-indigo-100 self-start sm:self-auto shrink-0"
                           >
@@ -264,7 +263,7 @@ export function JobQualityCard({ jobId, title = '', description = '', initialQua
                           <Button
                             type="button"
                             variant="secondary"
-                            size="sm"
+                            size="compact"
                             onClick={() => onApplyReplacement(finding.evidence || '', '', finding.recommendation)}
                             className="flex items-center gap-1.5 text-xs text-indigo-700 border-indigo-200 hover:bg-indigo-100 shrink-0"
                           >
