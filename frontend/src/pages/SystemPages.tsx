@@ -1,14 +1,19 @@
 import { useNavigate } from 'react-router-dom';
 import { Button, EmptyState, PermissionState } from '../design-system';
+import { homeForRole, useAuth } from '../auth/AuthProvider';
+
 export function UnauthorizedPage() {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const target = user?.role ? homeForRole(user.role) : '/';
+
   return (
     <div className="tvx-system-page">
       <PermissionState
         title="Wrong workspace"
         description="Your account does not have access to this workspace."
         action={
-          <Button onClick={() => navigate('/')}>Go to my workspace</Button>
+          <Button onClick={() => navigate(target)}>Go to my workspace</Button>
         }
       />
     </div>

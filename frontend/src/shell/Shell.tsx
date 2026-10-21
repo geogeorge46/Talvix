@@ -536,7 +536,9 @@ export function SettingsTrigger() {
         navigate(
           user?.role === 'candidate'
             ? '/candidate/settings'
-            : '/org/settings',
+            : user?.role === 'admin'
+              ? '/admin/settings'
+              : '/org/settings',
         )
       }
     />
