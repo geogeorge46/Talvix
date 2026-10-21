@@ -20,6 +20,14 @@ const companyRegistryCheckSchema = new mongoose.Schema({
     required: true
   },
   provider: { type: String, required: true },
+  identifierType: {
+    type: String,
+    enum: ['cin', 'llpin', 'gstin', 'udyam', 'company_registration', 'unknown'],
+    default: 'unknown'
+  },
+  maskedIdentifier: { type: String, default: '' },
+  registryData: { type: mongoose.Schema.Types.Mixed, default: null },
+  summary: { type: String, default: '' },
   outcome: {
     type: String,
     enum: ['match', 'mismatch', 'not_found', 'unavailable', 'manual_review_required', 'not_applicable'],

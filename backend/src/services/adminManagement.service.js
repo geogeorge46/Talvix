@@ -364,9 +364,14 @@ export const listRecruiters = async (query) => {
 
   // Aggregate company membership details for each profile
   const rows = await Promise.all(profiles.map(async (profile) => {
+    let company = profile.company;
+    if (!company && profile.user?._id) {
+      company = await Company.findOne({ owner: profile.user._id }).select('name verificationStatus').lean();
+    }
     const membership = await CompanyMember.findOne({ recruiter: profile.user?._id }).lean();
     return {
       ...profile,
+      company: company || profile.company,
       membershipRole: membership?.role || 'none',
       membershipStatus: membership?.status || 'none',
       joinedAt: membership?.createdAt || null
@@ -393,6 +398,23 @@ export const getRecruiterDetail = async (recruiterId) => {
   }
 
   const userId = profile.user?._id;
+  let company = profile.company;
+  if (!company && userId) {
+    company = await Company.findOne({ owner: userId })
+      .select('name verificationStatus website email officialEmailDomain companySize industry headquarters locations')
+      .lean();
+    if (!company) {
+      const member = await CompanyMember.findOne({ recruiter: userId })
+        .populate('company', 'name verificationStatus website email officialEmailDomain companySize industry headquarters locations')
+        .lean();
+      if (member?.company) {
+        company = member.company;
+      }
+    }
+    if (company) {
+      profile.company = company;
+    }
+  }
   const companyId = profile.company?._id;
 
   const [jobs, interviews, offers, members, logs, membership] = await Promise.all([

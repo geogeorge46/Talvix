@@ -3,185 +3,156 @@ import { CompanyRegistryCheck } from '../models/CompanyRegistryCheck.js';
 import { User } from '../models/User.js';
 import { AuditLog } from '../models/AuditLog.js';
 import { AppError } from '../shared/errors/AppError.js';
-import { getRegistryProvider } from './registryVerification/registryProviderFactory.js';
-import { isValidCIN, isValidGSTIN, isValidUdyam } from '../utils/formatValidation.js';
+import { getRegistryProvider, getProviderForCheckType } from './registryVerification/registryProviderFactory.js';
+import { isValidCIN, isValidGSTIN, isValidUdyam, maskIdentifier } from '../utils/formatValidation.js';
+import {
+  normalizeCompanyName,
+  isFuzzyNameMatch,
+  compareRegistryRecord
+} from './registryVerification/registryMatch.service.js';
+
+export { normalizeCompanyName, isFuzzyNameMatch };
 
 /**
- * Normalizes company names by removing legal suffixes, punctuation, and extra whitespace.
+ * Executes an authoritative registry check for a company.
  */
-export const normalizeCompanyName = (name) => {
-  if (!name || typeof name !== 'string') return '';
-  return name
-    .toLowerCase()
-    .replace(/[^\w\s]/g, ' ')
-    .replace(/\b(pvt|private|ltd|limited|inc|incorporated|llp|corp|corporation|co|company)\b/g, '')
-    .replace(/\s+/g, ' ')
-    .trim();
-};
-
-export const isFuzzyNameMatch = (name1, name2) => {
-  const norm1 = normalizeCompanyName(name1);
-  const norm2 = normalizeCompanyName(name2);
-  if (!norm1 || !norm2) return false;
-  return norm1 === norm2 || norm1.includes(norm2) || norm2.includes(norm1);
-};
-
-/**
- * Executes a registry check for a company.
- */
-export const runRegistryCheck = async ({ companyId, checkType = 'company_registration', providerName = 'mock_registry', options = {}, actorId }) => {
+export const runRegistryCheck = async ({
+  companyId,
+  checkType = 'company_registration',
+  providerName,
+  options = {},
+  actorId
+}) => {
   const company = await Company.findById(companyId);
   if (!company) {
     throw new AppError('Company not found', 404);
   }
 
   const owner = await User.findById(company.owner);
-  const provider = getRegistryProvider(providerName);
+  const provider = providerName
+    ? getRegistryProvider(providerName)
+    : getProviderForCheckType(checkType);
+
   const providerResult = await provider.verifyRegistration({ company, checkType, options });
 
-  const matchedFields = [];
-  const mismatchedFields = [];
-  const riskIndicators = [];
-  let riskScore = 0;
+  const initialRiskIndicators = [];
+  let formatRiskScore = 0;
 
-  // 1. Format Validation & Registry Outcome Evaluation
-  let identifierValid = true;
-  if (checkType === 'company_registration' && company.cin) {
-    identifierValid = isValidCIN(company.cin);
-    if (!identifierValid) {
-      riskIndicators.push({
+  // 1. Format Validation (Format valid != Registry verified)
+  let rawIdentifier = '';
+  let identifierType = 'unknown';
+
+  if (checkType === 'company_registration') {
+    rawIdentifier = company.cin || '';
+    identifierType = company.entityType === 'llp' ? 'llpin' : 'cin';
+    if (rawIdentifier && !isValidCIN(rawIdentifier)) {
+      initialRiskIndicators.push({
         code: 'FORMAT_INVALID_CIN',
         severity: 'high',
         description: 'Submitted Corporate Identification Number (CIN/LLPIN) format is invalid.'
       });
-      riskScore += 25;
+      formatRiskScore += 25;
     }
-  } else if (checkType === 'gst_registration' && company.gstin) {
-    identifierValid = isValidGSTIN(company.gstin);
-    if (!identifierValid) {
-      riskIndicators.push({
+  } else if (checkType === 'gst_registration') {
+    rawIdentifier = company.gstin || '';
+    identifierType = 'gstin';
+    if (rawIdentifier && !isValidGSTIN(rawIdentifier)) {
+      initialRiskIndicators.push({
         code: 'FORMAT_INVALID_GSTIN',
         severity: 'high',
         description: 'Submitted GSTIN format is invalid.'
       });
-      riskScore += 25;
+      formatRiskScore += 25;
     }
-  } else if (checkType === 'msme_registration' && company.udyamRegistrationNumber) {
-    identifierValid = isValidUdyam(company.udyamRegistrationNumber);
-    if (!identifierValid) {
-      riskIndicators.push({
+  } else if (checkType === 'msme_registration') {
+    rawIdentifier = company.udyamRegistrationNumber || '';
+    identifierType = 'udyam';
+    if (rawIdentifier && !isValidUdyam(rawIdentifier)) {
+      initialRiskIndicators.push({
         code: 'FORMAT_INVALID_UDYAM',
         severity: 'high',
         description: 'Submitted Udyam registration number format is invalid.'
       });
-      riskScore += 25;
+      formatRiskScore += 25;
     }
   }
 
-  let finalOutcome = providerResult.outcome;
+  // 2. Authoritative Comparison & Discrepancy Matching
+  const comparison = compareRegistryRecord({
+    company,
+    registryData: providerResult.registryData,
+    checkType,
+    baseOutcome: providerResult.outcome
+  });
 
-  if (finalOutcome === 'unavailable') {
-    riskIndicators.push({
-      code: 'REGISTRY_UNAVAILABLE',
-      severity: 'low',
-      description: 'External registry provider was temporarily unavailable. Manual verification recommended.'
-    });
-    riskScore += 5;
-  } else if (finalOutcome === 'not_found') {
-    riskIndicators.push({
-      code: 'REGISTRY_NOT_FOUND',
-      severity: 'high',
-      description: 'Business registration details were not found in official registry records.'
-    });
-    riskScore += 40;
-  } else if (finalOutcome === 'mismatch' || finalOutcome === 'match') {
-    const regData = providerResult.registryData || {};
-    const submittedLegalName = company.legalName || company.name;
+  // 3. Cross-Field Fraud Risk Indicators
+  const fraudRiskIndicators = [];
+  let fraudRiskScore = 0;
 
-    // Check Legal Name Match
-    if (regData.legalName) {
-      if (isFuzzyNameMatch(submittedLegalName, regData.legalName)) {
-        matchedFields.push('legalName');
-      } else {
-        mismatchedFields.push({
-          field: 'legalName',
-          submitted: submittedLegalName,
-          registry: regData.legalName
-        });
-        riskIndicators.push({
-          code: 'REGISTRY_NAME_MISMATCH',
-          severity: 'high',
-          description: `Submitted legal name '${submittedLegalName}' mismatches official registry name '${regData.legalName}'.`
-        });
-        riskScore += 35;
-      }
-    }
-
-    // Check Entity Type Match
-    if (regData.entityType && company.entityType) {
-      if (regData.entityType.toLowerCase() === company.entityType.toLowerCase()) {
-        matchedFields.push('entityType');
-      } else {
-        mismatchedFields.push({
-          field: 'entityType',
-          submitted: company.entityType,
-          registry: regData.entityType
-        });
-        riskIndicators.push({
-          code: 'REGISTRY_ENTITY_MISMATCH',
-          severity: 'medium',
-          description: `Submitted entity type '${company.entityType}' mismatches registry entity type '${regData.entityType}'.`
-        });
-        riskScore += 20;
-      }
-    }
-
-    if (mismatchedFields.length > 0 && finalOutcome === 'match') {
-      finalOutcome = 'mismatch';
-    }
-  }
-
-  // 2. Cross-Field Fraud Risk Indicators
   if (owner && owner.email && company.officialEmailDomain) {
     const emailDomain = owner.email.split('@')[1]?.toLowerCase();
     const companyDomain = company.officialEmailDomain.toLowerCase();
     if (emailDomain && companyDomain && emailDomain !== companyDomain) {
-      riskIndicators.push({
+      fraudRiskIndicators.push({
         code: 'RECRUITER_DOMAIN_MISMATCH',
         severity: 'medium',
         description: `Recruiter email domain '${emailDomain}' does not match company official domain '${companyDomain}'.`
       });
-      riskScore += 20;
+      fraudRiskScore += 20;
     }
   }
 
   if (company.foundedYear) {
     const currentYear = new Date().getUTCFullYear();
     if (currentYear - company.foundedYear <= 1) {
-      riskIndicators.push({
+      fraudRiskIndicators.push({
         code: 'RECENTLY_FOUNDED_COMPANY',
         severity: 'low',
         description: 'Company was founded within the last year.'
       });
-      riskScore += 10;
+      fraudRiskScore += 10;
     }
   }
 
-  // Cap risk score between 0 and 100
-  const finalRiskScore = Math.min(100, Math.max(0, riskScore));
+  const allRiskIndicators = [
+    ...initialRiskIndicators,
+    ...comparison.riskIndicators,
+    ...fraudRiskIndicators
+  ];
+
+  const totalRiskScore = Math.min(100, Math.max(0, formatRiskScore + comparison.riskScore + fraudRiskScore));
 
   const checkRecord = await CompanyRegistryCheck.create({
     companyId: company._id,
     checkType,
     provider: providerResult.provider,
-    outcome: finalOutcome,
+    identifierType: providerResult.identifierType || identifierType,
+    maskedIdentifier: providerResult.maskedIdentifier || maskIdentifier(rawIdentifier),
+    registryData: providerResult.registryData || null,
+    outcome: comparison.outcome,
+    summary: comparison.summary,
     referenceId: providerResult.referenceId || '',
-    matchedFields,
-    mismatchedFields,
-    riskIndicators,
-    riskScore: finalRiskScore,
+    matchedFields: comparison.matchedFields,
+    mismatchedFields: comparison.mismatchedFields,
+    riskIndicators: allRiskIndicators,
+    riskScore: totalRiskScore,
     checkedAt: new Date(),
     status: 'active'
+  });
+
+  // Update technical registry verification status on Company (NOT verificationStatus)
+  let newRegistryStatus = 'inconclusive';
+  if (comparison.outcome === 'match') {
+    newRegistryStatus = 'verified';
+  } else if (comparison.outcome === 'mismatch') {
+    newRegistryStatus = 'failed';
+  } else if (comparison.outcome === 'not_found') {
+    newRegistryStatus = 'failed';
+  }
+
+  await Company.findByIdAndUpdate(company._id, {
+    registryVerificationStatus: newRegistryStatus,
+    registryVerifiedAt: new Date()
   });
 
   if (actorId) {
@@ -192,13 +163,14 @@ export const runRegistryCheck = async ({ companyId, checkType = 'company_registr
       newValue: {
         checkId: checkRecord._id,
         checkType,
-        outcome: finalOutcome,
-        riskScore: finalRiskScore
+        outcome: comparison.outcome,
+        riskScore: totalRiskScore,
+        summary: comparison.summary
       }
     });
   }
 
-  // CRITICAL SECURITY RULE: The automated check does NOT alter Company.verificationStatus!
+  // CRITICAL SECURITY RULE: The automated registry check does NOT alter Company.verificationStatus!
   return checkRecord;
 };
 
@@ -265,6 +237,8 @@ export const getCompanyVerificationSummary = async (companyId) => {
   return {
     companyId: company._id,
     verificationStatus: company.verificationStatus,
+    registryVerificationStatus: company.registryVerificationStatus || 'none',
+    registryVerifiedAt: company.registryVerifiedAt || null,
     emailVerified: Boolean(owner?.emailVerified),
     domainVerified: Boolean(company.domainVerified),
     officialEmailDomain: company.officialEmailDomain || '',
@@ -272,7 +246,10 @@ export const getCompanyVerificationSummary = async (companyId) => {
     latestRegistryCheck: latestCheck
       ? {
           checkType: latestCheck.checkType,
+          identifierType: latestCheck.identifierType,
+          maskedIdentifier: latestCheck.maskedIdentifier,
           outcome: latestCheck.outcome,
+          summary: latestCheck.summary,
           checkedAt: latestCheck.checkedAt,
           status: latestCheck.status,
           hasRiskIndicators: latestCheck.riskIndicators.length > 0

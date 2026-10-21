@@ -32,12 +32,16 @@ companyRouter.post('/me/domain-verification/confirm', authenticate, authorizeRol
 import {
   getCompanyRegistryChecksController,
   getCompanyVerificationSummaryController,
+  getMyCompanyRegistryChecksController,
   overrideRegistryCheckController,
+  runMyCompanyRegistryCheckController,
   runRegistryCheckController
 } from '../controllers/registryCheck.controller.js';
 import { checkIdParamsSchema, overrideRegistryCheckSchema, runRegistryCheckSchema } from '../validators/registryCheck.validator.js';
 
 companyRouter.get('/me/verification-summary', authenticate, authorizeRoles(USER_ROLES.RECRUITER), requireCompanyAccess, getCompanyVerificationSummaryController);
+companyRouter.get('/me/registry-checks', authenticate, authorizeRoles(USER_ROLES.RECRUITER), requireCompanyAccess, getMyCompanyRegistryChecksController);
+companyRouter.post('/me/registry-checks/run', authenticate, authorizeRoles(USER_ROLES.RECRUITER), authorizePermissions('company.manage'), requireCompanyAccess, validateBody(runRegistryCheckSchema), runMyCompanyRegistryCheckController);
 
 companyRouter.post('/admin/:companyId/registry-checks/run', authenticate, authorizeRoles(USER_ROLES.ADMIN), validateParams(companyIdParamsSchema), validateBody(runRegistryCheckSchema), runRegistryCheckController);
 companyRouter.get('/admin/:companyId/registry-checks', authenticate, authorizeRoles(USER_ROLES.ADMIN), validateParams(companyIdParamsSchema), getCompanyRegistryChecksController);

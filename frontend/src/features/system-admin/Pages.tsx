@@ -2584,6 +2584,11 @@ function RecruiterVerificationDrawer({
   };
 
   const recruiterStatus = data.user?.recruiterVerificationStatus || 'none';
+  const recruiterEmail = data.user?.email || '';
+  const emailDomain = recruiterEmail.includes('@') ? recruiterEmail.split('@')[1]?.toLowerCase() : '';
+  const companyDomain = (data.company?.officialEmailDomain || '').toLowerCase();
+  const isFreeEmail = ['gmail.com', 'yahoo.com', 'hotmail.com', 'outlook.com', 'icloud.com'].includes(emailDomain);
+  const isDomainMatch = Boolean(companyDomain && emailDomain && emailDomain === companyDomain);
 
   return (
     <div className="sys-dialog-backdrop" style={{ zIndex: 9999, display: 'grid', placeItems: 'center', background: 'rgba(0, 0, 0, 0.6)' }}>
@@ -2621,6 +2626,66 @@ function RecruiterVerificationDrawer({
             <State kind="error">{errorText(query.error)}</State>
           ) : query.data ? (
             <>
+              {/* Domain & Identity Validation Banner */}
+              {isFreeEmail ? (
+                <div style={{
+                  background: 'rgba(239, 68, 68, 0.08)',
+                  border: '1px solid rgba(239, 68, 68, 0.3)',
+                  borderRadius: '6px',
+                  padding: '12px 16px',
+                  marginBottom: '20px',
+                  display: 'flex',
+                  gap: '12px',
+                  alignItems: 'center'
+                }}>
+                  <span style={{ fontSize: '1.4rem' }}>⚠️</span>
+                  <div>
+                    <strong style={{ color: 'rgb(239, 68, 68)', fontSize: '0.95rem' }}>Personal / Free Email Provider Used</strong>
+                    <p style={{ margin: '2px 0 0', fontSize: '0.85rem', color: 'var(--color-text-secondary)' }}>
+                      Recruiter registered with a personal email ({recruiterEmail}). Since this is not a corporate domain address, verify company affiliation or appointment letter before approving.
+                    </p>
+                  </div>
+                </div>
+              ) : isDomainMatch ? (
+                <div style={{
+                  background: 'rgba(16, 185, 129, 0.08)',
+                  border: '1px solid rgba(16, 185, 129, 0.3)',
+                  borderRadius: '6px',
+                  padding: '12px 16px',
+                  marginBottom: '20px',
+                  display: 'flex',
+                  gap: '12px',
+                  alignItems: 'center'
+                }}>
+                  <span style={{ fontSize: '1.4rem' }}>✓</span>
+                  <div>
+                    <strong style={{ color: 'rgb(16, 185, 129)', fontSize: '0.95rem' }}>Corporate Email Domain Matched</strong>
+                    <p style={{ margin: '2px 0 0', fontSize: '0.85rem', color: 'var(--color-text-secondary)' }}>
+                      Recruiter work email domain (@{emailDomain}) matches the company official domain (@{companyDomain}).
+                    </p>
+                  </div>
+                </div>
+              ) : companyDomain ? (
+                <div style={{
+                  background: 'rgba(245, 158, 11, 0.08)',
+                  border: '1px solid rgba(245, 158, 11, 0.3)',
+                  borderRadius: '6px',
+                  padding: '12px 16px',
+                  marginBottom: '20px',
+                  display: 'flex',
+                  gap: '12px',
+                  alignItems: 'center'
+                }}>
+                  <span style={{ fontSize: '1.4rem' }}>⚠️</span>
+                  <div>
+                    <strong style={{ color: 'rgb(245, 158, 11)', fontSize: '0.95rem' }}>Email Domain Mismatch</strong>
+                    <p style={{ margin: '2px 0 0', fontSize: '0.85rem', color: 'var(--color-text-secondary)' }}>
+                      Recruiter email domain (@{emailDomain}) differs from company official domain (@{companyDomain}).
+                    </p>
+                  </div>
+                </div>
+              ) : null}
+
               <section className="sys-detail" style={{ marginTop: 0 }}>
                 <h3 style={{ fontSize: '1rem', fontWeight: 600, borderBottom: '1px solid var(--color-border-default)', paddingBottom: '8px', margin: '0 0 16px' }}>Recruiter Information</h3>
                 <dl style={{ borderLeft: '1px solid var(--color-border-default)', borderTop: '1px solid var(--color-border-default)' }}>
@@ -2629,7 +2694,7 @@ function RecruiterVerificationDrawer({
                   <div><dt>Phone</dt><dd>{data.phone || '—'}</dd></div>
                   <div><dt>Job Title</dt><dd>{data.designation || '—'}</dd></div>
                   <div><dt>Department</dt><dd>{data.department || '—'}</dd></div>
-                  <div><dt>LinkedIn URL</dt><dd>{data.linkedinUrl || '—'}</dd></div>
+                  <div><dt>LinkedIn URL</dt><dd>{data.linkedinUrl ? <a href={data.linkedinUrl} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--color-action-primary)', textDecoration: 'underline' }}>{data.linkedinUrl}</a> : '—'}</dd></div>
                   <div><dt>Biography</dt><dd>{data.bio || '—'}</dd></div>
                   <div><dt>Registration Date</dt><dd>{data.createdAt ? new Date(data.createdAt).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' }) : '—'}</dd></div>
                   <div><dt>Account Status</dt><dd>{data.user?.isDeleted ? 'Deleted' : data.user?.blocked ? 'Blocked' : 'Active'}</dd></div>
@@ -2639,20 +2704,21 @@ function RecruiterVerificationDrawer({
               <section className="sys-detail" style={{ marginTop: '24px' }}>
                 <h3 style={{ fontSize: '1rem', fontWeight: 600, borderBottom: '1px solid var(--color-border-default)', paddingBottom: '8px', margin: '0 0 16px' }}>Company & Membership Information</h3>
                 <dl style={{ borderLeft: '1px solid var(--color-border-default)', borderTop: '1px solid var(--color-border-default)' }}>
-                  <div><dt>Company Name</dt><dd>{data.company?.name || '—'}</dd></div>
+                  <div><dt>Company Name</dt><dd style={{ fontWeight: 600 }}>{data.company?.name || '—'}</dd></div>
                   <div><dt>Website</dt><dd>{data.company?.website ? <a href={data.company.website} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--color-action-primary)', textDecoration: 'underline' }}>{data.company.website}</a> : '—'}</dd></div>
-                  <div><dt>Company Email/Domain</dt><dd className="sys-mono">{data.company?.officialEmailDomain || '—'}</dd></div>
+                  <div><dt>Company Email/Domain</dt><dd className="sys-mono">{data.company?.officialEmailDomain || data.company?.email || '—'}</dd></div>
                   <div><dt>Company Size</dt><dd>{data.company?.companySize || '—'}</dd></div>
+                  <div><dt>Industry</dt><dd>{data.company?.industry || '—'}</dd></div>
                   <div><dt>Company Status</dt><dd><Status value={data.company?.verificationStatus ?? 'none'} /></dd></div>
-                  <div><dt>Recruiter's Company Role</dt><dd>{data.membership?.role ? (data.membership.role.charAt(0).toUpperCase() + data.membership.role.slice(1)) : (data.isCompanyOwner ? 'Owner' : 'Member')}</dd></div>
+                  <div><dt>Recruiter's Company Role</dt><dd>{data.membership?.role ? (data.membership.role.charAt(0).toUpperCase() + data.membership.role.slice(1)) : (data.isCompanyOwner ? 'Owner' : 'Provisional Admin')}</dd></div>
                 </dl>
               </section>
 
               <section className="sys-detail" style={{ marginTop: '24px' }}>
-                <h3 style={{ fontSize: '1rem', fontWeight: 600, borderBottom: '1px solid var(--color-border-default)', paddingBottom: '8px', margin: '0 0 16px' }}>Verification Information</h3>
+                <h3 style={{ fontSize: '1rem', fontWeight: 600, borderBottom: '1px solid var(--color-border-default)', paddingBottom: '8px', margin: '0 0 16px' }}>Verification Status</h3>
                 <dl style={{ borderLeft: '1px solid var(--color-border-default)', borderTop: '1px solid var(--color-border-default)' }}>
                   <div><dt>Recruiter Verification Status</dt><dd><Status value={recruiterStatus} /></dd></div>
-                  <div><dt>Profile isApproved</dt><dd>{data.isApproved ? 'Approved' : 'Pending'}</dd></div>
+                  <div><dt>Profile Approval</dt><dd>{data.isApproved ? 'Approved' : 'Pending Review'}</dd></div>
                   {recruiterStatus === 'verified' && (
                     <>
                       <div><dt>Approved By</dt><dd>{data.approvedBy?.fullName || '—'}</dd></div>
@@ -2664,25 +2730,6 @@ function RecruiterVerificationDrawer({
                       <div><dt>Rejected By</dt><dd>{data.rejectedBy?.fullName || '—'}</dd></div>
                       <div><dt>Rejected Date</dt><dd>{data.rejectedAt ? new Date(data.rejectedAt).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—'}</dd></div>
                       <div><dt>Rejection Reason</dt><dd>{data.rejectionReason || '—'}</dd></div>
-                    </>
-                  )}
-                  {recruiterStatus === 'suspended' && (
-                    <>
-                      <div><dt>Suspended By</dt><dd>{data.suspendedBy?.fullName || '—'}</dd></div>
-                      <div><dt>Suspended Date</dt><dd>{data.suspendedAt ? new Date(data.suspendedAt).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—'}</dd></div>
-                      <div><dt>Suspension Reason</dt><dd>{data.suspensionReason || '—'}</dd></div>
-                    </>
-                  )}
-                  {recruiterStatus === 'restored' && (
-                    <>
-                      <div><dt>Restored By</dt><dd>{data.restoredBy?.fullName || '—'}</dd></div>
-                      <div><dt>Restored Date</dt><dd>{data.restoredAt ? new Date(data.restoredAt).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—'}</dd></div>
-                    </>
-                  )}
-                  {recruiterStatus !== 'verified' && recruiterStatus !== 'rejected' && recruiterStatus !== 'suspended' && recruiterStatus !== 'restored' && (
-                    <>
-                      <div><dt>Approved By</dt><dd>—</dd></div>
-                      <div><dt>Approved Date</dt><dd>—</dd></div>
                     </>
                   )}
                 </dl>
@@ -2759,21 +2806,6 @@ function RecruiterVerificationDrawer({
                   </div>
                 )}
               </section>
-
-              {data.profilePhotoDocument && (
-                <section className="sys-detail" style={{ marginTop: '24px' }}>
-                  <h3 style={{ fontSize: '1rem', fontWeight: 600, borderBottom: '1px solid var(--color-border-default)', paddingBottom: '8px', margin: '0 0 16px' }}>Uploaded Documents</h3>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginTop: '12px', background: 'var(--color-bg-alt)', padding: '12px', borderRadius: '6px' }}>
-                    <div style={{ flex: 1 }}>
-                      <strong>Profile Photo Document</strong>
-                      <small style={{ display: 'block', color: 'var(--color-text-muted)' }}>ID: {data.profilePhotoDocument}</small>
-                    </div>
-                    <a href={`/api/v1/documents/${data.profilePhotoDocument}/download`} target="_blank" rel="noopener noreferrer" className="sys-button sys-button--quiet">
-                      View
-                    </a>
-                  </div>
-                </section>
-              )}
             </>
           ) : (
             <State kind="empty">No recruiter details found.</State>
@@ -3085,6 +3117,7 @@ export function AdminCompanyVerificationPage() {
   );
 }
 
+
 function CompanyVerificationDrawer({
   companyId,
   onClose,
@@ -3108,6 +3141,31 @@ function CompanyVerificationDrawer({
   });
   const historyItems = historyQuery.data?.data?.items || [];
 
+  const registryChecksQuery = useQuery({
+    queryKey: ['system-admin', 'company-registry-checks', companyId],
+    queryFn: () => adminApi.getCompanyRegistryChecks(companyId),
+    enabled: !!companyId,
+  });
+  const registryChecks = (registryChecksQuery.data as any)?.data?.checks || [];
+  const latestRegistryCheck = registryChecks[0] || null;
+
+  const [isRunningCheck, setIsRunningCheck] = useState(false);
+  const [registryMessage, setRegistryMessage] = useState<string | null>(null);
+
+  const handleRunRegistryCheck = async (checkType: 'company_registration' | 'gst_registration') => {
+    try {
+      setIsRunningCheck(true);
+      setRegistryMessage(null);
+      await adminApi.runCompanyRegistryCheck(companyId, { checkType });
+      await Promise.all([registryChecksQuery.refetch(), query.refetch()]);
+      setRegistryMessage(`${checkType === 'company_registration' ? 'MCA (CIN/LLPIN)' : 'GSTIN'} check completed.`);
+    } catch (err: any) {
+      setRegistryMessage(`Lookup failed: ${err.message || 'Error executing check'}`);
+    } finally {
+      setIsRunningCheck(false);
+    }
+  };
+
   const [pending, setPending] = useState<PendingAction | null>(null);
 
   const performAction = (actionName: string, config: { path: string; method?: 'PATCH' | 'POST' | 'DELETE'; reason?: boolean; body?: any }) => {
@@ -3119,6 +3177,12 @@ function CompanyVerificationDrawer({
       body: config.body,
     });
   };
+
+  const ownerEmail = data.owner?.email || '';
+  const ownerEmailDomain = ownerEmail.includes('@') ? ownerEmail.split('@')[1]?.toLowerCase() : '';
+  const officialDomain = (data.officialEmailDomain || '').toLowerCase();
+  const isFreeOwnerEmail = ['gmail.com', 'yahoo.com', 'hotmail.com', 'outlook.com', 'icloud.com'].includes(ownerEmailDomain);
+  const isDomainMatch = Boolean(officialDomain && ownerEmailDomain && ownerEmailDomain === officialDomain);
 
   return (
     <div className="sys-dialog-backdrop" style={{ zIndex: 9999, display: 'grid', placeItems: 'center', background: 'rgba(0, 0, 0, 0.6)' }}>
@@ -3156,12 +3220,61 @@ function CompanyVerificationDrawer({
             <State kind="error">{errorText(query.error)}</State>
           ) : query.data ? (
             <>
+              {/* Domain & Legitimacy Alert Banner */}
+              {isFreeOwnerEmail ? (
+                <div style={{
+                  background: 'rgba(239, 68, 68, 0.08)',
+                  border: '1px solid rgba(239, 68, 68, 0.3)',
+                  borderRadius: '6px',
+                  padding: '12px 16px',
+                  marginBottom: '20px',
+                  display: 'flex',
+                  gap: '12px',
+                  alignItems: 'center'
+                }}>
+                  <span style={{ fontSize: '1.4rem' }}>⚠️</span>
+                  <div>
+                    <strong style={{ color: 'rgb(239, 68, 68)', fontSize: '0.95rem' }}>Domain Mismatch & Verification Risk</strong>
+                    <p style={{ margin: '2px 0 0', fontSize: '0.85rem', color: 'var(--color-text-secondary)' }}>
+                      The company owner registered with a personal email ({ownerEmail}) rather than a corporate domain (@{officialDomain || 'domain'}). Please verify registry documents and authorization before approving.
+                    </p>
+                  </div>
+                </div>
+              ) : isDomainMatch ? (
+                <div style={{
+                  background: 'rgba(16, 185, 129, 0.08)',
+                  border: '1px solid rgba(16, 185, 129, 0.3)',
+                  borderRadius: '6px',
+                  padding: '12px 16px',
+                  marginBottom: '20px',
+                  display: 'flex',
+                  gap: '12px',
+                  alignItems: 'center'
+                }}>
+                  <span style={{ fontSize: '1.4rem' }}>✓</span>
+                  <div>
+                    <strong style={{ color: 'rgb(16, 185, 129)', fontSize: '0.95rem' }}>Work Email Domain Verified</strong>
+                    <p style={{ margin: '2px 0 0', fontSize: '0.85rem', color: 'var(--color-text-secondary)' }}>
+                      Company owner email matches the official domain (@{officialDomain}).
+                    </p>
+                  </div>
+                </div>
+              ) : null}
+
+              {/* Company Information */}
               <section className="sys-detail" style={{ marginTop: 0 }}>
                 <h3 style={{ fontSize: '1rem', fontWeight: 600, borderBottom: '1px solid var(--color-border-default)', paddingBottom: '8px', margin: '0 0 16px' }}>Company Information</h3>
                 <dl style={{ borderLeft: '1px solid var(--color-border-default)', borderTop: '1px solid var(--color-border-default)' }}>
-                  <div><dt>Company Name</dt><dd>{data.name || '—'}</dd></div>
+                  <div><dt>Company Brand Name</dt><dd style={{ fontWeight: 600 }}>{data.name || '—'}</dd></div>
+                  <div><dt>Legal Entity Name</dt><dd>{data.legalName || '—'}</dd></div>
+                  <div><dt>Trading Name</dt><dd>{data.tradeName || '—'}</dd></div>
+                  <div><dt>Legal Entity Type</dt><dd className="sys-mono">{data.entityType ? String(data.entityType).replace('_', ' ') : '—'}</dd></div>
+                  <div><dt>CIN / LLPIN</dt><dd className="sys-mono">{data.cin || '—'}</dd></div>
+                  <div><dt>GSTIN</dt><dd className="sys-mono">{data.gstin || '—'}</dd></div>
+                  <div><dt>Registered State</dt><dd>{data.registeredAddress?.state || '—'}</dd></div>
+                  <div><dt>Country</dt><dd>{data.registrationCountry || data.registeredAddress?.country || 'IN'}</dd></div>
                   <div><dt>Website</dt><dd>{data.website ? <a href={data.website} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--color-action-primary)', textDecoration: 'underline' }}>{data.website}</a> : '—'}</dd></div>
-                  <div><dt>Email Domain</dt><dd className="sys-mono">{data.officialEmailDomain || '—'}</dd></div>
+                  <div><dt>Official Email Domain</dt><dd className="sys-mono">{data.officialEmailDomain || '—'}</dd></div>
                   <div><dt>Company Size</dt><dd>{data.companySize || '—'}</dd></div>
                   <div><dt>Industry</dt><dd>{data.industry || '—'}</dd></div>
                   <div><dt>Description</dt><dd>{data.description || '—'}</dd></div>
@@ -3169,12 +3282,133 @@ function CompanyVerificationDrawer({
                 </dl>
               </section>
 
+              {/* Business Registration & Registry Verification (Phase 4A) */}
+              <section className="sys-detail" style={{ marginTop: '24px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--color-border-default)', paddingBottom: '8px', margin: '0 0 16px', flexWrap: 'wrap', gap: '8px' }}>
+                  <h3 style={{ fontSize: '1rem', fontWeight: 600, margin: 0 }}>Official Business Registry Verification</h3>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <button
+                      type="button"
+                      className="sys-button sys-button--secondary"
+                      onClick={() => handleRunRegistryCheck('company_registration')}
+                      disabled={isRunningCheck || (!data.cin && data.entityType !== 'llp')}
+                      style={{ fontSize: '0.8rem', padding: '6px 12px', cursor: isRunningCheck ? 'not-allowed' : 'pointer' }}
+                    >
+                      {isRunningCheck ? 'Verifying...' : 'Verify MCA (CIN/LLPIN)'}
+                    </button>
+                    <button
+                      type="button"
+                      className="sys-button sys-button--secondary"
+                      onClick={() => handleRunRegistryCheck('gst_registration')}
+                      disabled={isRunningCheck || !data.gstin}
+                      style={{ fontSize: '0.8rem', padding: '6px 12px', cursor: isRunningCheck ? 'not-allowed' : 'pointer' }}
+                    >
+                      {isRunningCheck ? 'Verifying...' : 'Verify GSTIN'}
+                    </button>
+                  </div>
+                </div>
+
+                {registryMessage && (
+                  <div style={{
+                    padding: '8px 12px',
+                    marginBottom: '16px',
+                    borderRadius: '4px',
+                    fontSize: '0.85rem',
+                    background: registryMessage.includes('failed') ? 'rgba(234, 56, 56, 0.1)' : 'rgba(16, 185, 129, 0.1)',
+                    color: registryMessage.includes('failed') ? 'var(--color-danger-primary, #ea3838)' : 'var(--color-success-primary, #10b981)',
+                    border: '1px solid currentColor'
+                  }}>
+                    {registryMessage}
+                  </div>
+                )}
+
+                {latestRegistryCheck ? (
+                  <div style={{
+                    padding: '16px',
+                    borderRadius: '6px',
+                    border: '1px solid var(--color-border-default)',
+                    background: 'var(--color-bg-alt, #fafafa)',
+                    marginTop: '12px'
+                  }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', flexWrap: 'wrap', gap: '8px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <strong>Latest Check: {latestRegistryCheck.checkType?.replace('_', ' ').toUpperCase()}</strong>
+                        <span style={{
+                          padding: '3px 10px',
+                          borderRadius: '12px',
+                          fontSize: '0.75rem',
+                          fontWeight: 700,
+                          background: latestRegistryCheck.outcome === 'match'
+                            ? '#d1fae5'
+                            : latestRegistryCheck.outcome === 'mismatch'
+                            ? '#fee2e2'
+                            : '#fef3c7',
+                          color: latestRegistryCheck.outcome === 'match'
+                            ? '#065f46'
+                            : latestRegistryCheck.outcome === 'mismatch'
+                            ? '#991b1b'
+                            : '#92400e'
+                        }}>
+                          {latestRegistryCheck.outcome?.toUpperCase()}
+                        </span>
+                      </div>
+                      <span style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)' }}>
+                        Provider: <strong>{latestRegistryCheck.provider}</strong> • Risk Score: <strong>{latestRegistryCheck.riskScore}/100</strong>
+                      </span>
+                    </div>
+
+                    {latestRegistryCheck.summary && (
+                      <p style={{ margin: '0 0 12px', fontSize: '0.85rem', color: 'var(--color-text-primary)' }}>
+                        <strong>Summary:</strong> {latestRegistryCheck.summary}
+                      </p>
+                    )}
+
+                    {latestRegistryCheck.registryData && (
+                      <div style={{ marginBottom: '12px', fontSize: '0.85rem' }}>
+                        <div style={{ fontWeight: 600, marginBottom: '6px' }}>Official Registry Comparison:</div>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '8px', background: 'var(--color-surface-primary)', padding: '10px', borderRadius: '4px', border: '1px solid var(--color-border-default)' }}>
+                          <div><strong>Registry Legal Name:</strong> {latestRegistryCheck.registryData.legalName || '—'}</div>
+                          <div><strong>Registration Status:</strong> {latestRegistryCheck.registryData.status || '—'}</div>
+                          <div><strong>Registry Entity:</strong> {latestRegistryCheck.registryData.entityType || '—'}</div>
+                          <div><strong>Registered State:</strong> {latestRegistryCheck.registryData.state || '—'}</div>
+                        </div>
+                      </div>
+                    )}
+
+                    {latestRegistryCheck.riskIndicators && latestRegistryCheck.riskIndicators.length > 0 && (
+                      <div style={{ marginTop: '10px' }}>
+                        <div style={{ fontWeight: 600, fontSize: '0.85rem', color: 'var(--color-danger-primary, #ea3838)', marginBottom: '4px' }}>
+                          Risk Indicators & Discrepancies ({latestRegistryCheck.riskIndicators.length}):
+                        </div>
+                        <ul style={{ margin: 0, paddingLeft: '20px', fontSize: '0.8rem' }}>
+                          {latestRegistryCheck.riskIndicators.map((ind: any, i: number) => (
+                            <li key={i} style={{ marginBottom: '4px' }}>
+                              <strong>[{ind.severity?.toUpperCase()}] {ind.code}:</strong> {ind.description}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div style={{ padding: '14px', background: 'var(--color-bg-alt, #f9fafb)', borderRadius: '6px', border: '1px dashed var(--color-border-default)' }}>
+                    <p style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)', margin: 0 }}>
+                      ℹ️ No automated registry check has been executed yet for this company. Click <strong>"Verify MCA"</strong> or <strong>"Verify GSTIN"</strong> above to perform live lookup and comparison.
+                    </p>
+                  </div>
+                )}
+                <p style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)', marginTop: '8px' }}>
+                  * Admin Protocol: External registry match provides supporting verification evidence. An automated match does not auto-approve; use the "Verify Company" button below for final authorization.
+                </p>
+              </section>
+
+              {/* Owner & Verification Information */}
               <section className="sys-detail" style={{ marginTop: '24px' }}>
                 <h3 style={{ fontSize: '1rem', fontWeight: 600, borderBottom: '1px solid var(--color-border-default)', paddingBottom: '8px', margin: '0 0 16px' }}>Owner & Verification Information</h3>
                 <dl style={{ borderLeft: '1px solid var(--color-border-default)', borderTop: '1px solid var(--color-border-default)' }}>
                   <div><dt>Company Owner</dt><dd>{data.owner?.fullName || '—'} ({data.owner?.email || '—'})</dd></div>
                   <div><dt>Owner Verification Status</dt><dd><Status value={data.owner?.recruiterVerificationStatus ?? 'none'} /></dd></div>
-                  <div><dt>Verification Status</dt><dd><Status value={data.verificationStatus} /></dd></div>
+                  <div><dt>Company Verification Status</dt><dd><Status value={data.verificationStatus} /></dd></div>
                   {data.verificationStatus === 'verified' && (
                     <>
                       <div><dt>Verified By</dt><dd>{data.verifiedBy?.fullName || '—'}</dd></div>
@@ -3187,21 +3421,10 @@ function CompanyVerificationDrawer({
                       <div><dt>Rejected Date</dt><dd>{data.rejectedAt ? new Date(data.rejectedAt).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—'}</dd></div>
                     </>
                   )}
-                  {data.verificationStatus === 'suspended' && (
-                    <>
-                      <div><dt>Suspended By</dt><dd>{data.suspendedBy?.fullName || '—'}</dd></div>
-                      <div><dt>Suspended Date</dt><dd>{data.suspendedAt ? new Date(data.suspendedAt).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—'}</dd></div>
-                    </>
-                  )}
-                  {data.verificationStatus !== 'verified' && data.verificationStatus !== 'rejected' && data.verificationStatus !== 'suspended' && (
-                    <>
-                      <div><dt>Verified By</dt><dd>—</dd></div>
-                      <div><dt>Verified Date</dt><dd>—</dd></div>
-                    </>
-                  )}
                 </dl>
               </section>
 
+              {/* Verification History */}
               <section className="sys-detail" style={{ marginTop: '24px' }}>
                 <h3 style={{ fontSize: '1rem', fontWeight: 600, borderBottom: '1px solid var(--color-border-default)', paddingBottom: '8px', margin: '0 0 16px' }}>Verification History</h3>
                 {historyQuery.isLoading ? (

@@ -26,6 +26,8 @@ const companySchema = new mongoose.Schema({
   owner: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, index: true },
   officialEmailDomain: { type: String, lowercase: true, trim: true, default: '' },
   legalName: { type: String, trim: true, maxlength: 150, default: '' },
+  tradeName: { type: String, trim: true, maxlength: 150, default: '' },
+  registrationCountry: { type: String, trim: true, uppercase: true, default: 'IN' },
   entityType: { type: String, enum: ['private_limited', 'public_limited', 'llp', 'proprietorship', 'partnership', 'other'], default: 'private_limited' },
   cin: { type: String, trim: true, uppercase: true, default: '' },
   gstin: { type: String, trim: true, uppercase: true, default: '' },
@@ -34,6 +36,8 @@ const companySchema = new mongoose.Schema({
     type: new mongoose.Schema({ street: String, city: String, state: String, postalCode: String, country: String }, { _id: false }),
     default: () => ({})
   },
+  registryVerificationStatus: { type: String, enum: ['none', 'pending', 'verified', 'failed', 'inconclusive'], default: 'none' },
+  registryVerifiedAt: { type: Date, default: null },
   domainVerified: { type: Boolean, default: false },
   domainVerifiedAt: { type: Date, default: null },
   autoApproveDomainMembers: { type: Boolean, default: false },

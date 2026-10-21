@@ -25,6 +25,12 @@ export function RecruiterOnboardingPage() {
 
   // Step 2 State: Create Company
   const [companyName, setCompanyName] = useState('');
+  const [legalName, setLegalName] = useState('');
+  const [tradeName, setTradeName] = useState('');
+  const [entityType, setEntityType] = useState('private_limited');
+  const [cin, setCin] = useState('');
+  const [gstin, setGstin] = useState('');
+  const [state, setState] = useState('');
   const [website, setWebsite] = useState('');
   const [companyEmail, setCompanyEmail] = useState('');
   const [industry, setIndustry] = useState('');
@@ -40,6 +46,12 @@ export function RecruiterOnboardingPage() {
   // Step 2 State: Edit Company
   const [isEditingCompany, setIsEditingCompany] = useState(false);
   const [editCompanyName, setEditCompanyName] = useState('');
+  const [editLegalName, setEditLegalName] = useState('');
+  const [editTradeName, setEditTradeName] = useState('');
+  const [editEntityType, setEditEntityType] = useState('private_limited');
+  const [editCin, setEditCin] = useState('');
+  const [editGstin, setEditGstin] = useState('');
+  const [editState, setEditState] = useState('');
   const [editWebsite, setEditWebsite] = useState('');
   const [editCompanyEmail, setEditCompanyEmail] = useState('');
   const [editIndustry, setEditIndustry] = useState('');
@@ -59,6 +71,12 @@ export function RecruiterOnboardingPage() {
   useEffect(() => {
     if (associatedCompany) {
       setEditCompanyName(associatedCompany.name || '');
+      setEditLegalName(associatedCompany.legalName || '');
+      setEditTradeName(associatedCompany.tradeName || '');
+      setEditEntityType(associatedCompany.entityType || 'private_limited');
+      setEditCin(associatedCompany.cin || '');
+      setEditGstin(associatedCompany.gstin || '');
+      setEditState(associatedCompany.registeredAddress?.state || associatedCompany.headquarters?.state || '');
       setEditWebsite(associatedCompany.website || '');
       setEditCompanyEmail(associatedCompany.email || '');
       setEditIndustry(associatedCompany.industry || '');
@@ -83,12 +101,24 @@ export function RecruiterOnboardingPage() {
         method: 'PATCH',
         body: {
           name: editCompanyName,
+          legalName: editLegalName || undefined,
+          tradeName: editTradeName || undefined,
+          entityType: editEntityType,
+          cin: editCin ? editCin.trim().toUpperCase() : undefined,
+          gstin: editGstin ? editGstin.trim().toUpperCase() : undefined,
+          registrationCountry: editCountry || 'IN',
+          registeredAddress: {
+            city: editCity || undefined,
+            state: editState || undefined,
+            country: editCountry || undefined,
+          },
           website: editWebsite || undefined,
           email: editCompanyEmail || undefined,
           industry: editIndustry,
           companySize: editCompanySize || undefined,
           headquarters: {
             city: editCity || undefined,
+            state: editState || undefined,
             country: editCountry || undefined,
           },
           description: editDescription || undefined,
@@ -161,12 +191,24 @@ export function RecruiterOnboardingPage() {
         method: 'POST',
         body: {
           name: companyName,
+          legalName: legalName || undefined,
+          tradeName: tradeName || undefined,
+          entityType,
+          cin: cin ? cin.trim().toUpperCase() : undefined,
+          gstin: gstin ? gstin.trim().toUpperCase() : undefined,
+          registrationCountry: country || 'IN',
+          registeredAddress: {
+            city: city || undefined,
+            state: state || undefined,
+            country: country || undefined,
+          },
           website: website || undefined,
           email: companyEmail || undefined,
           industry,
           companySize: companySize || undefined,
           headquarters: {
             city: city || undefined,
+            state: state || undefined,
             country: country || undefined,
           },
           description: description || undefined,
@@ -346,11 +388,70 @@ export function RecruiterOnboardingPage() {
               <div style={{ marginTop: '16px' }}>
                 <form onSubmit={handleEditCompanySubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                   <TextField
-                    label="Company Name"
+                    label="Company Brand Name"
                     required
                     value={editCompanyName}
                     onChange={(e) => setEditCompanyName(e.target.value)}
                   />
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                    <TextField
+                      label="Legal Entity Name"
+                      placeholder="e.g. Acme Technologies Private Limited"
+                      value={editLegalName}
+                      onChange={(e) => setEditLegalName(e.target.value)}
+                    />
+                    <TextField
+                      label="Trading Name (if different)"
+                      placeholder="e.g. Acme Tech"
+                      value={editTradeName}
+                      onChange={(e) => setEditTradeName(e.target.value)}
+                    />
+                  </div>
+                  <label style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                    <span style={{ fontSize: '0.9rem', fontWeight: 500 }}>Legal Entity Type</span>
+                    <select
+                      value={editEntityType}
+                      onChange={(e) => setEditEntityType(e.target.value)}
+                      style={{ padding: '8px', borderRadius: '6px', border: '1px solid var(--color-border)', background: 'var(--color-bg)' }}
+                    >
+                      <option value="private_limited">Private Limited Company</option>
+                      <option value="public_limited">Public Limited Company</option>
+                      <option value="llp">Limited Liability Partnership (LLP)</option>
+                      <option value="proprietorship">Sole Proprietorship</option>
+                      <option value="partnership">Partnership Firm</option>
+                      <option value="other">Other Entity</option>
+                    </select>
+                  </label>
+                  {(editEntityType === 'private_limited' || editEntityType === 'public_limited') && (
+                    <TextField
+                      label="Corporate Identification Number (CIN)"
+                      placeholder="e.g. U72200MH2020PTC123456"
+                      value={editCin}
+                      onChange={(e) => setEditCin(e.target.value)}
+                    />
+                  )}
+                  {editEntityType === 'llp' && (
+                    <TextField
+                      label="LLP Identification Number (LLPIN)"
+                      placeholder="e.g. AAA-1234"
+                      value={editCin}
+                      onChange={(e) => setEditCin(e.target.value)}
+                    />
+                  )}
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                    <TextField
+                      label="GSTIN (Goods and Services Tax)"
+                      placeholder="e.g. 27AAPCU1234P1ZV (Optional)"
+                      value={editGstin}
+                      onChange={(e) => setEditGstin(e.target.value)}
+                    />
+                    <TextField
+                      label="Registered State"
+                      placeholder="e.g. Maharashtra"
+                      value={editState}
+                      onChange={(e) => setEditState(e.target.value)}
+                    />
+                  </div>
                   <TextField
                     label="Company Website"
                     type="url"
@@ -501,11 +602,70 @@ export function RecruiterOnboardingPage() {
               {companyOption === 'create' && (
                 <form onSubmit={handleCompanySubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                   <TextField
-                    label="Company Name"
+                    label="Company Brand Name"
                     required
                     value={companyName}
                     onChange={(e) => setCompanyName(e.target.value)}
                   />
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                    <TextField
+                      label="Legal Entity Name"
+                      placeholder="e.g. Acme Technologies Private Limited"
+                      value={legalName}
+                      onChange={(e) => setLegalName(e.target.value)}
+                    />
+                    <TextField
+                      label="Trading Name (if different)"
+                      placeholder="e.g. Acme Tech"
+                      value={tradeName}
+                      onChange={(e) => setTradeName(e.target.value)}
+                    />
+                  </div>
+                  <label style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                    <span style={{ fontSize: '0.9rem', fontWeight: 500 }}>Legal Entity Type</span>
+                    <select
+                      value={entityType}
+                      onChange={(e) => setEntityType(e.target.value)}
+                      style={{ padding: '8px', borderRadius: '6px', border: '1px solid var(--color-border)', background: 'var(--color-bg)' }}
+                    >
+                      <option value="private_limited">Private Limited Company</option>
+                      <option value="public_limited">Public Limited Company</option>
+                      <option value="llp">Limited Liability Partnership (LLP)</option>
+                      <option value="proprietorship">Sole Proprietorship</option>
+                      <option value="partnership">Partnership Firm</option>
+                      <option value="other">Other Entity</option>
+                    </select>
+                  </label>
+                  {(entityType === 'private_limited' || entityType === 'public_limited') && (
+                    <TextField
+                      label="Corporate Identification Number (CIN)"
+                      placeholder="e.g. U72200MH2020PTC123456"
+                      value={cin}
+                      onChange={(e) => setCin(e.target.value)}
+                    />
+                  )}
+                  {entityType === 'llp' && (
+                    <TextField
+                      label="LLP Identification Number (LLPIN)"
+                      placeholder="e.g. AAA-1234"
+                      value={cin}
+                      onChange={(e) => setCin(e.target.value)}
+                    />
+                  )}
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                    <TextField
+                      label="GSTIN (Goods and Services Tax)"
+                      placeholder="e.g. 27AAPCU1234P1ZV (Optional)"
+                      value={gstin}
+                      onChange={(e) => setGstin(e.target.value)}
+                    />
+                    <TextField
+                      label="Registered State"
+                      placeholder="e.g. Maharashtra"
+                      value={state}
+                      onChange={(e) => setState(e.target.value)}
+                    />
+                  </div>
                   <TextField
                     label="Company Website"
                     type="url"
@@ -630,9 +790,56 @@ export function RecruiterOnboardingPage() {
             <section style={{ border: '1px solid var(--color-border)', borderRadius: '6px', padding: '16px' }}>
               <h3 style={{ margin: '0 0 12px', fontSize: '1.1rem', fontWeight: 600 }}>Company Details</h3>
               <dl style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '8px', margin: 0 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}><dt style={{ fontWeight: 500, color: 'var(--color-text-muted)' }}>Company Name</dt><dd style={{ margin: 0 }}>{associatedCompany?.name || '—'}</dd></div>
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}><dt style={{ fontWeight: 500, color: 'var(--color-text-muted)' }}>Website</dt><dd style={{ margin: 0 }}>{associatedCompany?.website || '—'}</dd></div>
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}><dt style={{ fontWeight: 500, color: 'var(--color-text-muted)' }}>Industry</dt><dd style={{ margin: 0 }}>{associatedCompany?.industry || '—'}</dd></div>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <dt style={{ fontWeight: 500, color: 'var(--color-text-muted)' }}>Company Brand Name</dt>
+                  <dd style={{ margin: 0, fontWeight: 600 }}>{associatedCompany?.name || companyName || '—'}</dd>
+                </div>
+                {(associatedCompany?.legalName || legalName) && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <dt style={{ fontWeight: 500, color: 'var(--color-text-muted)' }}>Legal Entity Name</dt>
+                    <dd style={{ margin: 0 }}>{associatedCompany?.legalName || legalName}</dd>
+                  </div>
+                )}
+                {(associatedCompany?.entityType || entityType) && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <dt style={{ fontWeight: 500, color: 'var(--color-text-muted)' }}>Entity Type</dt>
+                    <dd style={{ margin: 0, textTransform: 'capitalize' }}>
+                      {(associatedCompany?.entityType || entityType).replace('_', ' ')}
+                    </dd>
+                  </div>
+                )}
+                {(associatedCompany?.cin || cin) && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <dt style={{ fontWeight: 500, color: 'var(--color-text-muted)' }}>CIN / LLPIN</dt>
+                    <dd style={{ margin: 0, fontFamily: 'monospace' }}>{associatedCompany?.cin || cin}</dd>
+                  </div>
+                )}
+                {(associatedCompany?.gstin || gstin) && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <dt style={{ fontWeight: 500, color: 'var(--color-text-muted)' }}>GSTIN</dt>
+                    <dd style={{ margin: 0, fontFamily: 'monospace' }}>{associatedCompany?.gstin || gstin}</dd>
+                  </div>
+                )}
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <dt style={{ fontWeight: 500, color: 'var(--color-text-muted)' }}>Website</dt>
+                  <dd style={{ margin: 0 }}>
+                    {associatedCompany?.website || website ? (
+                      <a href={associatedCompany?.website || website} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--color-action-primary)' }}>
+                        {associatedCompany?.website || website}
+                      </a>
+                    ) : '—'}
+                  </dd>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <dt style={{ fontWeight: 500, color: 'var(--color-text-muted)' }}>Industry</dt>
+                  <dd style={{ margin: 0 }}>{associatedCompany?.industry || industry || '—'}</dd>
+                </div>
+                {(associatedCompany?.registeredAddress?.state || state) && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <dt style={{ fontWeight: 500, color: 'var(--color-text-muted)' }}>Registered State</dt>
+                    <dd style={{ margin: 0 }}>{associatedCompany?.registeredAddress?.state || state}</dd>
+                  </div>
+                )}
               </dl>
             </section>
 

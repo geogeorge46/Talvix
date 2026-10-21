@@ -95,6 +95,34 @@ export function RecruiterVerificationStatusPage() {
                   {companyStatus === 'verified' ? '✓ Verified' : '● Pending'}
                 </span>
               </div>
+
+              {company?.registryVerificationStatus && company.registryVerificationStatus !== 'none' && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontWeight: 500 }}>Official Registry Check</span>
+                  <span style={{
+                    padding: '4px 8px',
+                    borderRadius: '12px',
+                    fontSize: '0.75rem',
+                    fontWeight: 600,
+                    background: company.registryVerificationStatus === 'verified'
+                      ? 'rgba(16, 185, 129, 0.1)'
+                      : company.registryVerificationStatus === 'failed'
+                      ? 'rgba(239, 68, 68, 0.1)'
+                      : 'rgba(245, 158, 11, 0.1)',
+                    color: company.registryVerificationStatus === 'verified'
+                      ? 'rgb(16, 185, 129)'
+                      : company.registryVerificationStatus === 'failed'
+                      ? 'rgb(239, 68, 68)'
+                      : 'rgb(245, 158, 11)'
+                  }}>
+                    {company.registryVerificationStatus === 'verified'
+                      ? '✓ Registry Match'
+                      : company.registryVerificationStatus === 'failed'
+                      ? '⚠ Review Advised'
+                      : '● Under Review'}
+                  </span>
+                </div>
+              )}
             </div>
 
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>

@@ -14,7 +14,7 @@ export class BaseRegistryProvider {
    * @param {Object} [params.options] - Provider-specific options
    * @returns {Promise<Object>} Normalized result object
    */
-  async verifyRegistration({ company, checkType, options = {} }) {
+  async verifyRegistration({ company: _company, checkType: _checkType, options: _options = {} }) {
     throw new Error('verifyRegistration method must be implemented by subclass');
   }
 }

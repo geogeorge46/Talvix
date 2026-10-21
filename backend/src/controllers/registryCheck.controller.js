@@ -25,12 +25,45 @@ export const runRegistryCheckController = async (req, res, next) => {
   }
 };
 
+export const runMyCompanyRegistryCheckController = async (req, res, next) => {
+  try {
+    const { checkType, provider, options } = req.body || {};
+    const check = await runRegistryCheck({
+      companyId: req.company._id,
+      checkType,
+      providerName: provider,
+      options,
+      actorId: req.user.id
+    });
+    return res.status(201).json({
+      success: true,
+      message: 'Registry check executed successfully for your company',
+      data: { check }
+    });
+  } catch (error) {
+    return next(error);
+  }
+};
+
 export const getCompanyRegistryChecksController = async (req, res, next) => {
   try {
     const checks = await getRegistryChecksForCompany(req.params.companyId);
     return res.json({
       success: true,
       message: 'Registry checks retrieved successfully',
+      data: { checks }
+    });
+  } catch (error) {
+    return next(error);
+  }
+};
+
+export const getMyCompanyRegistryChecksController = async (req, res, next) => {
+  try {
+    const checks = await getRegistryChecksForCompany(req.company._id);
+    return res.json({
+      success: true,
+      message: 'Registry checks retrieved successfully for your company',
       data: { checks }
     });
   } catch (error) {

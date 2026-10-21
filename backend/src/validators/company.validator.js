@@ -6,9 +6,18 @@ import { RECRUITER_PERMISSIONS } from '../constants/permissions.js';
 const currentYear = new Date().getUTCFullYear();
 const objectId = z.string().refine((value) => mongoose.isObjectIdOrHexString(value), 'Invalid MongoDB ObjectId');
 const text = (max) => z.string().trim().max(max);
+const websiteField = z.preprocess((val) => {
+  if (typeof val !== 'string') return val;
+  const trimmed = val.trim();
+  if (!trimmed) return undefined;
+  if (!/^https?:\/\//i.test(trimmed)) {
+    return `https://${trimmed}`;
+  }
+  return trimmed;
+}, z.string().url().optional());
 const location = z.object({ city: text(100).optional(), state: text(100).optional(), country: text(100).optional() }).strict();
 const publicFields = {
-  name: text(150).min(1), description: text(3000).optional(), website: z.url().optional(), email: z.email().optional(),
+  name: text(150).min(1), description: text(3000).optional(), website: websiteField, email: z.email().optional(),
   phone: z.string().trim().regex(/^[+()\-\s\d]{7,20}$/).optional(), industry: text(150).optional(),
   companySize: z.enum(COMPANY_SIZES).optional(), foundedYear: z.number().int().min(1800).max(currentYear).optional(),
   headquarters: location.optional(), locations: z.array(location).max(20).optional(),
@@ -19,6 +28,8 @@ const publicFields = {
   officialEmailDomain: z.string().trim().toLowerCase().regex(/^[a-z0-9-]+(\.[a-z0-9-]+)*\.[a-z]{2,}$/, 'Invalid domain format').optional(),
   autoApproveDomainMembers: z.boolean().optional(),
   legalName: text(150).optional(),
+  tradeName: text(150).optional(),
+  registrationCountry: text(100).optional().default('IN'),
   entityType: z.enum(['private_limited', 'public_limited', 'llp', 'proprietorship', 'partnership', 'other']).optional(),
   cin: z.string().trim().toUpperCase().optional(),
   gstin: z.string().trim().toUpperCase().optional(),

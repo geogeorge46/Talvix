@@ -14,6 +14,10 @@ export const adminApi = {
     apiRequest<any>(`/admin/management/companies/${companyId}/verification-history`),
   getRecruiterVerificationHistory: (recruiterId: string) =>
     apiRequest<any>(`/admin/management/recruiters/${recruiterId}/verification-history`),
+  getCompanyRegistryChecks: (companyId: string) =>
+    apiRequest<any>(`/companies/admin/${companyId}/registry-checks`),
+  runCompanyRegistryCheck: (companyId: string, data: { checkType: string; provider?: string; options?: any }) =>
+    apiRequest<any>(`/companies/admin/${companyId}/registry-checks/run`, { method: 'POST', body: data }),
 };
 
 export async function downloadAnalyticsCsv(query: Record<string, string>) {

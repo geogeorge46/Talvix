@@ -104,6 +104,8 @@ describe('Phase 4: Business Registry Verification & Fraud Risk Checks Integratio
       expect(isValidCIN('U72200MH2020PTC123456')).toBe(true);
       expect(isValidCIN('INVALID-CIN')).toBe(false);
 
+      expect(isValidCIN('AAA-1234')).toBe(true); // Valid LLPIN pattern
+
       expect(isValidGSTIN('27AAPCU1234P1ZV')).toBe(true);
       expect(isValidGSTIN('INVALID-GSTIN')).toBe(false);
 
@@ -263,6 +265,88 @@ describe('Phase 4: Business Registry Verification & Fraud Risk Checks Integratio
       expect(summary.latestRegistryCheck.outcome).toBe('match');
       expect(summary).not.toHaveProperty('riskScore');
       expect(summary).not.toHaveProperty('providerSecrets');
+    });
+  });
+
+  describe('Phase 4A: GSTIN, LLPIN, and Authorization Checks', () => {
+    it('executes a GSTIN check and flags inactive/cancelled tax status', async () => {
+      await Company.findByIdAndUpdate(testCompany._id, {
+        gstin: 'CANCELLED-27AAPCU1234P1ZV'
+      });
+
+      const res = await request(app)
+        .post(`/api/v1/companies/admin/${testCompany._id}/registry-checks/run`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({
+          checkType: 'gst_registration',
+          provider: 'gst_registry',
+          options: { simulateCancelled: true }
+        });
+
+      expect(res.status).toBe(201);
+      const check = res.body.data.check;
+      expect(check.checkType).toBe('gst_registration');
+      expect(check.outcome).toBe('mismatch');
+      expect(check.riskIndicators.some((r) => r.code === 'REGISTRY_STATUS_INACTIVE')).toBe(true);
+      expect(check.maskedIdentifier).toContain('****');
+    });
+
+    it('supports LLPIN verification for Limited Liability Partnerships', async () => {
+      await Company.findByIdAndUpdate(testCompany._id, {
+        entityType: 'llp',
+        cin: 'AAA-1234',
+        legalName: 'Acme Advisory LLP'
+      });
+
+      const res = await request(app)
+        .post(`/api/v1/companies/admin/${testCompany._id}/registry-checks/run`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({
+          checkType: 'company_registration',
+          provider: 'mca_registry'
+        });
+
+      expect(res.status).toBe(201);
+      const check = res.body.data.check;
+      expect(check.identifierType).toBe('llpin');
+      expect(check.outcome).toBe('match');
+      expect(check.matchedFields).toContain('legalName');
+    });
+
+    it('allows an authorized recruiter to run a registry check on their own company', async () => {
+      const res = await request(app)
+        .post('/api/v1/companies/me/registry-checks/run')
+        .set('Authorization', `Bearer ${recruiterToken}`)
+        .send({
+          checkType: 'company_registration'
+        });
+
+      expect(res.status).toBe(201);
+      expect(res.body.success).toBe(true);
+      expect(res.body.data.check.companyId).toBe(testCompany._id);
+
+      const listRes = await request(app)
+        .get('/api/v1/companies/me/registry-checks')
+        .set('Authorization', `Bearer ${recruiterToken}`);
+
+      expect(listRes.status).toBe(200);
+      expect(listRes.body.data.checks.length).toBeGreaterThanOrEqual(1);
+    });
+
+    it('prevents non-admins from running or overriding registry checks on admin endpoints', async () => {
+      const runRes = await request(app)
+        .post(`/api/v1/companies/admin/${testCompany._id}/registry-checks/run`)
+        .set('Authorization', `Bearer ${recruiterToken}`)
+        .send({ checkType: 'company_registration' });
+
+      expect(runRes.status).toBe(403);
+
+      const overrideRes = await request(app)
+        .post(`/api/v1/companies/admin/${testCompany._id}/registry-checks/60d5ecb0483d86c1aafc572a/override`)
+        .set('Authorization', `Bearer ${recruiterToken}`)
+        .send({ reason: 'Unauthorized override attempt' });
+
+      expect(overrideRes.status).toBe(403);
     });
   });
 });

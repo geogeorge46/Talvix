@@ -10,7 +10,12 @@ export const createRecruiterProfileForUser = async (userId, session) => {
 };
 
 export const getOwnRecruiterProfile = async (userId) => {
-  const profile = await RecruiterProfile.findOne({ user: userId }).populate(USER_POPULATE).populate('company', 'name slug verificationStatus isActive logo rejectionReason officialEmailDomain');
+  const profile = await RecruiterProfile.findOne({ user: userId })
+    .populate(USER_POPULATE)
+    .populate(
+      'company',
+      'name slug verificationStatus isActive logo rejectionReason officialEmailDomain website industry legalName tradeName entityType cin gstin registeredAddress headquarters companySize description registryVerificationStatus'
+    );
   if (!profile) throw new AppError('Recruiter profile not found', 404);
   return profile;
 };
