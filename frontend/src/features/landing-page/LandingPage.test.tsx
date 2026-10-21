@@ -20,38 +20,90 @@ vi.mock('../../auth/AuthProvider', () => ({
   },
 }));
 
+// Mock apiRequest so tests don't make real network calls
+vi.mock('../../api/client', () => ({
+  apiRequest: vi.fn().mockResolvedValue({
+    jobs: [
+      {
+        _id: 'mock-job-1',
+        title: 'Senior Full-Stack Engineer',
+        company: { name: 'Acme Corp' },
+        department: 'Engineering',
+        location: { city: 'Bengaluru', state: 'Karnataka', country: 'India' },
+        workplaceType: 'Remote',
+        skills: [
+          { name: 'React', level: 'senior' },
+          { name: 'Node.js', level: 'intermediate' },
+        ],
+        salary: { minimum: 120000, maximum: 160000 },
+      },
+    ],
+  }),
+}));
+
 describe('LandingPage Component', () => {
   const renderComponent = () => {
     return render(
       <BrowserRouter>
         <LandingPage />
-      </BrowserRouter>
+      </BrowserRouter>,
     );
   };
 
-  it('renders landing page with hero, statistics, journeys, and comparison sections', () => {
+  it('renders landing page with hero, value propositions, and role sections matching the design', () => {
     renderComponent();
 
     // Verify main Hero heading
     expect(
-      screen.getByRole('heading', { name: /AI-Powered Skills-First Recruitment Platform/i })
+      screen.getByRole('heading', {
+        name: /Smarter Hiring for a Brighter Future/i,
+      }),
     ).toBeInTheDocument();
 
-    // Verify some value propositions
-    expect(screen.getByText(/AI Resume Parsing/i)).toBeInTheDocument();
-    expect(screen.getByText(/Skills-first Matching/i)).toBeInTheDocument();
+    // Verify badge
+    expect(
+      screen.getByText(/AI-Powered Recruitment & Assessment/i),
+    ).toBeInTheDocument();
 
-    // Verify statistics are present
-    expect(screen.getByText(/Candidates Active/i)).toBeInTheDocument();
-    expect(screen.getByText(/Partner Organizations/i)).toBeInTheDocument();
+    // Verify quick feature pills from mockup
+    expect(screen.getAllByText(/AI Matching/i)[0]).toBeInTheDocument();
+    expect(screen.getAllByText(/WebRTC Interviews/i)[0]).toBeInTheDocument();
+    expect(screen.getByText(/Secure & Compliant/i)).toBeInTheDocument();
 
-    // Verify Journey Timelines headings
-    expect(screen.getByText(/Candidate Journey/i)).toBeInTheDocument();
-    expect(screen.getByText(/Recruiter Journey/i)).toBeInTheDocument();
+    // Verify the 4 role cards from mockup
+    expect(
+      screen.getByRole('heading', { name: /For Candidates/i }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('heading', { name: /For Recruiters/i }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('heading', { name: /For Teams/i }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('heading', { name: /For Administrators/i }),
+    ).toBeInTheDocument();
 
-    // Verify Comparison table header
-    expect(screen.getByRole('columnheader', { name: /Traditional ATS/i })).toBeInTheDocument();
-    expect(screen.getByRole('columnheader', { name: /Talvix Platform/i })).toBeInTheDocument();
+    // Verify industry ticker
+    expect(
+      screen.getByText(/Empowering Talent Across Industries:/i),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/IT & Software/i)).toBeInTheDocument();
+  });
+
+  it('safely parses and displays database jobs with object locations and skill objects', async () => {
+    renderComponent();
+
+    // Verify database job title and formatted location string from { city, state, country } object
+    await waitFor(() => {
+      expect(
+        screen.getAllByText(/Senior Full-Stack Engineer/i)[0],
+      ).toBeInTheDocument();
+      expect(
+        screen.getByText(/Bengaluru, Karnataka, India/i),
+      ).toBeInTheDocument();
+      expect(screen.getByText('React')).toBeInTheDocument();
+    });
   });
 
   it('switches showcase tabs and changes content accordingly', async () => {
@@ -59,7 +111,9 @@ describe('LandingPage Component', () => {
 
     // Initial state should be candidate showcase
     expect(screen.getByText(/Hello, Asha Rao/i)).toBeInTheDocument();
-    expect(screen.queryByText(/Talvix Admin Dashboard/i)).not.toBeInTheDocument();
+    expect(
+      screen.queryByText(/Talvix Admin Dashboard/i),
+    ).not.toBeInTheDocument();
 
     // Click Admin tab
     const adminTab = screen.getByRole('button', { name: 'Admin' });
@@ -76,7 +130,9 @@ describe('LandingPage Component', () => {
     renderComponent();
 
     // Check first FAQ item
-    const faqButton = screen.getByRole('button', { name: /How does Talvix work\?/i });
+    const faqButton = screen.getByRole('button', {
+      name: /How does Talvix work\?/i,
+    });
     expect(faqButton).toHaveAttribute('aria-expanded', 'false');
 
     // Click to open

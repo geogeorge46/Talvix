@@ -1,158 +1,114 @@
-/* Custom styles for Talvix premium authentication redesign */
+/* Custom styles for Talvix premium light-themed authentication */
 
 @keyframes float-slow {
-  0%, 100% {
+  0%,
+  100% {
     transform: translateY(0) scale(1);
   }
   50% {
-    transform: translateY(-8px) scale(1.02);
+    transform: translateY(-6px) scale(1.01);
   }
 }
 
 @keyframes float-medium {
-  0%, 100% {
+  0%,
+  100% {
     transform: translateY(0) rotate(0deg);
   }
   50% {
-    transform: translateY(-12px) rotate(1.5deg);
+    transform: translateY(-8px) rotate(1deg);
   }
 }
 
 @keyframes float-fast {
-  0%, 100% {
+  0%,
+  100% {
     transform: translateY(0) rotate(0deg);
   }
   50% {
-    transform: translateY(-6px) rotate(-1deg);
+    transform: translateY(-5px) rotate(-1deg);
   }
 }
 
 @keyframes pulse-slow {
-  0%, 100% {
-    opacity: 0.15;
+  0%,
+  100% {
+    opacity: 0.3;
     transform: scale(1);
   }
   50% {
-    opacity: 0.3;
-    transform: scale(1.08);
-  }
-}
-
-@keyframes draw-line {
-  0% {
-    stroke-dashoffset: 100;
-  }
-  100% {
-    stroke-dashoffset: 0;
+    opacity: 0.55;
+    transform: scale(1.05);
   }
 }
 
 .animate-float-slow {
-  animation: float-slow 8s ease-in-out infinite;
+  animation: float-slow 7s ease-in-out infinite;
 }
 
 .animate-float-medium {
-  animation: float-medium 6s ease-in-out infinite;
+  animation: float-medium 5s ease-in-out infinite;
 }
 
 .animate-float-fast {
-  animation: float-fast 5s ease-in-out infinite;
+  animation: float-fast 4s ease-in-out infinite;
 }
 
 .animate-pulse-slow {
-  animation: pulse-slow 10s ease-in-out infinite;
+  animation: pulse-slow 8s ease-in-out infinite;
 }
 
-/* Glassmorphism helpers */
-.glass-panel {
-  background: rgba(255, 255, 255, 0.75);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.4);
-}
-
-.glass-panel-dark {
-  background: rgba(15, 23, 42, 0.4);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-}
-
-/* Auth card entries and styling overrides */
+/* Auth Page Root with subtle luminous background */
 .auth-page-root {
   min-height: 100vh;
-  background-color: var(--ref-steel-050);
+  width: 100%;
+  background-color: #fafbfd;
+  background-image:
+    radial-gradient(at 10% 20%, rgba(16, 185, 129, 0.08) 0px, transparent 50%),
+    radial-gradient(at 90% 80%, rgba(6, 182, 212, 0.06) 0px, transparent 50%),
+    radial-gradient(at 50% 50%, rgba(241, 245, 249, 0.5) 0px, transparent 100%);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-family: 'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+  font-family: inherit;
+  overflow-x: hidden;
 }
 
-.auth-illustration-bg {
-  background: linear-gradient(135deg, var(--ref-steel-950) 0%, var(--ref-steel-900) 60%, var(--ref-steel-800) 100%);
-}
-
+/* Auth Container Card */
 .auth-container-card {
   width: 100%;
-  max-width: 1200px;
-  min-height: 750px;
-  background: var(--ref-snow);
-  border-radius: 24px;
-  overflow: hidden;
-  box-shadow: 0 20px 40px -15px rgba(15, 23, 42, 0.08), 0 0 0 1px rgba(15, 23, 42, 0.04);
-  display: flex;
-  flex-direction: column;
+  max-width: 1080px;
+  min-height: 600px;
+  background: #ffffff;
+  border-radius: 28px;
+  border: 1px solid rgba(226, 232, 240, 0.95);
+  box-shadow:
+    0 24px 48px -12px rgba(15, 23, 42, 0.08),
+    0 0 0 1px rgba(15, 23, 42, 0.03);
 }
 
-@media (min-width: 1024px) {
-  .auth-container-card {
-    flex-direction: row;
-  }
+/* Luminous illustration panel on left */
+.auth-illustration-bg {
+  background: linear-gradient(
+    145deg,
+    #f0fdf4 0%,
+    #ecfdf5 45%,
+    #f0fdfa 100%
+  );
+  border-right: 1px solid rgba(226, 232, 240, 0.8);
 }
 
-/* Override existing tvx-form-field default browser-like styles */
-.tvx-auth-card-content .tvx-form-field {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  margin-bottom: 16px;
-}
-
-.tvx-auth-card-content .tvx-form-field label {
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--ref-steel-700);
-}
-
-/* Focus styles matching Ashby/Linear design */
+/* Input focus override */
 .auth-input-focus:focus-within {
-  border-color: var(--ref-steel-900);
-  box-shadow: 0 0 0 4px rgba(15, 23, 42, 0.08);
+  border-color: #10b981 !important;
+  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.15) !important;
 }
 
-/* Custom indicator active transitions */
-.role-btn-active {
-  color: var(--ref-steel-900);
-  font-weight: 600;
-}
-
-.role-btn-inactive {
-  color: var(--ref-steel-600);
-  font-weight: 500;
-}
-
-input[type="checkbox"],
-input[type="radio"] {
-  accent-color: var(--ref-steel-900) !important;
-}
-
-.auth-page-root .tvx-button--primary {
-  background-color: var(--ref-steel-900) !important;
-  background: var(--ref-steel-900) !important;
-  color: var(--ref-snow) !important;
-}
-
-.auth-page-root .tvx-button--primary:hover {
-  background-color: var(--ref-steel-800) !important;
-  background: var(--ref-steel-800) !important;
+/* Glassmorphism helpers for auth cards */
+.glass-panel-auth {
+  background: rgba(255, 255, 255, 0.88);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.9);
+  box-shadow: 0 10px 25px -5px rgba(16, 185, 129, 0.08);
 }

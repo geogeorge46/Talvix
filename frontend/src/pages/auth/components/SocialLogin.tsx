@@ -112,15 +112,6 @@ export function SocialLogin() {
     };
   }, [completeAuth, navigate, toast]);
 
-  const handleOAuthClick = (provider: string) => {
-    toast.push({
-      title: 'OAuth Signing In',
-      message: `${provider} login is not available yet. Please use Google, GitHub or credentials.`,
-      tone: 'info',
-      duration: 4000,
-    });
-  };
-
   const handleGithubClick = () => {
     const clientId = import.meta.env.VITE_GITHUB_CLIENT_ID;
     if (!clientId) {
@@ -149,24 +140,24 @@ export function SocialLogin() {
   };
 
   return (
-    <div className="w-full flex flex-col gap-4 mt-6">
-      <div className="relative flex py-2 items-center">
-        <div className="flex-grow border-t border-slate-200"></div>
-        <span className="flex-shrink mx-4 text-[10px] font-bold text-slate-400 uppercase tracking-wider select-none">
+    <div className="w-full flex flex-col gap-3 mt-4">
+      <div className="relative flex py-1 items-center">
+        <div className="flex-grow border-t border-slate-300"></div>
+        <span className="flex-shrink mx-3 text-[11px] font-bold text-slate-500 uppercase tracking-wider select-none">
           Or continue with
         </span>
-        <div className="flex-grow border-t border-slate-200"></div>
+        <div className="flex-grow border-t border-slate-300"></div>
       </div>
 
-      <div className="flex flex-col gap-3">
-        {/* Google Native Sign-In Button with Visual Overlay */}
+      <div className="flex flex-col gap-2.5">
+        {/* Google Native Sign-In Button with Strong High Contrast Border */}
         <div 
           onClick={handleGoogleClickPlaceholder}
-          className="relative w-full flex justify-center h-[40px] cursor-pointer"
+          className="relative w-full flex justify-center h-[42px] cursor-pointer"
         >
           {/* custom visual representation */}
-          <div className="absolute inset-0 flex items-center justify-center gap-2 py-2.5 px-3.5 border border-slate-200 bg-white hover:bg-slate-50/50 rounded-xl font-semibold text-xs text-slate-700 shadow-sm pointer-events-none select-none">
-            <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24" aria-hidden="true">
+          <div className="absolute inset-0 flex items-center justify-center gap-2.5 py-2.5 px-4 border-2 border-slate-300 hover:border-slate-700 bg-white hover:bg-slate-50 rounded-xl font-bold text-sm text-slate-800 shadow-sm pointer-events-none select-none transition-colors">
+            <svg className="w-4.5 h-4.5 shrink-0" viewBox="0 0 24 24" aria-hidden="true">
               <path fill="#EA4335" d="M12 5.04c1.66 0 3.2.57 4.38 1.69l3.27-3.27C17.67 1.48 14.98 0 12 0 7.31 0 3.25 2.69 1.25 6.63l3.87 3C6.06 6.88 8.81 5.04 12 5.04z"/>
               <path fill="#4285F4" d="M23.49 12.27c0-.81-.07-1.59-.2-2.36H12v4.51h6.46c-.29 1.48-1.14 2.73-2.4 3.58v3l3.87 3c2.26-2.09 3.56-5.17 3.56-8.73z"/>
               <path fill="#34A853" d="M5.12 14.37c-.24-.72-.37-1.49-.37-2.37s.13-1.65.37-2.37V6.63H1.25C.45 8.24 0 10.06 0 12s.45 3.76 1.25 5.37l3.87-3z"/>
@@ -181,13 +172,13 @@ export function SocialLogin() {
           ></div>
         </div>
 
-        {/* GitHub */}
+        {/* GitHub Button - Dark Bold Solid Button */}
         <button
           type="button"
           onClick={handleGithubClick}
-          className="w-full flex items-center justify-center gap-2 py-2.5 px-3.5 border border-slate-200 hover:border-slate-300 hover:bg-slate-50/50 rounded-xl font-semibold text-xs text-slate-700 transition-all shadow-sm active:scale-[0.97] duration-150 focus:outline-none"
+          className="w-full flex items-center justify-center gap-2.5 h-[42px] px-4 bg-slate-900 hover:bg-black text-white rounded-xl font-bold text-sm transition-all shadow-sm active:scale-[0.98] duration-150 focus:outline-none"
         >
-          <svg className="w-4 h-4 shrink-0 fill-current" viewBox="0 0 16 16" aria-hidden="true">
+          <svg className="w-4.5 h-4.5 shrink-0 fill-current" viewBox="0 0 16 16" aria-hidden="true">
             <path fillRule="evenodd" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8z" />
           </svg>
           <span>Continue with GitHub</span>

@@ -29,17 +29,17 @@ export const AuthInput = forwardRef<HTMLInputElement, AuthInputProps>(
     }
 
     return (
-      <div className="tvx-form-field flex flex-col gap-1.5 w-full">
+      <div className="tvx-form-field flex flex-col gap-1 w-full">
         <div className="flex justify-between items-center">
-          <label htmlFor={cid} className="text-[11px] font-bold text-slate-500 tracking-wider uppercase select-none">
+          <label htmlFor={cid} className="text-xs font-bold text-slate-700 tracking-wider uppercase select-none">
             {label}
-            {required && <span> (required)</span>}
+            {required && <span className="text-slate-500 font-medium"> (required)</span>}
           </label>
         </div>
 
-        <div className={`relative flex items-center rounded-xl border ${error ? 'border-rose-400 bg-rose-50/10' : 'border-slate-200'} bg-white transition-all duration-200 auth-input-focus shadow-sm h-12 px-3.5`}>
+        <div className={`relative flex items-center rounded-xl border-2 ${error ? 'border-rose-400 bg-rose-50/10' : 'border-slate-300 focus-within:border-slate-900'} bg-white transition-all duration-200 shadow-sm h-11 px-3.5`}>
           {PrefixIcon && (
-            <PrefixIcon className={`w-5 h-5 ${error ? 'text-rose-400' : 'text-slate-400'} mr-3 shrink-0`} />
+            <PrefixIcon className={`w-4.5 h-4.5 ${error ? 'text-rose-400' : 'text-slate-500'} mr-3 shrink-0`} />
           )}
 
           <input
@@ -48,17 +48,17 @@ export const AuthInput = forwardRef<HTMLInputElement, AuthInputProps>(
             id={cid}
             type={inputType}
             required={required}
-            className="w-full h-full bg-transparent border-0 outline-none text-slate-800 placeholder-slate-400 text-sm focus:ring-0 focus:outline-none"
+            className="w-full h-full bg-transparent border-0 outline-none text-slate-900 placeholder-slate-400 text-sm font-medium focus:ring-0 focus:outline-none"
           />
 
           {isPassword && (
             <button
               type="button"
               onClick={() => setShowPassword(!showPassword)}
-              className="p-1 hover:bg-slate-50 rounded-lg text-slate-400 hover:text-slate-600 transition-colors focus:outline-none ml-2 shrink-0"
+              className="p-1 hover:bg-slate-100 rounded-lg text-slate-500 hover:text-slate-800 transition-colors focus:outline-none ml-2 shrink-0"
               aria-label={showPassword ? 'Hide password' : 'Show password'}
             >
-              {showPassword ? <EyeOff className="w-4.5 h-4.5" /> : <Eye className="w-4.5 h-4.5" />}
+              {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
             </button>
           )}
         </div>

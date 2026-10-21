@@ -8,34 +8,17 @@ interface AuthLayoutProps {
 
 export function AuthLayout({ type, children }: AuthLayoutProps) {
   return (
-    <div className="auth-page-root p-4 sm:p-6 lg:p-10 w-full min-h-screen flex items-center justify-center bg-slate-50">
-      <div className="auth-container-card w-full max-w-5xl bg-white rounded-[32px] overflow-hidden flex flex-col lg:flex-row shadow-2xl relative">
-        
-        {/* Left Side: 40% Illustration Panel */}
-        <div className="relative w-full lg:w-[40%] h-[200px] sm:h-[240px] lg:h-auto lg:min-h-[780px] shrink-0 auth-illustration-bg overflow-hidden">
-          
-          {/* Render Vector Graphics Content */}
+    <div className="auth-page-root flex min-h-screen w-full items-center justify-center p-3 sm:p-5 lg:p-8">
+      <div className="auth-container-card relative flex w-full max-w-5xl flex-col overflow-hidden rounded-[28px] lg:flex-row shadow-xl border border-slate-200/90 bg-white items-stretch">
+        {/* Left Side: 44% Dual-Image Visual & Social Proof Panel */}
+        <div className="auth-illustration-bg relative hidden h-auto w-full shrink-0 overflow-hidden lg:block lg:w-[44%]">
           <div className="relative z-10 h-full w-full">
             <AuthIllustration type={type} />
           </div>
-
-          {/* Organic Curved Wave Divider Overlay (SVG) - Desktop (Right Edge) */}
-          <div className="absolute top-0 bottom-0 -right-[1px] w-24 h-full pointer-events-none hidden lg:block text-white z-20">
-            <svg viewBox="0 0 100 1000" preserveAspectRatio="none" className="h-full w-full fill-current">
-              <path d="M 45 0 C 75 150, 100 350, 100 500 C 100 650, 75 850, 45 1000 L 100 1000 L 100 0 Z" />
-            </svg>
-          </div>
-
-          {/* Organic Curved Wave Divider Overlay (SVG) - Mobile/Tablet (Bottom Edge) */}
-          <div className="absolute left-0 right-0 -bottom-[1px] w-full h-10 pointer-events-none lg:hidden text-white z-20">
-            <svg viewBox="0 0 1000 100" preserveAspectRatio="none" className="h-full w-full fill-current">
-              <path d="M 0 45 C 300 45, 450 100, 500 100 C 550 100, 700 45, 1000 45 L 1000 100 L 0 100 Z" />
-            </svg>
-          </div>
         </div>
 
-        {/* Right Side: 60% Auth Card Content */}
-        <div className="w-full lg:w-[60%] flex items-center justify-center bg-transparent relative z-10">
+        {/* Right Side: 56% Auth Form Panel - Aligned from the Top */}
+        <div className="relative z-10 flex w-full flex-col items-center justify-start bg-white p-6 sm:p-8 lg:w-[56%] lg:p-10">
           {children}
         </div>
       </div>

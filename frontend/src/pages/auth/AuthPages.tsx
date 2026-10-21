@@ -86,31 +86,48 @@ export function SignInPage() {
     <AuthLayout type="login">
       <AuthCard>
         {/* Mobile-only Logo */}
-        <div className="flex items-center gap-2.5 lg:hidden mb-6 select-none">
+        <div className="flex items-center gap-2.5 lg:hidden mb-4 select-none">
           <div className="flex items-center justify-center w-8 h-8 rounded-xl bg-slate-900 text-white shadow-md">
-            <svg className="w-4.5 h-4.5 fill-current" viewBox="0 0 24 24">
+            <svg className="w-4 h-4 fill-current" viewBox="0 0 24 24">
               <path d="M12 2L2 6v6c0 5.52 4.48 10 9 10s9-4.48 9-10V6l-9-4zm0 2.5l7 3.1v4.4c0 4.1-3 7.8-7 8.5-4-.7-7-4.4-7-8.5V7.6l7-3.1z" />
               <path d="M11 7h2v6h-2zM11 14h2v2h-2z" />
             </svg>
           </div>
-          <span className="text-lg font-bold tracking-tight text-slate-800">Talvix</span>
+          <span className="text-lg font-extrabold tracking-tight text-slate-900">Talvix</span>
         </div>
 
-        <header className="mb-6">
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900 mb-1.5">Sign in to Talvix</h1>
-          <p className="text-sm text-slate-500">Welcome back. Continue to your secure workspace.</p>
+        {/* Top Header Row matching the left side's h-10 header */}
+        <div className="flex items-center justify-between w-full h-10 mb-4">
+          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 animate-pulse"></span>
+            Secure Portal
+          </span>
+          <span className="text-xs text-slate-600 font-medium">
+            Need an account?{' '}
+            <RouterLink
+              to="/register"
+              className="font-bold text-emerald-700 hover:text-emerald-800 hover:underline"
+            >
+              Sign up &rarr;
+            </RouterLink>
+          </span>
+        </div>
+
+        <header className="mb-4">
+          <h1 className="text-2xl font-extrabold tracking-tight text-slate-900 mb-1">Sign in to Talvix</h1>
+          <p className="text-xs sm:text-sm text-slate-600">Welcome back. Continue to your talent intelligence workspace.</p>
         </header>
 
         <ErrorSummary ref={summaryRef} errors={errors} />
         {error && !errors.length && (
-          <div className="mb-4">
+          <div className="mb-3">
             <Alert tone="danger" title="Sign in failed">
               {error}
             </Alert>
           </div>
         )}
 
-        <form onSubmit={(event) => void submit(event)} className="flex flex-col gap-4">
+        <form onSubmit={(event) => void submit(event)} className="flex flex-col gap-3">
           <AuthInput
             id="login-email"
             name="email"
@@ -133,11 +150,11 @@ export function SignInPage() {
             error={fields.password}
           />
 
-          <div className="flex items-center justify-between mt-1 text-xs select-none">
+          <div className="flex items-center justify-between text-xs select-none py-0.5">
             <Checkbox label="Remember me" name="rememberMe" />
             <RouterLink
               to="/forgot-password"
-              className="text-slate-900 font-semibold hover:text-slate-700 underline focus:outline-none"
+              className="text-slate-800 font-bold hover:text-emerald-700 hover:underline focus:outline-none"
             >
               Forgot password?
             </RouterLink>
@@ -147,7 +164,7 @@ export function SignInPage() {
             type="submit"
             loading={loading}
             loadingLabel="Signing in"
-            className="w-full mt-4 h-11 bg-slate-900 hover:bg-slate-800 text-white rounded-xl font-semibold shadow-sm transition-all duration-150 active:scale-[0.99]"
+            className="w-full mt-1.5 h-11 bg-slate-900 hover:bg-black text-white rounded-xl font-bold text-sm tracking-wide shadow-md active:scale-[0.99] transition-all"
           >
             Sign in
           </Button>
@@ -155,12 +172,17 @@ export function SignInPage() {
 
         <SocialLogin />
 
-        <p className="text-center text-sm text-slate-500 mt-8">
-          Don't have an account?{' '}
-          <RouterLink to="/register" className="text-slate-900 font-semibold hover:text-slate-700 underline">
-            Create Account
+        {/* Centered, bold, high-contrast account switcher */}
+        <div className="mt-5 pt-3.5 border-t border-slate-200 flex items-center justify-center gap-1.5 text-sm text-slate-700">
+          <span>Don't have an account?</span>
+          <RouterLink
+            to="/register"
+            className="font-bold text-emerald-700 hover:text-emerald-800 hover:underline inline-flex items-center gap-1"
+          >
+            <span>Create an account for free</span>
+            <span aria-hidden="true">&rarr;</span>
           </RouterLink>
-        </p>
+        </div>
 
         <AuthFooter />
       </AuthCard>
@@ -243,33 +265,50 @@ export function RegisterPage() {
     <AuthLayout type="register">
       <AuthCard>
         {/* Mobile-only Logo */}
-        <div className="flex items-center gap-2.5 lg:hidden mb-6 select-none">
+        <div className="flex items-center gap-2.5 lg:hidden mb-4 select-none">
           <div className="flex items-center justify-center w-8 h-8 rounded-xl bg-slate-900 text-white shadow-md">
-            <svg className="w-4.5 h-4.5 fill-current" viewBox="0 0 24 24">
+            <svg className="w-4 h-4 fill-current" viewBox="0 0 24 24">
               <path d="M12 2L2 6v6c0 5.52 4.48 10 9 10s9-4.48 9-10V6l-9-4zm0 2.5l7 3.1v4.4c0 4.1-3 7.8-7 8.5-4-.7-7-4.4-7-8.5V7.6l7-3.1z" />
               <path d="M11 7h2v6h-2zM11 14h2v2h-2z" />
             </svg>
           </div>
-          <span className="text-lg font-bold tracking-tight text-slate-800">Talvix</span>
+          <span className="text-lg font-extrabold tracking-tight text-slate-900">Talvix</span>
         </div>
 
-        <header className="mb-5">
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900 mb-1.5">Create your Talvix account</h1>
-          <p className="text-sm text-slate-500">Join Talvix and start matching talent today.</p>
+        {/* Top Header Row matching the left side's h-10 header */}
+        <div className="flex items-center justify-between w-full h-10 mb-3">
+          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 animate-pulse"></span>
+            Fast Onboarding
+          </span>
+          <span className="text-xs text-slate-600 font-medium">
+            Registered?{' '}
+            <RouterLink
+              to="/login"
+              className="font-bold text-emerald-700 hover:text-emerald-800 hover:underline"
+            >
+              Sign in &rarr;
+            </RouterLink>
+          </span>
+        </div>
+
+        <header className="mb-3">
+          <h1 className="text-2xl font-extrabold tracking-tight text-slate-900 mb-1">Create your Talvix account</h1>
+          <p className="text-xs sm:text-sm text-slate-600">Join as a candidate or recruiter to match talent today.</p>
         </header>
 
         <StepIndicator />
 
         <ErrorSummary ref={summaryRef} errors={errors} />
         {error && !errors.length && (
-          <div className="mb-4">
+          <div className="mb-3">
             <Alert tone="danger" title="Registration failed">
               {error}
             </Alert>
           </div>
         )}
 
-        <form onSubmit={(event) => void submit(event)} className="flex flex-col gap-4">
+        <form onSubmit={(event) => void submit(event)} className="flex flex-col gap-2.5">
           {!inviteToken && <RoleSelector error={fields.role} />}
 
           <AuthInput
@@ -322,7 +361,7 @@ export function RegisterPage() {
             error={fields.confirmPassword}
           />
 
-          <div className="mt-1 select-none">
+          <div className="py-0.5 select-none text-slate-700 font-medium text-xs">
             <Checkbox
               label="I agree to the Terms of Service and Privacy Policy"
               name="agreeTerms"
@@ -335,20 +374,25 @@ export function RegisterPage() {
             loading={loading}
             loadingLabel="Creating account"
             aria-label="Create account"
-            className="w-full mt-3 h-11 bg-slate-900 hover:bg-slate-800 text-white rounded-xl font-semibold shadow-sm transition-all duration-150 active:scale-[0.99]"
+            className="w-full mt-1.5 h-11 bg-slate-900 hover:bg-black text-white rounded-xl font-bold text-sm tracking-wide shadow-md active:scale-[0.99] transition-all"
           >
-            Next
+            Create account
           </Button>
         </form>
 
         <SocialLogin />
 
-        <p className="text-center text-sm text-slate-500 mt-6">
-          Already have an account?{' '}
-          <RouterLink to="/login" className="text-slate-900 font-semibold hover:text-slate-700 underline">
-            Login
+        {/* Centered, bold, high-contrast account switcher */}
+        <div className="mt-4 pt-3 border-t border-slate-200 flex items-center justify-center gap-1.5 text-sm text-slate-700">
+          <span>Already have an account?</span>
+          <RouterLink
+            to="/login"
+            className="font-bold text-emerald-700 hover:text-emerald-800 hover:underline inline-flex items-center gap-1"
+          >
+            <span>Sign in to your account</span>
+            <span aria-hidden="true">&rarr;</span>
           </RouterLink>
-        </p>
+        </div>
 
         <AuthFooter />
       </AuthCard>
@@ -406,31 +450,31 @@ export function ForgotPasswordPage() {
   return (
     <AuthLayout type="login">
       <AuthCard>
-        <header className="mb-6">
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900 mb-1.5">Reset your password</h1>
-          <p className="text-sm text-slate-500">Enter your email address and we'll send you a link to reset your password.</p>
+        <header className="mb-4">
+          <h1 className="text-2xl font-extrabold tracking-tight text-slate-900 mb-1">Reset your password</h1>
+          <p className="text-xs sm:text-sm text-slate-600">Enter your email address and we'll send you a link to reset your password.</p>
         </header>
 
         {error && (
-          <div className="mb-4">
+          <div className="mb-3">
             <Alert tone="danger">{error}</Alert>
           </div>
         )}
         
         {success ? (
-          <div className="flex flex-col gap-4">
+          <div className="flex flex-col gap-3">
             <Alert tone="success">
               If an account is associated with this email, password reset instructions have been sent.
             </Alert>
             <RouterLink
               to="/login"
-              className="text-slate-900 font-semibold hover:text-slate-700 underline text-sm block text-center"
+              className="text-emerald-700 font-bold hover:text-emerald-800 hover:underline text-sm block text-center"
             >
               Return to Sign in
             </RouterLink>
           </div>
         ) : (
-          <form onSubmit={submit} className="flex flex-col gap-4">
+          <form onSubmit={submit} className="flex flex-col gap-3">
             <AuthInput
               id="forgot-email"
               name="email"
@@ -445,16 +489,16 @@ export function ForgotPasswordPage() {
               type="submit"
               loading={loading}
               loadingLabel="Sending link"
-              className="w-full mt-4 h-11 bg-slate-900 hover:bg-slate-800 text-white rounded-xl font-semibold shadow-sm transition-all duration-150 active:scale-[0.99]"
+              className="w-full mt-2 h-11 bg-slate-900 hover:bg-black text-white rounded-xl font-bold text-sm tracking-wide shadow-md active:scale-[0.99] transition-all"
             >
               Send recovery link
             </Button>
             <div className="text-center mt-2">
               <RouterLink
                 to="/login"
-                className="text-slate-900 font-semibold hover:text-slate-700 underline text-sm"
+                className="text-emerald-700 font-bold hover:text-emerald-800 hover:underline text-sm inline-flex items-center gap-1"
               >
-                Back to login
+                <span>&larr;</span> Back to login
               </RouterLink>
             </div>
           </form>
@@ -541,9 +585,9 @@ export function ResetPasswordPage() {
     return (
       <AuthLayout type="login">
         <AuthCard>
-          <header className="mb-6">
-            <h1 className="text-2xl font-bold tracking-tight text-slate-900 mb-1.5">Reset your password</h1>
-            <p className="text-sm text-slate-500">Verifying reset link...</p>
+          <header className="mb-4">
+            <h1 className="text-2xl font-extrabold tracking-tight text-slate-900 mb-1">Reset your password</h1>
+            <p className="text-xs sm:text-sm text-slate-600">Verifying reset link...</p>
           </header>
           <div className="flex justify-center p-4">
             <div className="w-6 h-6 border-2 border-slate-900 border-t-transparent rounded-full animate-spin"></div>
@@ -557,11 +601,11 @@ export function ResetPasswordPage() {
     return (
       <AuthLayout type="login">
         <AuthCard>
-          <header className="mb-6">
-            <h1 className="text-2xl font-bold tracking-tight text-slate-900 mb-1.5">Invalid Link</h1>
-            <p className="text-sm text-slate-500">The reset link you clicked is no longer active.</p>
+          <header className="mb-4">
+            <h1 className="text-2xl font-extrabold tracking-tight text-slate-900 mb-1">Invalid Link</h1>
+            <p className="text-xs sm:text-sm text-slate-600">The reset link you clicked is no longer active.</p>
           </header>
-          <div className="mb-4">
+          <div className="mb-3">
             <Alert tone="danger">
               This password reset link is invalid, expired, or has already been used.
             </Alert>
@@ -569,7 +613,7 @@ export function ResetPasswordPage() {
           <div className="text-center">
             <RouterLink
               to="/forgot-password"
-              className="text-slate-900 font-semibold hover:text-slate-700 underline text-sm"
+              className="text-emerald-700 font-bold hover:text-emerald-800 hover:underline text-sm inline-flex items-center gap-1"
             >
               Request a new reset link
             </RouterLink>
@@ -582,12 +626,12 @@ export function ResetPasswordPage() {
   return (
     <AuthLayout type="login">
       <AuthCard>
-        <header className="mb-6">
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900 mb-1.5">Choose a new password</h1>
-          <p className="text-sm text-slate-500">Set a secure password containing uppercase, lowercase, numbers, and symbols.</p>
+        <header className="mb-4">
+          <h1 className="text-2xl font-extrabold tracking-tight text-slate-900 mb-1">Choose a new password</h1>
+          <p className="text-xs sm:text-sm text-slate-600">Set a secure password containing uppercase, lowercase, numbers, and symbols.</p>
         </header>
         {error && (
-          <div className="mb-4">
+          <div className="mb-3">
             <Alert tone="danger">{error}</Alert>
           </div>
         )}
@@ -596,7 +640,7 @@ export function ResetPasswordPage() {
             Password reset successfully. Redirecting you to sign in...
           </Alert>
         ) : (
-          <form onSubmit={submit} className="flex flex-col gap-4">
+          <form onSubmit={submit} className="flex flex-col gap-3">
             <AuthInput
               id="reset-password"
               name="password"
@@ -618,7 +662,7 @@ export function ResetPasswordPage() {
               type="submit"
               loading={loading}
               loadingLabel="Updating password"
-              className="w-full mt-4 h-11 bg-slate-900 hover:bg-slate-800 text-white rounded-xl font-semibold shadow-sm transition-all duration-150 active:scale-[0.99]"
+              className="w-full mt-2 h-11 bg-slate-900 hover:bg-black text-white rounded-xl font-bold text-sm tracking-wide shadow-md active:scale-[0.99] transition-all"
             >
               Update password
             </Button>
