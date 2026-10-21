@@ -7,7 +7,7 @@ import {
 
 export function PlatformShowcase() {
   const [activeTab, setActiveTab] = useState<
-    'candidate' | 'recruiter' | 'org' | 'admin'
+    'candidate' | 'recruiter' | 'org'
   >('candidate');
 
   return (
@@ -27,11 +27,11 @@ export function PlatformShowcase() {
           </h2>
           <p className="mt-3 text-base text-slate-600">
             Explore the tailored workspaces purpose-built for candidates, hiring
-            teams, recruiters, and platform administrators.
+            teams, and recruiters.
           </p>
 
           {/* Tab Switcher */}
-          <div className="mx-auto mt-8 flex max-w-lg items-center justify-center gap-1.5 rounded-2xl border border-slate-200 bg-slate-100/80 p-1.5">
+          <div className="mx-auto mt-8 flex max-w-md items-center justify-center gap-1.5 rounded-2xl border border-slate-200 bg-slate-100/80 p-1.5">
             <button
               onClick={() => setActiveTab('candidate')}
               className={`flex-1 rounded-xl px-3 py-2 text-xs font-semibold transition-all sm:text-sm ${
@@ -61,16 +61,6 @@ export function PlatformShowcase() {
               }`}
             >
               Organization
-            </button>
-            <button
-              onClick={() => setActiveTab('admin')}
-              className={`flex-1 rounded-xl px-3 py-2 text-xs font-semibold transition-all sm:text-sm ${
-                activeTab === 'admin'
-                  ? 'bg-white text-slate-900 shadow-sm'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              Admin
             </button>
           </div>
         </div>
@@ -247,75 +237,6 @@ export function PlatformShowcase() {
                 </div>
                 <div className="rounded-xl bg-slate-900 px-4 py-2 text-xs font-semibold text-white">
                   Audit Logs Active
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* TAB 4: ADMIN */}
-          {activeTab === 'admin' && (
-            <div className="space-y-6 p-6 sm:p-8">
-              <div className="flex flex-col justify-between gap-4 border-b border-slate-100 pb-6 sm:flex-row sm:items-center">
-                <div>
-                  <h3 className="text-2xl font-bold text-slate-900">
-                    Talvix Admin Dashboard
-                  </h3>
-                  <p className="mt-1 text-xs text-slate-500 sm:text-sm">
-                    System-wide verification pipeline, live socket clustering,
-                    health monitor, and audit events.
-                  </p>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-bold text-emerald-800">
-                    System Healthy (99.99%)
-                  </span>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
-                <div className="rounded-2xl border border-slate-200/80 bg-slate-50/80 p-4">
-                  <div className="mb-1 text-xs text-slate-500">
-                    Total Verified Companies
-                  </div>
-                  <div className="text-2xl font-extrabold text-slate-900">
-                    1,240
-                  </div>
-                  <div className="mt-1 text-xs font-semibold text-emerald-600">
-                    +18 this week
-                  </div>
-                </div>
-                <div className="rounded-2xl border border-slate-200/80 bg-slate-50/80 p-4">
-                  <div className="mb-1 text-xs text-slate-500">
-                    Evaluations Executed
-                  </div>
-                  <div className="text-2xl font-extrabold text-slate-900">
-                    38,500+
-                  </div>
-                  <div className="mt-1 text-xs font-semibold text-cyan-600">
-                    Sandboxed runs
-                  </div>
-                </div>
-                <div className="rounded-2xl border border-slate-200/80 bg-slate-50/80 p-4">
-                  <div className="mb-1 text-xs text-slate-500">
-                    Pending Verification
-                  </div>
-                  <div className="text-2xl font-extrabold text-slate-900">
-                    3
-                  </div>
-                  <div className="mt-1 text-xs font-semibold text-amber-600">
-                    Review queue
-                  </div>
-                </div>
-                <div className="rounded-2xl border border-slate-200/80 bg-slate-50/80 p-4">
-                  <div className="mb-1 text-xs text-slate-500">
-                    Outbox Deliveries
-                  </div>
-                  <div className="text-2xl font-extrabold text-emerald-600">
-                    100%
-                  </div>
-                  <div className="mt-1 text-xs text-slate-500">
-                    Zero dropped events
-                  </div>
                 </div>
               </div>
             </div>

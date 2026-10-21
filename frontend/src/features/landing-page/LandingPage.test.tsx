@@ -112,16 +112,18 @@ describe('LandingPage Component', () => {
     // Initial state should be candidate showcase
     expect(screen.getByText(/Hello, Asha Rao/i)).toBeInTheDocument();
     expect(
-      screen.queryByText(/Talvix Admin Dashboard/i),
+      screen.queryByText(/Recruiter Intelligence Workspace/i),
     ).not.toBeInTheDocument();
 
-    // Click Admin tab
-    const adminTab = screen.getByRole('button', { name: 'Admin' });
-    fireEvent.click(adminTab);
+    // Click Recruiter tab
+    const recruiterTab = screen.getByRole('button', { name: 'Recruiter' });
+    fireEvent.click(recruiterTab);
 
     // Verify state updated
     await waitFor(() => {
-      expect(screen.getByText(/Talvix Admin Dashboard/i)).toBeInTheDocument();
+      expect(
+        screen.getByText(/Recruiter Intelligence Workspace/i),
+      ).toBeInTheDocument();
       expect(screen.queryByText(/Hello, Asha Rao/i)).not.toBeInTheDocument();
     });
   });
