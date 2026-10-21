@@ -2569,7 +2569,7 @@ function RecruiterVerificationDrawer({
     queryFn: () => adminApi.getRecruiterVerificationHistory(profileId),
     enabled: !!profileId,
   });
-  const historyItems = historyQuery.data?.data?.items || [];
+  const historyItems = (historyQuery.data as any)?.items || (historyQuery.data as any)?.data?.items || [];
 
   const [pending, setPending] = useState<PendingAction | null>(null);
 
@@ -3139,14 +3139,14 @@ function CompanyVerificationDrawer({
     queryFn: () => adminApi.getVerificationHistory(companyId),
     enabled: !!companyId,
   });
-  const historyItems = historyQuery.data?.data?.items || [];
+  const historyItems = (historyQuery.data as any)?.items || (historyQuery.data as any)?.data?.items || [];
 
   const registryChecksQuery = useQuery({
     queryKey: ['system-admin', 'company-registry-checks', companyId],
     queryFn: () => adminApi.getCompanyRegistryChecks(companyId),
     enabled: !!companyId,
   });
-  const registryChecks = (registryChecksQuery.data as any)?.data?.checks || [];
+  const registryChecks = (registryChecksQuery.data as any)?.checks || (registryChecksQuery.data as any)?.data?.checks || [];
   const latestRegistryCheck = registryChecks[0] || null;
 
   const [isRunningCheck, setIsRunningCheck] = useState(false);
@@ -3156,9 +3156,18 @@ function CompanyVerificationDrawer({
     try {
       setIsRunningCheck(true);
       setRegistryMessage(null);
-      await adminApi.runCompanyRegistryCheck(companyId, { checkType });
+      const res: any = await adminApi.runCompanyRegistryCheck(companyId, { checkType });
+      const checkRecord = res?.check || res?.data?.check;
       await Promise.all([registryChecksQuery.refetch(), query.refetch()]);
-      setRegistryMessage(`${checkType === 'company_registration' ? 'MCA (CIN/LLPIN)' : 'GSTIN'} check completed.`);
+      if (checkRecord?.outcome === 'match') {
+        setRegistryMessage(`✓ MCA/Registry verification confirmed: MATCH (Risk score: ${checkRecord.riskScore}/100)`);
+      } else if (checkRecord?.outcome === 'mismatch') {
+        setRegistryMessage(`⚠️ Registry verification returned MISMATCH (Risk score: ${checkRecord.riskScore}/100)`);
+      } else if (checkRecord?.outcome === 'not_found') {
+        setRegistryMessage(`ℹ️ Registration identifier NOT FOUND in registry`);
+      } else {
+        setRegistryMessage(`${checkType === 'company_registration' ? 'MCA (CIN/LLPIN)' : 'GSTIN'} check completed: ${checkRecord?.outcome || 'done'}.`);
+      }
     } catch (err: any) {
       setRegistryMessage(`Lookup failed: ${err.message || 'Error executing check'}`);
     } finally {
