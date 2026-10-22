@@ -845,7 +845,7 @@ export function JobDetailsPage() {
     message: string;
     stale: boolean;
   } | null>(null);
-  const [activeAiTab, setActiveAiTab] = useState<'intelligence' | 'quality' | 'blueprint' | 'all'>('intelligence');
+  const [activeAiTab, setActiveAiTab] = useState<'intelligence' | 'quality' | 'blueprint'>('intelligence');
   if (!a.has('jobs.update')) return <PermissionState />;
   if (a.blocked) return <Block />;
   if (q.isLoading) return <LoadingState label="Loading job" />;
@@ -1025,28 +1025,17 @@ export function JobDetailsPage() {
               <Layers className="w-3.5 h-3.5" />
               <span>Blueprint</span>
             </button>
-            <button
-              type="button"
-              onClick={() => setActiveAiTab('all')}
-              className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 ${
-                activeAiTab === 'all'
-                  ? 'bg-indigo-600 text-white font-semibold shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
-              }`}
-            >
-              <span>View All</span>
-            </button>
           </div>
         </div>
 
         <div className="space-y-4">
-          {(activeAiTab === 'intelligence' || activeAiTab === 'all') && (
+          {activeAiTab === 'intelligence' && (
             <JobIntelligenceCard jobId={j.id} initialIntelligence={j.intelligence} />
           )}
-          {(activeAiTab === 'quality' || activeAiTab === 'all') && (
+          {activeAiTab === 'quality' && (
             <JobQualityCard jobId={j.id} initialQuality={j.quality} />
           )}
-          {(activeAiTab === 'blueprint' || activeAiTab === 'all') && (
+          {activeAiTab === 'blueprint' && (
             <JobBlueprintCard jobId={j.id} initialBlueprint={j.blueprint} />
           )}
         </div>
@@ -1595,6 +1584,7 @@ export function JobFormPage({ mode }: { mode: 'create' | 'edit' }) {
   const [aiChecking, setAiChecking] = useState(false);
   const [safetyCheckResult, setSafetyCheckResult] = useState<{ isSafe: boolean; riskScore: number; issues: string[] } | null>(null);
   const [submittingAndPublishing, setSubmittingAndPublishing] = useState(false);
+  const [archiving, setArchiving] = useState(false);
   const [aiAdviceModal, setAiAdviceModal] = useState<{ open: boolean; text: string } | null>(null);
   const [toasts, setToasts] = useState<Array<{ id: string; type: 'success' | 'error' | 'info' | 'warning'; title: string; message?: string }>>([]);
 
