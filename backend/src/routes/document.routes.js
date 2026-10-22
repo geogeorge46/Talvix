@@ -104,7 +104,7 @@ documentRouter.get('/interviews/:processId/:documentId/download', candidate, par
 documentRouter.post('/manage/offers/:offerId', recruiter, authorizePermissions('documents.manage', 'offers.manage'), requireCompanyAccess, params, ...upload(integrationValidation.sharedUpload), integration.offerUpload);
 documentRouter.get('/manage/offers/:offerId', recruiter, authorizePermissions('documents.view', 'offers.view'), requireCompanyAccess, params, integration.offerList(true));
 documentRouter.get('/manage/offers/:offerId/:documentId/download', recruiter, authorizePermissions('documents.view', 'offers.view'), requireCompanyAccess, params, integration.offerDownload(true));
-documentRouter.post('/manage/offers/:offerId/:documentId/replace', recruiter, authorizePermissions('documents.manage', 'offers.manage'), requireCompanyAccess, params, ...upload(integrationValidation.sharedUpload), integration.offerReplace);
+documentRouter.post('/manage/offers/:offerId/:documentId/replace', recruiter, authorizePermissions('documents.manage', 'offers.manage'), requireCompanyAccess, params, ...upload(integrationValidation.sharedReplacement), integration.offerReplace);
 documentRouter.get('/offers/:offerId', candidate, params, integration.offerList());
 documentRouter.get('/offers/:offerId/:documentId/download', candidate, params, integration.offerDownload());
 

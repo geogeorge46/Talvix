@@ -243,6 +243,7 @@ function CapabilityRoute({
   const { recruiter } = useAuth();
   if (
     anyPermission.length > 0 &&
+    !recruiter?.isCompanyOwner &&
     !anyPermission.some((permission) =>
       recruiter?.permissions.includes(permission),
     )

@@ -4,6 +4,7 @@ import { env } from '../config/env.js';
 import { DOCUMENT_MIMES, IMAGE_MIMES, RESUME_MIMES } from '../constants/document.js';
 import { Document } from '../models/Document.js';
 import { FileUploadSession } from '../models/FileUploadSession.js';
+import { RecruiterProfile } from '../models/RecruiterProfile.js';
 import { AppError } from '../shared/errors/AppError.js';
 import { calculateFileChecksum } from '../utils/fileChecksum.js';
 import { validateFile } from '../utils/fileValidation.js';
@@ -61,7 +62,9 @@ const uploadDocumentUnlocked = async (user, fields, file, replaced, overrides = 
           const result = await Document.updateOne({ _id: replaced.id, status: 'active', isCurrent: true }, { $set: { status: 'replaced', isCurrent: false }, $push: { statusHistory: { from: 'active', to: 'replaced', changedBy: user.id, reason: 'Document replaced' } } }, { session: databaseSession });
           if (!result.modifiedCount) throw new AppError('Document was replaced by another request', 409, 'DOCUMENT_CONFLICT');
         }
-        [document] = await Document.create([{ owner: user.id, ownerRole: user.role, uploadedBy: user.id, company: overrides.company, category: uploadSession.category, purpose: fields.purpose, entityType: overrides.entityType ?? uploadSession.entityType, entityId: overrides.entityId ?? uploadSession.entityId, originalFileName: info.name, displayName: fields.displayName ?? fields.purpose, extension: info.extension, mimeType: file.mimetype, mediaType: info.mediaType, sizeBytes: file.size, checksum, storage: stored, access: overrides.access ?? fields.access ?? 'private', verification: overrides.verification, version: replaced ? replaced.version + 1 : 1, parentDocument: replaced?.id }], { session: databaseSession });
+        const recruiterProfile = user.role === 'recruiter' ? await RecruiterProfile.findOne({ user: user.id }) : null;
+        const documentCompany = overrides.company || (user.role === 'recruiter' ? recruiterProfile?.company : undefined);
+        [document] = await Document.create([{ owner: user.id, ownerRole: user.role, uploadedBy: user.id, company: documentCompany, category: uploadSession.category, purpose: fields.purpose, entityType: overrides.entityType ?? uploadSession.entityType, entityId: overrides.entityId ?? uploadSession.entityId, originalFileName: info.name, displayName: fields.displayName ?? fields.purpose, extension: info.extension, mimeType: file.mimetype, mediaType: info.mediaType, sizeBytes: file.size, checksum, storage: stored, access: overrides.access ?? fields.access ?? 'private', verification: overrides.verification, version: replaced ? replaced.version + 1 : 1, parentDocument: replaced?.id }], { session: databaseSession });
         if (replaced) await Document.updateOne({ _id: replaced.id }, { $set: { replacedBy: document.id } }, { session: databaseSession });
         if (overrides.reference) {
           const referenceFilter = { _id: overrides.reference.id, ...(replaced ? { [overrides.reference.field]: replaced.id } : { [overrides.reference.field]: null }) };

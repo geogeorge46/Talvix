@@ -840,10 +840,15 @@ export function ManagedOfferDetailPage() {
     { recruiter } = useAuth(),
     q = useManagedOffer(offerId, validId(offerId)),
     history = useOfferHistory(offerId, validId(offerId)),
-    canViewDocs = Boolean(recruiter?.permissions.includes('documents.view')),
+    canViewDocs = Boolean(
+      recruiter?.permissions.includes('documents.view') ||
+        recruiter?.isCompanyOwner,
+    ),
     canManageDocs = Boolean(
-      recruiter?.permissions.includes('documents.manage') &&
-      recruiter.permissions.includes('offers.manage'),
+      (recruiter?.permissions.includes('documents.manage') ||
+        recruiter?.isCompanyOwner) &&
+        (recruiter?.permissions.includes('offers.manage') ||
+          recruiter?.isCompanyOwner),
     ),
     docs = useOfferDocuments(offerId, true, canViewDocs);
   if (!validId(offerId))
@@ -1047,6 +1052,7 @@ export function ManagedOfferDetailPage() {
           documents={docs.data ?? []}
           loading={docs.isLoading}
           canManage={canManageDocs}
+          onUploaded={() => void docs.refetch()}
         />
       ) : (
         <PermissionState
@@ -2331,13 +2337,23 @@ function DocumentPanel({
   documents,
   loading,
   canManage = false,
+  onUploaded,
 }: {
   offerId: string;
   recruiter: boolean;
   documents: DocumentRecord[];
   loading: boolean;
   canManage?: boolean;
+  onUploaded?: () => void;
 }) {
+  const [previewDoc, setPreviewDoc] = useState<{
+    title: string;
+    url?: string;
+    mimeType?: string;
+    downloadPath?: string;
+    category?: string;
+  } | null>(null);
+
   return (
     <Card
       heading="Offer attachments"
@@ -2354,12 +2370,30 @@ function DocumentPanel({
           <DocumentRow
             key={d.id}
             doc={d}
-            detailTo={`/candidate/documents/${d.id}`}
+            detailTo={recruiter ? undefined : `/candidate/documents/${d.id}`}
             onDownload={() =>
               void safeDownload(
                 `/documents/${recruiter ? 'manage/' : ''}offers/${offerId}/${d.id}/download`,
               )
             }
+            onView={async () => {
+              try {
+                const url = await getDocumentUrl(
+                  `/documents/${recruiter ? 'manage/' : ''}offers/${offerId}/${d.id}/download`,
+                );
+                setPreviewDoc({
+                  title: d.displayName,
+                  url,
+                  mimeType: d.mimeType,
+                  downloadPath: `/documents/${recruiter ? 'manage/' : ''}offers/${offerId}/${d.id}/download`,
+                  category: d.category,
+                });
+              } catch {
+                void safeDownload(
+                  `/documents/${recruiter ? 'manage/' : ''}offers/${offerId}/${d.id}/download`,
+                );
+              }
+            }}
             actions={
               recruiter && canManage ? (
                 <UploadControl
@@ -2369,7 +2403,7 @@ function DocumentPanel({
                   access={d.access}
                   replaceId={d.id}
                   path={`/documents/manage/offers/${offerId}/${d.id}/replace`}
-                  onDone={() => location.reload()}
+                  onDone={() => (onUploaded ? onUploaded() : location.reload())}
                 />
               ) : undefined
             }
@@ -2384,7 +2418,18 @@ function DocumentPanel({
           entityId={offerId}
           category="offer-document"
           path={`/documents/manage/offers/${offerId}`}
-          onDone={() => location.reload()}
+          onDone={() => (onUploaded ? onUploaded() : location.reload())}
+        />
+      )}
+      {previewDoc && (
+        <DocumentPreviewDialog
+          open={Boolean(previewDoc)}
+          onOpenChange={(open) => !open && setPreviewDoc(null)}
+          title={previewDoc.title}
+          url={previewDoc.url}
+          mimeType={previewDoc.mimeType}
+          downloadPath={previewDoc.downloadPath}
+          category={previewDoc.category}
         />
       )}
       <p className="od-note">
@@ -2757,6 +2802,7 @@ export function RecruiterDocumentsPage() {
     [sp, setSp] = useSearchParams(),
     statusParam = sp.get('status'),
     categoryParam = sp.get('category'),
+    [showUpload, setShowUpload] = useState(false),
     [previewDoc, setPreviewDoc] = useState<{
       title: string;
       url?: string;
@@ -2775,9 +2821,31 @@ export function RecruiterDocumentsPage() {
   return (
     <main>
       <PageHeader
-        title="Document verification"
-        description="Review candidate application documents. This is not a company-wide document repository."
+        title="Document Management & Verification"
+        description="Review candidate credentials, work-sample submissions, and manage company verification records."
+        secondaryActions={
+          <Button
+            variant="secondary"
+            onClick={() => setShowUpload(!showUpload)}
+            leadingIcon={<UploadCloud size={16} />}
+          >
+            {showUpload ? 'Close Upload' : 'Upload Document'}
+          </Button>
+        }
       />
+      {showUpload && (
+        <Card heading="Upload Workspace Document">
+          <UploadControl
+            entityType="company"
+            category="company-document"
+            path="/documents/upload"
+            onDone={() => {
+              void q.refetch();
+              setShowUpload(false);
+            }}
+          />
+        </Card>
+      )}
       <Toolbar
         label="Verification filters"
         start={

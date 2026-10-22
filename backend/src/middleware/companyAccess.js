@@ -35,6 +35,17 @@ export const requireCompanyAccess = async (request, _response, next) => {
       }
     }
 
+    if (!member && company.owner && company.owner.equals(request.user.id)) {
+      member = {
+        _id: company._id,
+        company: company._id,
+        recruiter: request.user.id,
+        role: 'primary_admin',
+        permissions: ['company.manage', 'jobs.create', 'jobs.update', 'jobs.delete', 'jobs.publish', 'applications.view', 'applications.manage', 'assessments.view', 'assessments.manage', 'assessments.assign', 'assessments.review', 'interviews.view', 'interviews.manage', 'interviews.schedule', 'interviews.evaluate', 'offers.view', 'offers.manage', 'offers.approve', 'offers.send', 'team.manage', 'documents.view', 'documents.manage', 'documents.verify'],
+        status: 'active'
+      };
+    }
+
     if (!member) throw new AppError('Company not found', 404);
     
     if (member._id && typeof CompanyMember.updateOne === 'function' && member.lastActive) {

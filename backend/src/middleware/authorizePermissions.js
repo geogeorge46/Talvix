@@ -1,4 +1,5 @@
 import { USER_ROLES } from '../constants/roles.js';
+import { OWNER_PERMISSIONS } from '../constants/permissions.js';
 import { Company } from '../models/Company.js';
 import { RecruiterProfile } from '../models/RecruiterProfile.js';
 import { CompanyMember } from '../models/CompanyMember.js';
@@ -40,8 +41,16 @@ export const authorizePermissions = (...requiredPermissions) => async (request, 
       }
     }
 
+    const isOwner = Boolean(
+      (company.owner && company.owner.equals(request.user.id)) ||
+      profile.isCompanyOwner ||
+      membership?.role === 'primary_admin'
+    );
+    const userPermissions = isOwner ? OWNER_PERMISSIONS : (profile.permissions || []);
+    const memberPermissions = isOwner ? OWNER_PERMISSIONS : (membership?.permissions || []);
+
     const hasPermissions = requiredPermissions.every((permission) =>
-      profile.permissions.includes(permission) && membership?.permissions.includes(permission));
+      userPermissions.includes(permission) && memberPermissions.includes(permission));
       
     const requiresVerifiedCompany = requiredPermissions.some((permission) =>
       permission.startsWith('jobs.publish') ||
@@ -52,13 +61,13 @@ export const authorizePermissions = (...requiredPermissions) => async (request, 
       permission.startsWith('documents.')
     );
     
-    if (!membership || !hasPermissions || (requiresVerifiedCompany && company.verificationStatus !== 'verified')) {
+    if ((!membership && !isOwner) || !hasPermissions || (requiresVerifiedCompany && company.verificationStatus !== 'verified')) {
       throw new AppError('You do not have the required company permission', 403);
     }
     
     request.recruiterProfile = profile;
     request.company = company;
-    request.companyMember = membership;
+    request.companyMember = membership || { role: 'primary_admin', permissions: OWNER_PERMISSIONS, status: 'active' };
     return next();
   } catch (error) {
     return next(error);
