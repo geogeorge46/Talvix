@@ -157,13 +157,13 @@ export const organizationNavigation: NavigationItem[] = [
     icon: <BriefcaseBusiness />,
     anyPermission: ['offers.view'],
   },
-  {
-    id: 'documents',
-    label: 'Documents',
-    to: '/org/documents',
-    icon: <FileText />,
-    anyPermission: ['documents.verify'],
-  },
+//   {
+//     id: 'documents',
+//     label: 'Documents',
+//     to: '/org/documents',
+//     icon: <FileText />,
+//     anyPermission: ['documents.verify'],
+//   },
   {
     id: 'company',
     label: 'Company',
@@ -176,12 +176,12 @@ export const organizationNavigation: NavigationItem[] = [
     to: '/org/analytics',
     icon: <BarChart3 />,
   },
-  {
-    id: 'activity-timeline',
-    label: 'Activity Log',
-    to: '/org/activity-timeline',
-    icon: <HistoryIcon />,
-  },
+//   {
+//     id: 'activity-timeline',
+//     label: 'Activity Log',
+//     to: '/org/activity-timeline',
+//     icon: <HistoryIcon />,
+//   },
 ];
 export const adminNavigation: NavigationItem[] = [
   {
