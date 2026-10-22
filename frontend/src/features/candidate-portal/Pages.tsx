@@ -580,9 +580,15 @@ function DomainSummaryCard({
       return draft[name] !== undefined ? draft[name].trim() : '';
     };
 
-    const phoneVal = getVal('phone');
+    const rawPhone = getVal('phone');
+    let phoneVal = rawPhone ? rawPhone.trim() : '';
     if (phoneVal) {
-      if (!/^\+91\d{10}$/.test(phoneVal)) {
+      const clean = phoneVal.replace(/[\s\-()]/g, '');
+      if (/^\+91\d{10}$/.test(clean)) {
+        phoneVal = clean;
+      } else if (/^\d{10}$/.test(clean)) {
+        phoneVal = `+91${clean}`;
+      } else {
         setValidationError('Phone number must start with +91 followed by exactly 10 digits.');
         return;
       }
@@ -1330,7 +1336,7 @@ function DomainSummaryCard({
                     name="phone"
                     value={draft.phone ?? ''}
                     onChange={(e) => updateDraft('phone', e.target.value)}
-                    placeholder="+919876543210"
+                    placeholder="+91 91234 56789"
                   />
                 )}
               </FormField>
