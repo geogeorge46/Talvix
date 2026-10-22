@@ -182,7 +182,7 @@ const publicPipeline = (query, id) => {
   return pipeline;
 };
 export const searchPublicJobs = async (query) => {
-  const sorts = { newest: { publishedAt: -1 }, oldest: { publishedAt: 1 }, 'salary-high': { 'salary.maximum': -1 }, 'salary-low': { 'salary.minimum': 1 }, relevance: { isFeatured: -1, publishedAt: -1 }, deadline: { applicationDeadline: 1 } };
+  const sorts = { newest: { isFeatured: -1, publishedAt: -1 }, oldest: { publishedAt: 1 }, 'salary-high': { isFeatured: -1, 'salary.maximum': -1 }, 'salary-low': { isFeatured: -1, 'salary.minimum': 1 }, relevance: { isFeatured: -1, publishedAt: -1 }, deadline: { isFeatured: -1, applicationDeadline: 1 } };
   const pipeline = publicPipeline(query);
   pipeline.push({ $facet: { jobs: [{ $sort: sorts[query.sort] }, { $skip: (query.page - 1) * query.limit }, { $limit: query.limit }], metadata: [{ $count: 'total' }] } });
   const [result] = await Job.aggregate(pipeline); const total = result.metadata[0]?.total ?? 0;

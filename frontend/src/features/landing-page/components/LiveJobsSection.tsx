@@ -28,6 +28,7 @@ export interface PublicJobItem {
   };
   skills?: string[];
   matchScore?: number;
+  isFeatured?: boolean;
 }
 
 function formatLocation(loc: unknown, workMode?: unknown): string {
@@ -181,6 +182,7 @@ export function LiveJobsSection() {
               : undefined,
           skills: formatSkills(j.skills, j.requirements),
           matchScore: Math.floor(Math.random() * 11) + 88, // 88% - 98%
+          isFeatured: Boolean(j.isFeatured || j.featured),
         }));
         setJobs(mapped);
         setIsLiveFromDb(true);
@@ -299,7 +301,11 @@ export function LiveJobsSection() {
             return (
               <div
                 key={job._id}
-                className="group flex flex-col justify-between rounded-3xl border border-slate-200/90 bg-white p-6 shadow-sm backdrop-blur-md transition-all duration-300 hover:border-emerald-300 hover:shadow-xl sm:p-7"
+                className={`group flex flex-col justify-between rounded-3xl border bg-white p-6 shadow-sm backdrop-blur-md transition-all duration-300 hover:shadow-xl sm:p-7 ${
+                  job.isFeatured
+                    ? 'border-amber-300 ring-2 ring-amber-400/25 shadow-amber-500/5'
+                    : 'border-slate-200/90 hover:border-emerald-300'
+                }`}
               >
                 <div>
                   {/* Card Top: Department & Match Badge */}
@@ -318,9 +324,17 @@ export function LiveJobsSection() {
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-bold text-emerald-700">
-                      <Sparkles size={11} />
-                      <span>{job.matchScore ?? 92}% Match</span>
+                    <div className="flex items-center gap-1.5">
+                      {job.isFeatured && (
+                        <span className="flex items-center gap-1 rounded-full border border-amber-300 bg-amber-50 px-2.5 py-0.5 text-[10px] font-bold tracking-wider text-amber-800 uppercase shadow-2xs">
+                          <Sparkles size={10} className="text-amber-600" />
+                          Featured
+                        </span>
+                      )}
+                      <div className="flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-bold text-emerald-700">
+                        <Sparkles size={11} />
+                        <span>{job.matchScore ?? 92}% Match</span>
+                      </div>
                     </div>
                   </div>
 
