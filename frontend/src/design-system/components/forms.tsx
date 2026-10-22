@@ -305,7 +305,7 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(
     {
       label,
       options,
-      placeholder = 'Choose an option',
+      placeholder,
       error,
       hint,
       id,
@@ -318,6 +318,8 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(
     ref,
   ) {
     const effectiveLabel = hideLabel ? undefined : (label ?? props['aria-label'] ?? 'Select');
+    const hasEmptyOption = options.some((o) => o.value === '');
+    const defaultPlaceholder = hasEmptyOption ? undefined : (placeholder ?? 'Choose an option');
     return (
       <FormField
         id={id}
@@ -342,8 +344,8 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(
             {loading ? (
               <option value="">Loading options…</option>
             ) : (
-              !options.some((o) => o.value === '') && placeholder ? (
-                <option value="">{placeholder}</option>
+              !hasEmptyOption && defaultPlaceholder ? (
+                <option value="">{defaultPlaceholder}</option>
               ) : null
             )}
             {options.map((o) => (

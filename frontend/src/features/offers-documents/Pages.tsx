@@ -2010,7 +2010,8 @@ function DocumentRow({
 }) {
   const [downloadError, setDownloadError] = useState(''),
     [downloading, setDownloading] = useState(false);
-  const downloadable = doc.status === 'active' && doc.scanStatus === 'clean';
+  const isMalicious = ['suspicious', 'infected', 'failed'].includes(doc.scanStatus);
+  const downloadable = doc.status === 'active' && !isMalicious;
   const download = async () => {
     setDownloading(true);
     setDownloadError('');
@@ -2828,13 +2829,15 @@ export function RecruiterDocumentsPage() {
               doc={d}
               onDownload={() =>
                 void safeDownload(
-                  `/documents/manage/applications/${d.entityId}/${d.id}/download`,
+                  `/documents/manage/verification/${d.id}/download`,
                 )
               }
               actions={
-                <RouterLink to={`/org/documents/verification/${d.id}`}>
-                  Review
-                </RouterLink>
+                d.verification.status !== 'not-required' ? (
+                  <RouterLink to={`/org/documents/verification/${d.id}`}>
+                    Review
+                  </RouterLink>
+                ) : null
               }
             />
           ))}
@@ -2902,11 +2905,13 @@ export function VerificationDetailPage() {
         <Button
           variant="secondary"
           disabled={
-            !canDownload || d.status !== 'active' || d.scanStatus !== 'clean'
+            !canDownload ||
+            d.status !== 'active' ||
+            ['suspicious', 'infected', 'failed'].includes(d.scanStatus)
           }
           onClick={() =>
             void safeDownload(
-              `/documents/manage/applications/${d.entityId}/${d.id}/download`,
+              `/documents/manage/verification/${d.id}/download`,
             )
           }
         >

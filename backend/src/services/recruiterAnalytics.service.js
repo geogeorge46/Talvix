@@ -326,12 +326,19 @@ export const fetchRecruiterActivityTimeline = async (companyId, query, isOwnerOr
     ? new mongoose.Types.ObjectId(companyId)
     : companyId;
 
+  const memberUserIds = await CompanyMember.find({ company: companyId }).distinct('recruiter');
+
+  const companyScopeOr = [
+    { company: companyObjectId },
+    { company: String(companyId) }
+  ];
+  if (memberUserIds.length) {
+    companyScopeOr.push({ actor: { $in: memberUserIds } });
+  }
+
   const conditions = [
     {
-      $or: [
-        { company: companyObjectId },
-        { company: String(companyId) }
-      ]
+      $or: companyScopeOr
     }
   ];
 

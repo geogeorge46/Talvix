@@ -137,7 +137,6 @@ export function RecruiterActivityTimelinePage() {
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1rem', marginTop: '1rem' }}>
           <Select
             label="Actor"
-            placeholder="All Team Members"
             value={userFilter}
             options={teamOptions}
             onChange={(e) => {
@@ -147,7 +146,6 @@ export function RecruiterActivityTimelinePage() {
           />
           <Select
             label="Action Type"
-            placeholder="All Actions"
             value={actionFilter}
             options={actionOptions}
             onChange={(e) => {

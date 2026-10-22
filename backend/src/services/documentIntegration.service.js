@@ -29,7 +29,7 @@ export const resetDocumentEventDependencies = () => { documentEventDependencies 
 
 const ACTIVE = { status: 'active', isCurrent: true };
 const APPLICATION_CATEGORIES = ['resume', 'cover-letter', 'certificate', 'identity-document', 'education-document', 'experience-document', 'portfolio-document', 'application-document'];
-const VERIFIABLE = ['certificate', 'identity-document', 'education-document', 'experience-document', 'application-document'];
+const VERIFIABLE = ['resume', 'certificate', 'identity-document', 'education-document', 'experience-document', 'application-document'];
 const LOCKED_APPLICATION = ['withdrawn', 'rejected', 'hired', 'offer-declined'];
 const ATTEMPT_UPLOAD_STATUSES = ['not-started', 'in-progress'];
 const OFFER_VISIBLE = CANDIDATE_VISIBLE_OFFER_STATUSES;
@@ -221,6 +221,9 @@ export const listVerification = async (company, query) => {
 
   if (query.status && query.status !== 'all') {
     filter['verification.status'] = query.status;
+  } else if (!query.status) {
+    // By default, prioritize verifiable documents
+    filter['verification.status'] = { $in: ['pending', 'verified', 'rejected'] };
   }
   if (query.category) filter.category = query.category;
   if (query.applicationId && mongoose.Types.ObjectId.isValid(query.applicationId)) {
@@ -249,8 +252,102 @@ export const listVerification = async (company, query) => {
     pagination: buildPagination(query.page, query.limit, total)
   };
 };
-export const getVerification = async (company, id) => { const document = await Document.findOne({ _id: id, company, entityType: 'application', 'verification.required': true }); if (!document) throw new AppError('Document not found', 404); return serializeVerificationDocument(document, true); };
-export const decideVerification = async (user, company, id, decision, input) => { const document = await Document.findOne({ _id: id, company, entityType: 'application', status: 'active', isCurrent: true, 'verification.status': 'pending' }); if (!document) throw new AppError('Pending document not found', 404); document.verification.status = decision; document.verification.reviewedAt = new Date(); document.verification.reviewedBy = user.id; document.verification.candidateSafeReason = decision === 'rejected' ? input.reason : undefined; document.verification.privateNotes = input.notes; document.statusHistory.push({ from: 'verification-pending', to: `verification-${decision}`, changedBy: user.id, reason: decision === 'rejected' ? input.reason : 'Document verified' }); await document.save(); const application = await Application.findById(document.entityId).populate('company', 'name'); await publishOptionalDomainEvent({ type: decision === 'verified' ? DOMAIN_EVENTS.DOCUMENT_VERIFIED : DOMAIN_EVENTS.DOCUMENT_REJECTED, company: String(company), recipientIds: [String(document.owner)], payload: { documentId: String(document.id), applicationId: String(document.entityId), candidateId: String(document.owner), companyId: String(company), companyName: application?.company?.name, category: document.category, displayName: document.displayName, reason: decision === 'rejected' ? input.reason : undefined, actionUrl: `/candidate/applications/${document.entityId}` }, deduplicationKey: `document.${decision}:${document.id}` }); return serializeVerificationDocument(document, true); };
+
+export const getVerification = async (company, id) => {
+  const companyObjectId = mongoose.Types.ObjectId.isValid(company)
+    ? new mongoose.Types.ObjectId(company)
+    : company;
+  const companyApps = await Application.find({ company: companyObjectId }).select('_id');
+  const companyAppIds = companyApps.map((a) => a._id);
+
+  const document = await Document.findOne({
+    _id: id,
+    $or: [
+      { company: companyObjectId },
+      { company: String(company) },
+      ...(companyAppIds.length ? [{ entityType: 'application', entityId: { $in: companyAppIds } }] : [])
+    ],
+    status: 'active'
+  });
+  if (!document) throw new AppError('Document not found', 404);
+  return serializeVerificationDocument(document, true);
+};
+
+export const decideVerification = async (user, company, id, decision, input) => {
+  const companyObjectId = mongoose.Types.ObjectId.isValid(company)
+    ? new mongoose.Types.ObjectId(company)
+    : company;
+  const companyApps = await Application.find({ company: companyObjectId }).select('_id');
+  const companyAppIds = companyApps.map((a) => a._id);
+
+  const document = await Document.findOne({
+    _id: id,
+    $or: [
+      { company: companyObjectId },
+      { company: String(company) },
+      ...(companyAppIds.length ? [{ entityType: 'application', entityId: { $in: companyAppIds } }] : [])
+    ],
+    status: 'active',
+    isCurrent: true
+  });
+  if (!document) throw new AppError('Pending document not found', 404);
+  document.verification.required = true;
+  document.verification.status = decision;
+  document.verification.reviewedAt = new Date();
+  document.verification.reviewedBy = user.id;
+  document.verification.candidateSafeReason = decision === 'rejected' ? input.reason : undefined;
+  document.verification.privateNotes = input.notes;
+  document.statusHistory.push({
+    from: document.verification.status || 'verification-pending',
+    to: `verification-${decision}`,
+    changedBy: user.id,
+    reason: decision === 'rejected' ? input.reason : 'Document verified'
+  });
+  await document.save();
+  const application = document.entityType === 'application'
+    ? await Application.findById(document.entityId).populate('company', 'name')
+    : null;
+  await publishOptionalDomainEvent({
+    type: decision === 'verified' ? DOMAIN_EVENTS.DOCUMENT_VERIFIED : DOMAIN_EVENTS.DOCUMENT_REJECTED,
+    company: String(company),
+    recipientIds: [String(document.owner)],
+    payload: {
+      documentId: String(document.id),
+      applicationId: String(document.entityId),
+      candidateId: String(document.owner),
+      companyId: String(company),
+      companyName: application?.company?.name,
+      category: document.category,
+      displayName: document.displayName,
+      reason: decision === 'rejected' ? input.reason : undefined,
+      actionUrl: `/candidate/applications/${document.entityId}`
+    },
+    deduplicationKey: `document.${decision}:${document.id}`
+  });
+  return serializeVerificationDocument(document, true);
+};
+
+export const downloadVerificationDocument = async (actor, company, documentId) => {
+  const companyObjectId = mongoose.Types.ObjectId.isValid(company)
+    ? new mongoose.Types.ObjectId(company)
+    : company;
+  const companyApps = await Application.find({ company: companyObjectId }).select('_id');
+  const companyAppIds = companyApps.map((a) => a._id);
+
+  const document = await Document.findOne({
+    _id: documentId,
+    $or: [
+      { company: companyObjectId },
+      { company: String(company) },
+      ...(companyAppIds.length ? [{ entityType: 'application', entityId: { $in: companyAppIds } }] : [])
+    ]
+  });
+  if (!document) throw new AppError('Document not found', 404);
+  if (!['active', 'archived'].includes(document.status) || ['suspicious', 'infected', 'failed'].includes(document.malwareScan?.status)) {
+    throw new AppError('Document is unavailable for download', 409);
+  }
+  return signed(document);
+};
 
 const scopedDocument = async (filter) => { const document = await Document.findOne({ ...filter, status: 'active', isCurrent: true }); if (!document) throw new AppError('Document not found', 404); return document; };
 export const downloadManagedApplicationDocument = async (actor, company, applicationId, documentId, ipAddress = 'Unknown', userAgent = 'Unknown') => {

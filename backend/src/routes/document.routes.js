@@ -98,6 +98,7 @@ documentRouter.get('/offers/:offerId/:documentId/download', candidate, params, i
 
 documentRouter.get('/manage/verification', recruiter, requireCompanyAccess, authorizePermissions('documents.verify'), validateQuery(integrationValidation.verificationQuery), integration.verificationList);
 documentRouter.get('/manage/verification/:documentId', recruiter, requireCompanyAccess, authorizePermissions('documents.verify'), params, integration.verificationGet);
+documentRouter.get('/manage/verification/:documentId/download', recruiter, requireCompanyAccess, authorizePermissions('documents.view'), params, integration.verificationDownload);
 documentRouter.patch('/manage/verification/:documentId/approve', recruiter, requireCompanyAccess, authorizePermissions('documents.verify'), params, validateBody(integrationValidation.approve), integration.verificationApprove);
 documentRouter.patch('/manage/verification/:documentId/reject', recruiter, requireCompanyAccess, authorizePermissions('documents.verify'), params, validateBody(integrationValidation.reject), integration.verificationReject);
 
