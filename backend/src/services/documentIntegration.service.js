@@ -195,13 +195,60 @@ export const uploadInterviewDocument = async (user, company, id, input, file, re
 export const listInterviewDocuments = async (actor, id, company) => { const process = await processFor(id, company); if (!company && (!process.candidate.equals(actor.id) || !['active', 'completed'].includes(process.status))) throw new AppError('Interview process not found', 404); return (await Document.find({ entityType: 'interview-process', entityId: process.id, status: 'active', access: company ? { $in: ['company-private', 'candidate-visible'] } : 'candidate-visible' })).map(serializeDocument); };
 
 const offerFor = async (id, company, candidate) => { const offer = await Offer.findOne({ _id: id, ...(company && { company }), ...(candidate && { candidate }), isArchived: false }); if (!offer) throw new AppError('Offer not found', 404); return offer; };
-export const uploadOfferDocument = async (user, company, id, input, file, replacedId) => { const offer = await offerFor(id, company); await assertSession(user, input.uploadSessionId, 'offer-document', 'offer', offer.id); if (process.env.DEBUG_OFFER_VISIBILITY === 'true' || process.env.DEBUG_DOCUMENT_UPLOAD === 'true') { console.log('[DEBUG_OFFER_ATTACHMENT]', { offerId: id, filename: file?.originalname, mimeType: file?.mimetype, size: file?.size, candidateAccess: input.access, hasFile: Boolean(file) }); } let previous; if (replacedId) { previous = await current({ _id: replacedId, company, entityType: 'offer', entityId: offer.id }); if (!previous) throw new AppError('Document not found', 404); } const overrides = { company, access: input.access, entityType: 'offer', entityId: offer.id }; const result = previous ? await replaceDocument(user, previous.id, { ...input, category: 'offer-document' }, file, overrides) : await uploadDocument(user, { ...input, category: 'offer-document' }, file, null, overrides); if (process.env.DEBUG_OFFER_VISIBILITY === 'true' || process.env.DEBUG_DOCUMENT_UPLOAD === 'true') { console.log('[DEBUG_OFFER_ATTACHMENT_SUCCESS]', { attachmentId: result.id, status: result.status, access: result.access }); } return serializeDocument(result); };
+export const uploadOfferDocument = async (user, company, id, input, file, replacedId) => { const offer = await offerFor(id, company); await assertSession(user, input.uploadSessionId, 'offer-document', 'offer', offer.id); if (process.env.DEBUG_OFFER_VISIBILITY === 'true' || process.env.DEBUG_DOCUMENT_UPLOAD === 'true') { console.info('[DEBUG_OFFER_ATTACHMENT]', { offerId: id, filename: file?.originalname, mimeType: file?.mimetype, size: file?.size, candidateAccess: input.access, hasFile: Boolean(file) }); } let previous; if (replacedId) { previous = await current({ _id: replacedId, company, entityType: 'offer', entityId: offer.id }); if (!previous) throw new AppError('Document not found', 404); } const overrides = { company, access: input.access, entityType: 'offer', entityId: offer.id }; const result = previous ? await replaceDocument(user, previous.id, { ...input, category: 'offer-document' }, file, overrides) : await uploadDocument(user, { ...input, category: 'offer-document' }, file, null, overrides); if (process.env.DEBUG_OFFER_VISIBILITY === 'true' || process.env.DEBUG_DOCUMENT_UPLOAD === 'true') { console.info('[DEBUG_OFFER_ATTACHMENT_SUCCESS]', { attachmentId: result.id, status: result.status, access: result.access }); } return serializeDocument(result); };
 export const listOfferDocuments = async (actor, id, company) => { const offer = await offerFor(id, company, company ? undefined : actor.id); if (!company && !candidateCanViewOfferDocuments(offer)) throw new AppError('Offer not found', 404); return (await Document.find({ entityType: 'offer', entityId: offer.id, status: 'active', access: company ? { $in: ['company-private', 'candidate-visible'] } : 'candidate-visible' })).map(serializeDocument); };
 
 export const entityDownload = async (actor, documentId, context) => { const document = await Document.findById(documentId); if (!document) throw new AppError('Document not found', 404); authorizeDocumentAccess({ actor, document, action: 'download', context }); return signed(document); };
 export const ownerEntityDownload = ownerDownload;
 
-export const listVerification = async (company, query) => { const filter = { company, 'verification.status': query.status ?? 'pending', isCurrent: true, status: 'active' }; if (query.category) filter.category = query.category; if (query.applicationId) filter.entityId = query.applicationId; if (query.candidateId) filter.owner = query.candidateId; if (query.uploadedFrom || query.uploadedTo) filter.createdAt = { ...(query.uploadedFrom && { $gte: query.uploadedFrom }), ...(query.uploadedTo && { $lte: query.uploadedTo }) }; const [documents, total] = await Promise.all([Document.find(filter).sort(query.sort === 'oldest' ? { createdAt: 1 } : { createdAt: -1 }).skip((query.page - 1) * query.limit).limit(query.limit), Document.countDocuments(filter)]); return { documents: documents.map(serializeVerificationDocument), pagination: buildPagination(query.page, query.limit, total) }; };
+export const listVerification = async (company, query) => {
+  const companyObjectId = mongoose.Types.ObjectId.isValid(company)
+    ? new mongoose.Types.ObjectId(company)
+    : company;
+
+  const companyApps = await Application.find({ company: companyObjectId }).select('_id').lean();
+  const companyAppIds = companyApps.map((a) => a._id);
+
+  const filter = {
+    $or: [
+      { company: companyObjectId },
+      { company: String(company) },
+      ...(companyAppIds.length ? [{ entityType: 'application', entityId: { $in: companyAppIds } }] : [])
+    ],
+    isCurrent: true,
+    status: 'active'
+  };
+
+  if (query.status && query.status !== 'all') {
+    filter['verification.status'] = query.status;
+  }
+  if (query.category) filter.category = query.category;
+  if (query.applicationId && mongoose.Types.ObjectId.isValid(query.applicationId)) {
+    filter.entityId = new mongoose.Types.ObjectId(query.applicationId);
+  }
+  if (query.candidateId && mongoose.Types.ObjectId.isValid(query.candidateId)) {
+    filter.owner = new mongoose.Types.ObjectId(query.candidateId);
+  }
+  if (query.uploadedFrom || query.uploadedTo) {
+    filter.createdAt = {
+      ...(query.uploadedFrom && { $gte: query.uploadedFrom }),
+      ...(query.uploadedTo && { $lte: query.uploadedTo })
+    };
+  }
+
+  const [documents, total] = await Promise.all([
+    Document.find(filter)
+      .sort(query.sort === 'oldest' ? { createdAt: 1 } : { createdAt: -1 })
+      .skip((query.page - 1) * query.limit)
+      .limit(query.limit),
+    Document.countDocuments(filter)
+  ]);
+
+  return {
+    documents: documents.map(serializeVerificationDocument),
+    pagination: buildPagination(query.page, query.limit, total)
+  };
+};
 export const getVerification = async (company, id) => { const document = await Document.findOne({ _id: id, company, entityType: 'application', 'verification.required': true }); if (!document) throw new AppError('Document not found', 404); return serializeVerificationDocument(document, true); };
 export const decideVerification = async (user, company, id, decision, input) => { const document = await Document.findOne({ _id: id, company, entityType: 'application', status: 'active', isCurrent: true, 'verification.status': 'pending' }); if (!document) throw new AppError('Pending document not found', 404); document.verification.status = decision; document.verification.reviewedAt = new Date(); document.verification.reviewedBy = user.id; document.verification.candidateSafeReason = decision === 'rejected' ? input.reason : undefined; document.verification.privateNotes = input.notes; document.statusHistory.push({ from: 'verification-pending', to: `verification-${decision}`, changedBy: user.id, reason: decision === 'rejected' ? input.reason : 'Document verified' }); await document.save(); const application = await Application.findById(document.entityId).populate('company', 'name'); await publishOptionalDomainEvent({ type: decision === 'verified' ? DOMAIN_EVENTS.DOCUMENT_VERIFIED : DOMAIN_EVENTS.DOCUMENT_REJECTED, company: String(company), recipientIds: [String(document.owner)], payload: { documentId: String(document.id), applicationId: String(document.entityId), candidateId: String(document.owner), companyId: String(company), companyName: application?.company?.name, category: document.category, displayName: document.displayName, reason: decision === 'rejected' ? input.reason : undefined, actionUrl: `/candidate/applications/${document.entityId}` }, deduplicationKey: `document.${decision}:${document.id}` }); return serializeVerificationDocument(document, true); };
 

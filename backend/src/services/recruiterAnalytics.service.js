@@ -8,7 +8,6 @@ import { InterviewSchedule } from '../models/InterviewSchedule.js';
 import { InterviewRound } from '../models/InterviewRound.js';
 import { Offer } from '../models/Offer.js';
 import { AuditLog } from '../models/AuditLog.js';
-import { User } from '../models/User.js';
 import { AppError } from '../shared/errors/AppError.js';
 
 // Cache map: key -> { data, expiresAt }
@@ -323,31 +322,67 @@ export const fetchRecruiterAnalytics = async (companyId) => {
 };
 
 export const fetchRecruiterActivityTimeline = async (companyId, query, isOwnerOrAdmin) => {
-  const companyObjectId = new mongoose.Types.ObjectId(companyId);
-  const filter = { company: companyObjectId };
+  const companyObjectId = mongoose.Types.ObjectId.isValid(companyId)
+    ? new mongoose.Types.ObjectId(companyId)
+    : companyId;
 
-  if (query.user) {
-    filter.actor = new mongoose.Types.ObjectId(query.user);
+  const conditions = [
+    {
+      $or: [
+        { company: companyObjectId },
+        { company: String(companyId) }
+      ]
+    }
+  ];
+
+  if (query.user && mongoose.Types.ObjectId.isValid(query.user)) {
+    conditions.push({ actor: new mongoose.Types.ObjectId(query.user) });
   }
+
   if (query.actionType) {
-    filter.action = query.actionType;
+    if (
+      query.actionType === 'application.status.update' ||
+      query.actionType === 'application.status_update'
+    ) {
+      conditions.push({
+        action: { $in: ['application.status_update', 'application.status.update'] }
+      });
+    } else if (
+      query.actionType === 'interview.schedule' ||
+      query.actionType === 'interview.created'
+    ) {
+      conditions.push({
+        action: { $in: ['interview.created', 'interview.schedule', 'interview.scheduled'] }
+      });
+    } else {
+      conditions.push({ action: query.actionType });
+    }
   }
-  if (query.candidate) {
-    filter.targetUser = new mongoose.Types.ObjectId(query.candidate);
+
+  if (query.candidate && mongoose.Types.ObjectId.isValid(query.candidate)) {
+    conditions.push({ targetUser: new mongoose.Types.ObjectId(query.candidate) });
   }
-  if (query.job) {
+
+  if (query.job && mongoose.Types.ObjectId.isValid(query.job)) {
     const jobObjectId = new mongoose.Types.ObjectId(query.job);
-    filter.$or = [
-      { "newValue.job": jobObjectId },
-      { "newValue.jobId": jobObjectId },
-      { "newValue.newValue.jobId": jobObjectId }
-    ];
+    conditions.push({
+      $or: [
+        { "newValue.job": jobObjectId },
+        { "newValue.jobId": jobObjectId },
+        { "newValue.newValue.jobId": jobObjectId },
+        { "newValue._id": jobObjectId }
+      ]
+    });
   }
+
   if (query.from || query.to) {
-    filter.timestamp = {};
-    if (query.from) filter.timestamp.$gte = new Date(query.from);
-    if (query.to) filter.timestamp.$lte = new Date(query.to);
+    const timeFilter = {};
+    if (query.from) timeFilter.$gte = new Date(query.from);
+    if (query.to) timeFilter.$lte = new Date(query.to);
+    conditions.push({ timestamp: timeFilter });
   }
+
+  const filter = conditions.length === 1 ? conditions[0] : { $and: conditions };
 
   const page = parseInt(query.page || '1', 10);
   const limit = parseInt(query.limit || '20', 10);

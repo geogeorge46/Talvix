@@ -2749,10 +2749,15 @@ export function CandidateApplicationDocumentsPage() {
 }
 export function RecruiterDocumentsPage() {
   const { recruiter } = useAuth(),
-    can = Boolean(recruiter?.permissions.includes('documents.verify')),
+    can = Boolean(
+      recruiter?.permissions?.includes('documents.verify') ||
+        recruiter?.isCompanyOwner,
+    ),
     [sp, setSp] = useSearchParams(),
+    statusParam = sp.get('status'),
+    categoryParam = sp.get('category'),
     q = useVerificationQueue(
-      `page=${sp.get('page') ?? '1'}&limit=20${sp.get('status') ? `&status=${sp.get('status')}` : ''}`,
+      `page=${sp.get('page') ?? '1'}&limit=20${statusParam ? `&status=${statusParam}` : ''}${categoryParam ? `&category=${categoryParam}` : ''}`,
       can,
     );
   if (!can)
@@ -2768,21 +2773,47 @@ export function RecruiterDocumentsPage() {
       <Toolbar
         label="Verification filters"
         start={
-          <Select
-            aria-label="Verification status"
-            value={sp.get('status') ?? ''}
-            options={[
-              { value: 'pending', label: 'Pending' },
-              { value: 'verified', label: 'Verified' },
-              { value: 'rejected', label: 'Rejected' },
-            ]}
-            onChange={(e) => {
-              const n = new URLSearchParams(sp);
-              if (e.target.value) n.set('status', e.target.value);
-              else n.delete('status');
-              setSp(n);
-            }}
-          />
+          <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+            <Select
+              aria-label="Verification status"
+              placeholder="All Statuses"
+              value={statusParam ?? ''}
+              options={[
+                { value: '', label: 'All Statuses' },
+                { value: 'pending', label: 'Pending Verification' },
+                { value: 'verified', label: 'Verified' },
+                { value: 'rejected', label: 'Rejected' },
+              ]}
+              onChange={(e) => {
+                const n = new URLSearchParams(sp);
+                if (e.target.value) n.set('status', e.target.value);
+                else n.delete('status');
+                n.set('page', '1');
+                setSp(n);
+              }}
+            />
+            <Select
+              aria-label="Document category"
+              placeholder="All Categories"
+              value={categoryParam ?? ''}
+              options={[
+                { value: '', label: 'All Categories' },
+                { value: 'resume', label: 'Resume' },
+                { value: 'certificate', label: 'Certificate' },
+                { value: 'identity-document', label: 'Identity Document' },
+                { value: 'education-document', label: 'Education Document' },
+                { value: 'experience-document', label: 'Experience Document' },
+                { value: 'application-document', label: 'Application Document' },
+              ]}
+              onChange={(e) => {
+                const n = new URLSearchParams(sp);
+                if (e.target.value) n.set('category', e.target.value);
+                else n.delete('category');
+                n.set('page', '1');
+                setSp(n);
+              }}
+            />
+          </div>
         }
       />
       {q.isLoading ? (

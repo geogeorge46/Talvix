@@ -56,6 +56,8 @@ import {
   companyToDraft,
   COMPANY_SIZES,
   emptyCompanyDraft,
+  formatEntityType,
+  formatLocation,
   knownPermissions,
   type CompanyDraft,
   type TeamMember,
@@ -229,10 +231,15 @@ export function CompanyOverviewPage() {
                   <div className="ats-metric-card__body">
                     <span className="ats-metric-card__label">Headquarters</span>
                     <span className="ats-metric-card__val" style={{ fontSize: '1.25rem', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>
-                      {c.headquarters?.city || c.headquarters?.country || 'Not set'}
+                      {c.headquarters?.city || c.headquarters?.country || c.registeredAddress?.city || c.registeredAddress?.country || 'Not set'}
                     </span>
                     <span className="ats-metric-card__sub">
-                      {[c.headquarters?.state, c.headquarters?.country].filter(Boolean).join(', ') || 'Primary Office'}
+                      {[
+                        c.headquarters?.state || c.registeredAddress?.state,
+                        c.headquarters?.country || c.registeredAddress?.country,
+                      ]
+                        .filter(Boolean)
+                        .join(', ') || 'Primary Office'}
                     </span>
                   </div>
                 </div>
@@ -276,6 +283,18 @@ export function CompanyOverviewPage() {
                           : 'Not provided',
                       },
                       {
+                        term: 'Contact email',
+                        description: c.email ? (
+                          <a href={`mailto:${c.email}`}>{c.email}</a>
+                        ) : (
+                          'Not provided'
+                        ),
+                      },
+                      {
+                        term: 'Contact phone',
+                        description: c.phone || 'Not provided',
+                      },
+                      {
                         term: 'Website',
                         description: c.website ? (
                           <a href={c.website} rel="noreferrer" target="_blank">
@@ -288,21 +307,79 @@ export function CompanyOverviewPage() {
                       {
                         term: 'Headquarters',
                         description:
-                          [
-                            c.headquarters?.city,
-                            c.headquarters?.state,
-                            c.headquarters?.country,
-                          ]
-                            .filter(Boolean)
-                            .join(', ') || 'Not provided',
+                          formatLocation(c.headquarters) ||
+                          formatLocation(c.registeredAddress) ||
+                          'Not provided',
                       },
                       {
                         term: 'Official domain',
-                        description: c.officialEmailDomain || 'Not configured',
+                        description: c.officialEmailDomain ? (
+                          <span>
+                            {c.officialEmailDomain}
+                            {c.domainVerified && (
+                              <span style={{ marginLeft: 8, color: '#16a34a', fontWeight: 600 }}>
+                                (Verified)
+                              </span>
+                            )}
+                          </span>
+                        ) : (
+                          'Not configured'
+                        ),
                       },
                       {
                         term: 'Domain auto-approval',
                         description: c.autoApproveDomainMembers ? 'Enabled' : 'Disabled',
+                      },
+                    ]}
+                  />
+                </Card>
+                <Card heading="Corporate & Legal Registration" headingLevel={2}>
+                  <DescriptionList
+                    items={[
+                      {
+                        term: 'Legal Business Name',
+                        description: c.legalName || 'Not provided',
+                      },
+                      {
+                        term: 'Trade / Operating Name',
+                        description: c.tradeName || c.name || 'Not provided',
+                      },
+                      {
+                        term: 'Entity Type',
+                        description: formatEntityType(c.entityType),
+                      },
+                      {
+                        term: 'Corporate ID (CIN / LLPIN)',
+                        description: c.cin || 'Not provided',
+                      },
+                      {
+                        term: 'GSTIN',
+                        description: c.gstin || 'Not provided',
+                      },
+                      ...(c.udyamRegistrationNumber
+                        ? [
+                            {
+                              term: 'Udyam Registration',
+                              description: c.udyamRegistrationNumber,
+                            },
+                          ]
+                        : []),
+                      {
+                        term: 'Registered Office Address',
+                        description:
+                          formatLocation(c.registeredAddress) ||
+                          formatLocation(c.headquarters) ||
+                          'Not provided',
+                      },
+                      {
+                        term: 'Registration Country',
+                        description: c.registrationCountry || 'India (IN)',
+                      },
+                      {
+                        term: 'Registry Status',
+                        description: c.registryVerificationStatus
+                          ? title(c.registryVerificationStatus)
+                          : title(c.verificationStatus),
                       },
                     ]}
                   />
@@ -549,6 +626,85 @@ function CompanyForm({ mode }: { mode: 'create' | 'edit' }) {
               label="Auto-approve domain members (automatically approve join requests matching this domain)"
               checked={d.autoApproveDomainMembers}
               onChange={(e) => setDraft({ ...d, autoApproveDomainMembers: e.target.checked })}
+            />
+          </div>
+        </FormSection>
+        <FormSection heading="Corporate registration and compliance">
+          <div className="org-admin-grid">
+            <TextField
+              label="Legal business name"
+              value={d.legalName}
+              error={fieldErrors.legalName}
+              onChange={(e) => set('legalName', e.target.value)}
+            />
+            <TextField
+              label="Trade or operating name"
+              value={d.tradeName}
+              error={fieldErrors.tradeName}
+              onChange={(e) => set('tradeName', e.target.value)}
+            />
+            <Select
+              label="Entity type"
+              value={d.entityType}
+              options={[
+                { value: 'private_limited', label: 'Private Limited (Pvt Ltd)' },
+                { value: 'public_limited', label: 'Public Limited' },
+                { value: 'llp', label: 'Limited Liability Partnership (LLP)' },
+                { value: 'proprietorship', label: 'Sole Proprietorship' },
+                { value: 'partnership', label: 'Partnership' },
+                { value: 'other', label: 'Other Entity' },
+              ]}
+              onChange={(e) => set('entityType', e.target.value)}
+            />
+            <TextField
+              label="Corporate ID (CIN / LLPIN)"
+              value={d.cin}
+              error={fieldErrors.cin}
+              onChange={(e) => set('cin', e.target.value)}
+            />
+            <TextField
+              label="GSTIN"
+              value={d.gstin}
+              error={fieldErrors.gstin}
+              onChange={(e) => set('gstin', e.target.value)}
+            />
+            <TextField
+              label="Udyam registration number"
+              value={d.udyamRegistrationNumber}
+              error={fieldErrors.udyamRegistrationNumber}
+              onChange={(e) => set('udyamRegistrationNumber', e.target.value)}
+            />
+            <TextField
+              label="Registration country"
+              value={d.registrationCountry}
+              error={fieldErrors.registrationCountry}
+              onChange={(e) => set('registrationCountry', e.target.value)}
+            />
+          </div>
+          <div className="org-admin-grid" style={{ marginTop: '1rem' }}>
+            <TextField
+              label="Registered street address"
+              value={d.registeredStreet}
+              error={fieldErrors['registeredAddress.street']}
+              onChange={(e) => set('registeredStreet', e.target.value)}
+            />
+            <TextField
+              label="Registered city"
+              value={d.registeredCity}
+              error={fieldErrors['registeredAddress.city']}
+              onChange={(e) => set('registeredCity', e.target.value)}
+            />
+            <TextField
+              label="Registered state"
+              value={d.registeredState}
+              error={fieldErrors['registeredAddress.state']}
+              onChange={(e) => set('registeredState', e.target.value)}
+            />
+            <TextField
+              label="Postal code / PIN code"
+              value={d.registeredPostalCode}
+              error={fieldErrors['registeredAddress.postalCode']}
+              onChange={(e) => set('registeredPostalCode', e.target.value)}
             />
           </div>
         </FormSection>

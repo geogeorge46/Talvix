@@ -7,7 +7,7 @@ const record = (value: unknown): Record<string, unknown> =>
   value && typeof value === 'object' ? (value as Record<string, unknown>) : {};
 const text = (value: unknown) => (typeof value === 'string' ? value : '');
 const optionalText = (value: unknown) =>
-  typeof value === 'string' ? value : undefined;
+  typeof value === 'string' && value.trim().length > 0 ? value.trim() : undefined;
 const id = (value: unknown) =>
   text(value) || text(record(value)._id) || text(record(value).id);
 const safeUrl = (value: unknown) => optionalText(record(value).url);
@@ -29,6 +29,17 @@ export interface CompanyView {
   name: string;
   slug: string;
   description: string;
+  legalName?: string | undefined;
+  tradeName?: string | undefined;
+  entityType?: string | undefined;
+  cin?: string | undefined;
+  gstin?: string | undefined;
+  udyamRegistrationNumber?: string | undefined;
+  registrationCountry?: string | undefined;
+  registeredAddress?: Location | undefined;
+  registryVerificationStatus?: string | undefined;
+  registryVerifiedAt?: string | undefined;
+  domainVerified?: boolean | undefined;
   website?: string | undefined;
   email?: string | undefined;
   phone?: string | undefined;
@@ -51,10 +62,33 @@ export interface CompanyView {
   team: TeamMember[];
 }
 export interface Location {
+  street?: string | undefined;
   city?: string | undefined;
   state?: string | undefined;
+  postalCode?: string | undefined;
   country?: string | undefined;
 }
+
+export const formatLocation = (loc?: Location | null): string => {
+  if (!loc) return '';
+  return [loc.street, loc.city, loc.state, loc.postalCode, loc.country]
+    .map((s) => s?.trim())
+    .filter(Boolean)
+    .join(', ');
+};
+
+export const formatEntityType = (type?: string): string => {
+  if (!type) return 'Not specified';
+  const mapping: Record<string, string> = {
+    private_limited: 'Private Limited (Pvt Ltd)',
+    public_limited: 'Public Limited',
+    llp: 'Limited Liability Partnership (LLP)',
+    proprietorship: 'Sole Proprietorship',
+    partnership: 'Partnership',
+    other: 'Other Entity',
+  };
+  return mapping[type] || type.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+};
 
 export const knownPermissions = [...RECRUITER_PERMISSIONS];
 export const COMPANY_SIZES = [
@@ -71,11 +105,19 @@ export const toCompany = (input: unknown, includeTeam = false): CompanyView => {
   const location = (v: unknown): Location => {
     const l = record(v);
     return {
+      street: optionalText(l.street),
       city: optionalText(l.city),
       state: optionalText(l.state),
+      postalCode: optionalText(l.postalCode),
       country: optionalText(l.country),
     };
   };
+  const hasLocation = (l?: Location): boolean =>
+    Boolean(l && (l.street || l.city || l.state || l.postalCode || l.country));
+
+  const rawHq = x.headquarters ? location(x.headquarters) : undefined;
+  const rawReg = x.registeredAddress ? location(x.registeredAddress) : undefined;
+
   const teamRaw = Array.isArray(x.teamMembers)
     ? x.teamMembers
     : Array.isArray(x.team)
@@ -86,14 +128,25 @@ export const toCompany = (input: unknown, includeTeam = false): CompanyView => {
     name: text(x.name),
     slug: text(x.slug),
     description: text(x.description),
+    legalName: optionalText(x.legalName),
+    tradeName: optionalText(x.tradeName),
+    entityType: optionalText(x.entityType),
+    cin: optionalText(x.cin),
+    gstin: optionalText(x.gstin),
+    udyamRegistrationNumber: optionalText(x.udyamRegistrationNumber),
+    registrationCountry: optionalText(x.registrationCountry),
+    registeredAddress: hasLocation(rawReg) ? rawReg : undefined,
+    registryVerificationStatus: optionalText(x.registryVerificationStatus),
+    registryVerifiedAt: optionalText(x.registryVerifiedAt),
+    domainVerified: x.domainVerified === true,
     website: optionalText(x.website),
     email: optionalText(x.email),
     phone: optionalText(x.phone),
     industry: optionalText(x.industry),
     companySize: optionalText(x.companySize),
     foundedYear: typeof x.foundedYear === 'number' ? x.foundedYear : undefined,
-    headquarters: x.headquarters ? location(x.headquarters) : undefined,
-    locations: Array.isArray(x.locations) ? x.locations.map(location) : [],
+    headquarters: hasLocation(rawHq) ? rawHq : undefined,
+    locations: Array.isArray(x.locations) ? x.locations.map(location).filter(hasLocation) : [],
     logoUrl: safeUrl(x.logo),
     bannerUrl: safeUrl(x.banner),
     socialLinks: Object.fromEntries(
@@ -144,6 +197,18 @@ export const toCompany = (input: unknown, includeTeam = false): CompanyView => {
 
 export interface CompanyDraft {
   name: string;
+  legalName: string;
+  tradeName: string;
+  entityType: string;
+  cin: string;
+  gstin: string;
+  udyamRegistrationNumber: string;
+  registrationCountry: string;
+  registeredStreet: string;
+  registeredCity: string;
+  registeredState: string;
+  registeredPostalCode: string;
+  registeredCountry: string;
   description: string;
   website: string;
   email: string;
@@ -168,6 +233,18 @@ export interface CompanyDraft {
 }
 export const emptyCompanyDraft: CompanyDraft = {
   name: '',
+  legalName: '',
+  tradeName: '',
+  entityType: 'private_limited',
+  cin: '',
+  gstin: '',
+  udyamRegistrationNumber: '',
+  registrationCountry: 'IN',
+  registeredStreet: '',
+  registeredCity: '',
+  registeredState: '',
+  registeredPostalCode: '',
+  registeredCountry: '',
   description: '',
   website: '',
   email: '',
@@ -192,6 +269,18 @@ export const emptyCompanyDraft: CompanyDraft = {
 };
 export const companyToDraft = (c: CompanyView): CompanyDraft => ({
   name: c.name,
+  legalName: c.legalName ?? '',
+  tradeName: c.tradeName ?? '',
+  entityType: c.entityType ?? 'private_limited',
+  cin: c.cin ?? '',
+  gstin: c.gstin ?? '',
+  udyamRegistrationNumber: c.udyamRegistrationNumber ?? '',
+  registrationCountry: c.registrationCountry ?? 'IN',
+  registeredStreet: c.registeredAddress?.street ?? '',
+  registeredCity: c.registeredAddress?.city ?? '',
+  registeredState: c.registeredAddress?.state ?? '',
+  registeredPostalCode: c.registeredAddress?.postalCode ?? '',
+  registeredCountry: c.registeredAddress?.country ?? '',
   description: c.description,
   website: c.website ?? '',
   email: c.email ?? '',
@@ -226,9 +315,33 @@ export const serializeCompany = (d: CompanyDraft) => {
     !COMPANY_SIZES.includes(d.companySize as (typeof COMPANY_SIZES)[number])
   )
     throw new Error('Unsupported company size');
+  const hasRegAddress = Boolean(
+    d.registeredStreet?.trim() ||
+      d.registeredCity?.trim() ||
+      d.registeredState?.trim() ||
+      d.registeredPostalCode?.trim() ||
+      d.registeredCountry?.trim(),
+  );
   return Object.fromEntries(
     Object.entries({
       name: d.name.trim(),
+      legalName: d.legalName?.trim() || undefined,
+      tradeName: d.tradeName?.trim() || undefined,
+      entityType: d.entityType?.trim() || undefined,
+      cin: d.cin?.trim().toUpperCase() || undefined,
+      gstin: d.gstin?.trim().toUpperCase() || undefined,
+      udyamRegistrationNumber:
+        d.udyamRegistrationNumber?.trim().toUpperCase() || undefined,
+      registrationCountry: d.registrationCountry?.trim() || undefined,
+      registeredAddress: hasRegAddress
+        ? {
+            street: d.registeredStreet?.trim() || undefined,
+            city: d.registeredCity?.trim() || undefined,
+            state: d.registeredState?.trim() || undefined,
+            postalCode: d.registeredPostalCode?.trim() || undefined,
+            country: d.registeredCountry?.trim() || undefined,
+          }
+        : undefined,
       description: d.description.trim() || undefined,
       website: d.website.trim() || undefined,
       email: d.email.trim() || undefined,

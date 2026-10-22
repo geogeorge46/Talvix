@@ -26,15 +26,35 @@ const actionOptions = [
   { value: '', label: 'All Actions' },
   { value: 'company.create', label: 'Company Created' },
   { value: 'company.update', label: 'Company Updated' },
+  { value: 'team.join', label: 'Team Member Joined' },
+  { value: 'team.update', label: 'Team Member Updated' },
+  { value: 'team.remove', label: 'Team Member Removed' },
   { value: 'job.create', label: 'Job Created' },
-  { value: 'job.publish', label: 'Job Published' },
+  { value: 'job.update', label: 'Job Updated' },
+  { value: 'job.submit', label: 'Job Submitted' },
+  { value: 'job.approve', label: 'Job Approved' },
+  { value: 'job.pause', label: 'Job Paused' },
+  { value: 'job.resume', label: 'Job Resumed' },
   { value: 'job.close', label: 'Job Closed' },
-  { value: 'application.submit', label: 'Application Submitted' },
-  { value: 'application.status.update', label: 'Application Stage Changed' },
-  { value: 'interview.schedule', label: 'Interview Scheduled' },
+  { value: 'job.archive', label: 'Job Archived' },
+  { value: 'application.status_update', label: 'Application Stage Changed' },
+  { value: 'application.assign_recruiters', label: 'Recruiter Assigned' },
+  { value: 'application.tag_update', label: 'Application Tagged' },
+  { value: 'application.archive', label: 'Application Archived' },
+  { value: 'interview.created', label: 'Interview Scheduled' },
+  { value: 'interview.rescheduled', label: 'Interview Rescheduled' },
+  { value: 'interview.cancelled', label: 'Interview Cancelled' },
+  { value: 'interview.completed', label: 'Interview Completed' },
+  { value: 'offer.create', label: 'Offer Created' },
+  { value: 'offer.update', label: 'Offer Updated' },
   { value: 'offer.send', label: 'Offer Sent' },
-  { value: 'offer.accept', label: 'Offer Accepted' },
-  { value: 'recruiter.invite', label: 'Recruiter Invited' },
+  { value: 'offer.approve', label: 'Offer Approved' },
+  { value: 'offer.reject', label: 'Offer Rejected' },
+  { value: 'offer.withdraw', label: 'Offer Withdrawn' },
+  { value: 'offer.cancel', label: 'Offer Cancelled' },
+  { value: 'offer.onboarding_started', label: 'Onboarding Started' },
+  { value: 'offer.completed', label: 'Offer Completed' },
+  { value: 'recruiter.verification.submitted', label: 'Verification Submitted' },
 ];
 
 export function RecruiterActivityTimelinePage() {
@@ -51,8 +71,10 @@ export function RecruiterActivityTimelinePage() {
   const teamOptions = [
     { value: '', label: 'All Team Members' },
     ...(qCompany.data?.team || []).map((m) => ({
-      value: m.id || '',
-      label: m.fullName || m.email || 'Unknown Member',
+      value: m.recruiterId || m.id || '',
+      label: m.fullName
+        ? `${m.fullName} (${m.email || m.accountRole || m.role})`
+        : m.email || 'Team Member',
     })),
   ];
 
@@ -68,6 +90,22 @@ export function RecruiterActivityTimelinePage() {
   params.set('limit', '20');
 
   const qTimeline = useRecruiterActivityTimelineQuery(params.toString());
+
+  const timelineData = (
+    qTimeline.data?.items ? qTimeline.data : qTimeline.data?.data
+  ) as
+    | {
+        items: any[];
+        pagination?: {
+          page: number;
+          limit: number;
+          total: number;
+          pages: number;
+        };
+      }
+    | undefined;
+  const items = timelineData?.items ?? [];
+  const pagination = timelineData?.pagination;
 
   const handleClearFilters = () => {
     setUserFilter('');
@@ -99,6 +137,7 @@ export function RecruiterActivityTimelinePage() {
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1rem', marginTop: '1rem' }}>
           <Select
             label="Actor"
+            placeholder="All Team Members"
             value={userFilter}
             options={teamOptions}
             onChange={(e) => {
@@ -108,6 +147,7 @@ export function RecruiterActivityTimelinePage() {
           />
           <Select
             label="Action Type"
+            placeholder="All Actions"
             value={actionFilter}
             options={actionOptions}
             onChange={(e) => {
@@ -184,9 +224,9 @@ export function RecruiterActivityTimelinePage() {
             detail="Failed to load activity logs from audit repository."
             retry={() => void qTimeline.refetch()}
           />
-        ) : qTimeline.data?.data?.items.length ? (
+        ) : items.length ? (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-            {qTimeline.data.data.items.map((log: any) => (
+            {items.map((log: any) => (
               <div
                 key={log.id}
                 style={{
@@ -247,7 +287,7 @@ export function RecruiterActivityTimelinePage() {
               </div>
             ))}
 
-            {qTimeline.data.data.pagination && qTimeline.data.data.pagination.pages > 1 && (
+            {pagination && pagination.pages > 1 && (
               <div style={{ display: 'flex', gap: '0.5rem', marginTop: '1rem', justifyContent: 'center' }}>
                 <Button
                   disabled={page <= 1}
@@ -256,10 +296,10 @@ export function RecruiterActivityTimelinePage() {
                   Previous
                 </Button>
                 <span style={{ alignSelf: 'center' }}>
-                  Page {page} of {qTimeline.data.data.pagination.pages}
+                  Page {page} of {pagination.pages}
                 </span>
                 <Button
-                  disabled={page >= qTimeline.data.data.pagination.pages}
+                  disabled={page >= pagination.pages}
                   onClick={() => setPage(page + 1)}
                 >
                   Next

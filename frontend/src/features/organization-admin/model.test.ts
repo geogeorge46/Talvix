@@ -93,4 +93,69 @@ describe('organization administration privacy adapter', () => {
       }),
     ).toThrow('Unsupported company size');
   });
+
+  it('correctly maps and preserves onboarding corporate details', () => {
+    const raw = {
+      _id: '5'.repeat(24),
+      name: 'Amal Jyothi Engineering',
+      slug: 'amal-jyothi-engineering',
+      legalName: 'Amal Jyothi College of Engineering Pvt Ltd',
+      tradeName: 'Amal Jyothi',
+      entityType: 'private_limited',
+      cin: 'U80903KL2001NPL014900',
+      gstin: '32AAAAA0000A1Z5',
+      udyamRegistrationNumber: 'UDYAM-KL-00-1234567',
+      registrationCountry: 'IN',
+      registeredAddress: {
+        street: 'Kanjirappally',
+        city: 'Koovappally',
+        state: 'Kerala',
+        postalCode: '686518',
+        country: 'India',
+      },
+      headquarters: {
+        city: '',
+        state: '',
+        country: '',
+      },
+      website: 'https://www.aesajce.in/',
+      email: 'info@amaljyothi.in',
+      phone: '+91 9876543210',
+      industry: 'education',
+      officialEmailDomain: 'amaljyothi.in',
+      domainVerified: true,
+      verificationStatus: 'verified',
+      registryVerificationStatus: 'verified',
+    };
+
+    const company = toCompany(raw);
+    expect(company.legalName).toBe('Amal Jyothi College of Engineering Pvt Ltd');
+    expect(company.tradeName).toBe('Amal Jyothi');
+    expect(company.entityType).toBe('private_limited');
+    expect(company.cin).toBe('U80903KL2001NPL014900');
+    expect(company.gstin).toBe('32AAAAA0000A1Z5');
+    expect(company.registeredAddress?.city).toBe('Koovappally');
+    expect(company.headquarters).toBeUndefined(); // Empty location object is correctly sanitized
+
+    const serialized = serializeCompany({
+      ...emptyCompanyDraft,
+      name: company.name,
+      legalName: company.legalName ?? '',
+      tradeName: company.tradeName ?? '',
+      entityType: company.entityType ?? '',
+      cin: company.cin ?? '',
+      gstin: company.gstin ?? '',
+      registeredCity: 'Koovappally',
+      registeredState: 'Kerala',
+      registeredCountry: 'India',
+    });
+
+    expect(serialized.legalName).toBe('Amal Jyothi College of Engineering Pvt Ltd');
+    expect(serialized.cin).toBe('U80903KL2001NPL014900');
+    expect(serialized.registeredAddress).toEqual({
+      city: 'Koovappally',
+      state: 'Kerala',
+      country: 'India',
+    });
+  });
 });

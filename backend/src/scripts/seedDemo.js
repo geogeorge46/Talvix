@@ -8,8 +8,10 @@ import { OWNER_PERMISSIONS } from '../constants/permissions.js';
 import { Application } from '../models/Application.js';
 import { Assessment } from '../models/Assessment.js';
 import { AssessmentAssignment } from '../models/AssessmentAssignment.js';
+import { AuditLog } from '../models/AuditLog.js';
 import { CandidateProfile } from '../models/CandidateProfile.js';
 import { Company } from '../models/Company.js';
+import { Document } from '../models/Document.js';
 import { Job } from '../models/Job.js';
 import { Notification } from '../models/Notification.js';
 import { Question } from '../models/Question.js';
@@ -53,7 +55,7 @@ const userDefinitions = [
 ];
 
 const demoInventory = async () => {
-  const [users, companies, jobs, applications, assessments, interviews, offers, notifications] =
+  const [users, companies, jobs, applications, assessments, interviews, offers, notifications, documents, auditLogs] =
     await Promise.all([
       User.countDocuments({ email: { $in: userDefinitions.map(({ email }) => email) } }),
       Company.countDocuments({ slug: { $in: ['talvix-labs', 'startup-labs'] } }),
@@ -65,8 +67,10 @@ const demoInventory = async () => {
       InterviewProcess.countDocuments({ 'templateSnapshot.name': 'Engineering General Template' }),
       Offer.countDocuments({ offerNumber: 'TLVX-OFFER-0001' }),
       Notification.countDocuments({ deduplicationKey: /^demo-seed-notification-/ }),
+      Document.countDocuments({ 'storage.publicId': /^demo\// }),
+      AuditLog.countDocuments({ 'metadata.isDemo': true }),
     ]);
-  return { users, companies, jobs, applications, assessments, interviews, offers, notifications };
+  return { users, companies, jobs, applications, assessments, interviews, offers, notifications, documents, auditLogs };
 };
 
 const upsertDemoUser = async ({ fullName, email, role, password }) => {
@@ -503,6 +507,270 @@ const seedNotifications = async ({ admin, recruiter, pendingRecruiter, candidate
   );
 };
 
+const seedDemoDocuments = async ({ company, candidates, applications }) => {
+  const docs = [
+    {
+      owner: candidates[0]._id,
+      ownerRole: 'candidate',
+      company: company._id,
+      uploadedBy: candidates[0]._id,
+      category: 'certificate',
+      purpose: 'AWS Solutions Architect Certificate',
+      entityType: 'application',
+      entityId: applications[0]._id,
+      originalFileName: 'aws_certificate.pdf',
+      displayName: 'AWS Certified Solutions Architect',
+      extension: 'pdf',
+      mimeType: 'application/pdf',
+      mediaType: 'document',
+      sizeBytes: 154200,
+      checksum: 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855',
+      storage: {
+        provider: 'memory',
+        publicId: 'demo/aws_certificate.pdf',
+        resourceType: 'raw',
+      },
+      access: 'company-private',
+      status: 'active',
+      verification: {
+        required: true,
+        status: 'pending',
+        submittedAt: new Date(Date.now() - 3600000 * 2),
+      },
+      malwareScan: { status: 'clean', scannedAt: new Date() },
+      version: 1,
+      isCurrent: true,
+    },
+    {
+      owner: candidates[1]._id,
+      ownerRole: 'candidate',
+      company: company._id,
+      uploadedBy: candidates[1]._id,
+      category: 'education-document',
+      purpose: 'Master Degree Transcript',
+      entityType: 'application',
+      entityId: applications[1]._id,
+      originalFileName: 'master_degree_transcript.pdf',
+      displayName: 'M.S. Computer Science Transcript',
+      extension: 'pdf',
+      mimeType: 'application/pdf',
+      mediaType: 'document',
+      sizeBytes: 312000,
+      checksum: 'ca978112ca1bbdcafac231b39a23dc4da786081494f4fe29dc6147b8c1479c8f',
+      storage: {
+        provider: 'memory',
+        publicId: 'demo/master_degree_transcript.pdf',
+        resourceType: 'raw',
+      },
+      access: 'company-private',
+      status: 'active',
+      verification: {
+        required: true,
+        status: 'pending',
+        submittedAt: new Date(Date.now() - 3600000 * 6),
+      },
+      malwareScan: { status: 'clean', scannedAt: new Date() },
+      version: 1,
+      isCurrent: true,
+    },
+    {
+      owner: candidates[2]._id,
+      ownerRole: 'candidate',
+      company: company._id,
+      uploadedBy: candidates[2]._id,
+      category: 'identity-document',
+      purpose: 'Government Issued Passport',
+      entityType: 'application',
+      entityId: applications[2]._id,
+      originalFileName: 'passport_scan.pdf',
+      displayName: 'Passport ID Verification',
+      extension: 'pdf',
+      mimeType: 'application/pdf',
+      mediaType: 'document',
+      sizeBytes: 420000,
+      checksum: '4e07408562bedb8b60ce05c1decfe3ad16b72230967de01f640b7e4729b49fce',
+      storage: {
+        provider: 'memory',
+        publicId: 'demo/passport_scan.pdf',
+        resourceType: 'raw',
+      },
+      access: 'company-private',
+      status: 'active',
+      verification: {
+        required: true,
+        status: 'verified',
+        submittedAt: new Date(Date.now() - 3600000 * 24),
+        reviewedAt: new Date(Date.now() - 3600000 * 12),
+      },
+      malwareScan: { status: 'clean', scannedAt: new Date() },
+      version: 1,
+      isCurrent: true,
+    },
+    {
+      owner: candidates[3]._id,
+      ownerRole: 'candidate',
+      company: company._id,
+      uploadedBy: candidates[3]._id,
+      category: 'experience-document',
+      purpose: 'Previous Employer Relieving Letter',
+      entityType: 'application',
+      entityId: applications[3]._id,
+      originalFileName: 'relieving_letter.pdf',
+      displayName: 'Senior Engineer Relieving Letter',
+      extension: 'pdf',
+      mimeType: 'application/pdf',
+      mediaType: 'document',
+      sizeBytes: 215000,
+      checksum: '4b227777d4dd1fc61c6f884f48641d02b4d121d3fd328cb08b5531fcacdabf8a',
+      storage: {
+        provider: 'memory',
+        publicId: 'demo/relieving_letter.pdf',
+        resourceType: 'raw',
+      },
+      access: 'company-private',
+      status: 'active',
+      verification: {
+        required: true,
+        status: 'rejected',
+        submittedAt: new Date(Date.now() - 3600000 * 48),
+        reviewedAt: new Date(Date.now() - 3600000 * 20),
+        candidateSafeReason: 'Official letterhead seal is missing from the scan.',
+      },
+      malwareScan: { status: 'clean', scannedAt: new Date() },
+      version: 1,
+      isCurrent: true,
+    },
+    {
+      owner: candidates[4]._id,
+      ownerRole: 'candidate',
+      company: company._id,
+      uploadedBy: candidates[4]._id,
+      category: 'resume',
+      purpose: 'Candidate Resume',
+      entityType: 'application',
+      entityId: applications[4]._id,
+      originalFileName: 'resume.pdf',
+      displayName: 'Full Stack Engineer Resume',
+      extension: 'pdf',
+      mimeType: 'application/pdf',
+      mediaType: 'document',
+      sizeBytes: 180000,
+      checksum: 'ef2d127de37b942baad06145e54b0c619a1f22327b2ebbcfbec78f5564afe39d',
+      storage: {
+        provider: 'memory',
+        publicId: 'demo/resume.pdf',
+        resourceType: 'raw',
+      },
+      access: 'company-private',
+      status: 'active',
+      verification: {
+        required: false,
+        status: 'not-required',
+      },
+      malwareScan: { status: 'clean', scannedAt: new Date() },
+      version: 1,
+      isCurrent: true,
+    },
+  ];
+
+  await Promise.all(
+    docs.map((doc) =>
+      Document.findOneAndUpdate(
+        { 'storage.publicId': doc.storage.publicId },
+        { $set: doc },
+        { upsert: true, new: true, runValidators: true },
+      ),
+    ),
+  );
+};
+
+const seedDemoAuditLogs = async ({ company, recruiter, jobs, applications, candidates }) => {
+  const existing = await AuditLog.countDocuments({ 'metadata.isDemo': true, company: company._id });
+  if (existing > 0) return;
+
+  const logs = [
+    {
+      action: 'company.create',
+      actor: recruiter._id,
+      company: company._id,
+      newValue: { name: company.name, industry: company.industry },
+      ipAddress: '127.0.0.1',
+      userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/126.0',
+      timestamp: new Date(Date.now() - 3600000 * 72),
+      metadata: { isDemo: true },
+    },
+    {
+      action: 'team.join',
+      actor: recruiter._id,
+      company: company._id,
+      newValue: { recruiterId: recruiter._id, role: 'primary_admin' },
+      ipAddress: '127.0.0.1',
+      userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/126.0',
+      timestamp: new Date(Date.now() - 3600000 * 68),
+      metadata: { isDemo: true },
+    },
+    {
+      action: 'job.create',
+      actor: recruiter._id,
+      company: company._id,
+      newValue: { jobId: jobs[0]._id, title: jobs[0].title, department: jobs[0].department },
+      ipAddress: '127.0.0.1',
+      userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/126.0',
+      timestamp: new Date(Date.now() - 3600000 * 50),
+      metadata: { isDemo: true },
+    },
+    {
+      action: 'job.approve',
+      actor: recruiter._id,
+      company: company._id,
+      newValue: { jobId: jobs[0]._id, status: 'published' },
+      ipAddress: '127.0.0.1',
+      userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/126.0',
+      timestamp: new Date(Date.now() - 3600000 * 48),
+      metadata: { isDemo: true },
+    },
+    {
+      action: 'application.status_update',
+      actor: recruiter._id,
+      company: company._id,
+      targetUser: candidates[1]._id,
+      application: applications[1]._id,
+      oldValue: { status: 'submitted' },
+      newValue: { status: 'under-review', jobId: jobs[0]._id },
+      ipAddress: '127.0.0.1',
+      userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/126.0',
+      timestamp: new Date(Date.now() - 3600000 * 30),
+      metadata: { isDemo: true },
+    },
+    {
+      action: 'interview.created',
+      actor: recruiter._id,
+      company: company._id,
+      targetUser: candidates[3]._id,
+      application: applications[3]._id,
+      newValue: { jobId: jobs[0]._id, type: 'technical', scheduledAt: new Date(Date.now() + 86400000) },
+      ipAddress: '127.0.0.1',
+      userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/126.0',
+      timestamp: new Date(Date.now() - 3600000 * 18),
+      metadata: { isDemo: true },
+    },
+    {
+      action: 'offer.create',
+      actor: recruiter._id,
+      company: company._id,
+      targetUser: candidates[4]._id,
+      application: applications[4]._id,
+      newValue: { jobId: jobs[0]._id, salary: 145000, status: 'sent' },
+      ipAddress: '127.0.0.1',
+      userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/126.0',
+      timestamp: new Date(Date.now() - 3600000 * 6),
+      metadata: { isDemo: true },
+    },
+  ];
+
+  await AuditLog.insertMany(logs);
+};
+
 export const seedDemo = async () => {
   const before = await demoInventory();
   // Ensure notification templates are seeded first
@@ -620,6 +888,22 @@ export const seedDemo = async () => {
     jobs,
   });
 
+  // Seed Verifiable Documents
+  await seedDemoDocuments({
+    company: companyVerified,
+    candidates: candidatesList,
+    applications,
+  });
+
+  // Seed Audit Logs
+  await seedDemoAuditLogs({
+    company: companyVerified,
+    recruiter,
+    jobs,
+    applications,
+    candidates: candidatesList,
+  });
+
   const after = await demoInventory();
   const records = Object.fromEntries(
     Object.entries(after).map(([name, total]) => [
@@ -653,6 +937,8 @@ const printSummary = (result) => {
   console.info(` - Interviews: ${recordSummary('interviews')}`);
   console.info(` - Offers: ${recordSummary('offers')}`);
   console.info(` - Notifications: ${recordSummary('notifications')}`);
+  console.info(` - Documents: ${recordSummary('documents')}`);
+  console.info(` - Audit Logs: ${recordSummary('auditLogs')}`);
   console.info('\nDemo Credentials (Local Development Only):');
   console.info(`\nAdmin:`);
   console.info(` Email: ${credentials.admin.email}`);
