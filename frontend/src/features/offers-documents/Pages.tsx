@@ -2833,11 +2833,9 @@ export function RecruiterDocumentsPage() {
                 )
               }
               actions={
-                d.verification.status !== 'not-required' ? (
-                  <RouterLink to={`/org/documents/verification/${d.id}`}>
-                    Review
-                  </RouterLink>
-                ) : null
+                <RouterLink to={`/org/documents/verification/${d.id}`}>
+                  Review
+                </RouterLink>
               }
             />
           ))}
@@ -2878,8 +2876,8 @@ export function VerificationDetailPage() {
   if (q.isLoading) return <LoadingState />;
   if (!q.data) return <ErrorState detail={errorText(q.error)} />;
   const d = q.data;
-  const pending = d.verification.status === 'pending',
-    canDownload = Boolean(recruiter?.permissions.includes('documents.view'));
+  const canDecide = d.verification.status === 'pending' || d.verification.status === 'not-required',
+    canDownload = Boolean(recruiter?.permissions.includes('documents.view') || recruiter?.isCompanyOwner);
   return (
     <main>
       <PageHeader
@@ -2933,7 +2931,7 @@ export function VerificationDetailPage() {
                 body: {},
               })
             }
-            trigger={<Button disabled={!pending}>Verify</Button>}
+            trigger={<Button disabled={!canDecide}>Verify</Button>}
           />
           <ConfirmDialog
             title="Reject document?"
@@ -2949,7 +2947,7 @@ export function VerificationDetailPage() {
             trigger={
               <Button
                 variant="danger"
-                disabled={!pending || reason.trim().length < 3}
+                disabled={!canDecide || reason.trim().length < 3}
               >
                 Reject
               </Button>

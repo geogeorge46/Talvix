@@ -221,9 +221,6 @@ export const listVerification = async (company, query) => {
 
   if (query.status && query.status !== 'all') {
     filter['verification.status'] = query.status;
-  } else if (!query.status) {
-    // By default, prioritize verifiable documents
-    filter['verification.status'] = { $in: ['pending', 'verified', 'rejected'] };
   }
   if (query.category) filter.category = query.category;
   if (query.applicationId && mongoose.Types.ObjectId.isValid(query.applicationId)) {

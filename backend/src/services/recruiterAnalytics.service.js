@@ -326,7 +326,11 @@ export const fetchRecruiterActivityTimeline = async (companyId, query, isOwnerOr
     ? new mongoose.Types.ObjectId(companyId)
     : companyId;
 
-  const memberUserIds = await CompanyMember.find({ company: companyId }).distinct('recruiter');
+  const compDoc = await Company.findById(companyObjectId).select('name owner createdAt');
+  const memberUserIds = await CompanyMember.find({ company: companyObjectId }).distinct('recruiter');
+  if (compDoc?.owner) {
+    memberUserIds.push(compDoc.owner);
+  }
 
   const companyScopeOr = [
     { company: companyObjectId },
@@ -334,6 +338,23 @@ export const fetchRecruiterActivityTimeline = async (companyId, query, isOwnerOr
   ];
   if (memberUserIds.length) {
     companyScopeOr.push({ actor: { $in: memberUserIds } });
+    companyScopeOr.push({ targetUser: { $in: memberUserIds } });
+  }
+
+  // Backfill initial creation log if company has 0 logs recorded
+  const countLogs = await AuditLog.countDocuments({ $or: companyScopeOr });
+  if (countLogs === 0 && compDoc?.owner) {
+    try {
+      await AuditLog.create({
+        action: 'company.create',
+        actor: compDoc.owner,
+        company: companyObjectId,
+        newValue: { name: compDoc.name || 'Company Workspace' },
+        timestamp: compDoc.createdAt || new Date()
+      });
+    } catch {
+      // Ignore if concurrent creation
+    }
   }
 
   const conditions = [

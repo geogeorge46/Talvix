@@ -102,6 +102,7 @@ export function OrganizationWorkspaceLayout() {
   const allowed = organizationNavigation.filter(
     (item) =>
       !item.anyPermission ||
+      recruiter.isCompanyOwner ||
       item.anyPermission.some((permission) =>
         recruiter.permissions.includes(permission),
       ),
