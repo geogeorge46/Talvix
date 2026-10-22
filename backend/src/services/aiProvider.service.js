@@ -674,6 +674,144 @@ ${benefitsList}`;
         metrics: { resumeScore: 85, technicalScore: 90, atsScore: 80, experienceLevel: 'Senior', careerLevel: 'Senior', confidenceScore: 95 },
         searchTokens: ['Jane', 'React', 'Node.js', 'TypeScript']
       });
+    } else if (promptText.includes('extract_job_intelligence') || promptText.includes('Extract structured intelligence')) {
+      text = JSON.stringify({
+        jobTitle: 'Full Stack Engineer',
+        seniorityLevel: 'mid',
+        employmentType: 'full-time',
+        minimumExperience: 3,
+        maximumExperience: 6,
+        requiredSkills: [
+          { name: 'React', category: 'frontend', requirementType: 'required', importance: 'critical', evidence: 'Core web UI development with React.', source: 'explicit' },
+          { name: 'Node.js', category: 'backend', requirementType: 'required', importance: 'critical', evidence: 'Backend API design using Node.js.', source: 'explicit' },
+          { name: 'TypeScript', category: 'frontend', requirementType: 'required', importance: 'high', evidence: 'Strong TypeScript skills required.', source: 'explicit' },
+          { name: 'MongoDB', category: 'database', requirementType: 'required', importance: 'high', evidence: 'Data persistence and aggregation with MongoDB.', source: 'explicit' }
+        ],
+        preferredSkills: [
+          { name: 'Docker', category: 'devops', requirementType: 'preferred', importance: 'medium', evidence: 'Experience with Docker containers.', source: 'inferred' },
+          { name: 'AWS', category: 'cloud', requirementType: 'preferred', importance: 'low', evidence: 'Familiarity with cloud hosting.', source: 'inferred' }
+        ],
+        responsibilities: [
+          { text: 'Design and develop robust web applications and microservices.', source: 'explicit' },
+          { text: 'Collaborate with cross-functional teams to deliver product features.', source: 'explicit' }
+        ],
+        qualifications: [
+          { text: 'Degree in Computer Science or equivalent practical industry experience.', source: 'explicit' },
+          { text: 'Strong problem-solving and clean code fundamentals.', source: 'inferred' }
+        ],
+        educationRequirements: ['B.Tech / B.S. in Computer Science or related STEM field'],
+        domainKnowledge: ['RESTful Web Services', 'Web Security', 'Database Design'],
+        assessmentRecommendations: [
+          { category: 'Technical Screening', domain: 'Full Stack Engineering', reason: 'Validate hands-on JavaScript/TypeScript and asynchronous concepts.', source: 'inferred' },
+          { category: 'System Design', domain: 'API & Data Modeling', reason: 'Assess ability to structure scalable backend systems.', source: 'inferred' }
+        ]
+      });
+    } else if (promptText.includes('analyze_job_quality') || promptText.includes('quality dimensions') || promptText.includes('bias auditor')) {
+      text = JSON.stringify({
+        categoryScores: {
+          clarity: 88,
+          responsibilities: 85,
+          skillSeparation: 90,
+          seniorityConsistency: 86,
+          qualificationRelevance: 89,
+          compensationTransparency: 78,
+          requirementSpecificity: 87,
+          titleConsistency: 92,
+          fairnessAndInclusion: 90
+        },
+        findings: [
+          {
+            id: 'quality-comp-1',
+            category: 'compensationTransparency',
+            severity: 'medium',
+            evidence: 'Salary compensation band not explicitly published.',
+            explanation: 'Jobs with explicit compensation ranges receive higher engagement and diverse applicant pools.',
+            recommendation: 'Add clear salary ranges and equity/benefits details.',
+            proposedReplacement: 'Competitive annual compensation of $90,000 - $125,000 depending on experience, plus comprehensive medical coverage.',
+            requiresHumanReview: false
+          },
+          {
+            id: 'quality-clarity-1',
+            category: 'clarity',
+            severity: 'low',
+            evidence: 'Core responsibilities section can be more outcome-oriented.',
+            explanation: 'Outlining 30-60-90 day impact goals helps candidates evaluate their fit.',
+            recommendation: 'Specify measurable team deliverables.',
+            proposedReplacement: 'Ship customer-facing features in 2-week agile sprints while maintaining test coverage above 80%.',
+            requiresHumanReview: false
+          }
+        ],
+        summary: 'Job description demonstrates strong technical clarity and skill separation. Compensation transparency could be improved to maximize applicant conversion.'
+      });
+    } else if (promptText.includes('generate_assessment_blueprint') || promptText.includes('assessment blueprint')) {
+      text = JSON.stringify({
+        targetSeniority: 'mid',
+        experienceRange: { minimum: 3, maximum: 6 },
+        objectives: [
+          'Assess core full-stack programming concepts in React and Node.js',
+          'Evaluate asynchronous execution, API security, and database modeling'
+        ],
+        skillCoverage: [
+          { skill: 'React', requirementType: 'required', coveragePercentage: 100, isCovered: true },
+          { skill: 'Node.js', requirementType: 'required', coveragePercentage: 100, isCovered: true },
+          { skill: 'TypeScript', requirementType: 'required', coveragePercentage: 100, isCovered: true }
+        ],
+        sections: [
+          {
+            id: 'sec-fullstack-core',
+            title: 'Full Stack Fundamentals',
+            purpose: 'Validate core programming, data flow, and modern framework idioms.',
+            skillsEvaluated: ['React', 'TypeScript', 'Node.js'],
+            questionType: 'multiple-choice',
+            questionCount: 4,
+            difficulty: 'medium',
+            durationMinutes: 20,
+            sectionMarks: 40,
+            evaluationCriteria: ['Accuracy of technical answers', 'Understanding of async event loop'],
+            relevanceExplanation: 'Directly reflects day-to-day requirements of the role.',
+            proposedQuestions: [
+              {
+                prompt: 'In Node.js, what distinguishes process.nextTick() from setImmediate()?',
+                type: 'single-choice',
+                difficulty: 'medium',
+                defaultMarks: 10,
+                options: [
+                  { id: 'a', text: 'process.nextTick executes before the next event loop phase begins' },
+                  { id: 'b', text: 'setImmediate executes synchronously before I/O' },
+                  { id: 'c', text: 'They are identical aliases' },
+                  { id: 'd', text: 'process.nextTick only runs in worker threads' }
+                ]
+              }
+            ]
+          }
+        ],
+        recommendedTypes: ['multiple-choice', 'coding'],
+        difficultyDistribution: { easy: 25, medium: 50, hard: 25 },
+        totalDurationMinutes: 45,
+        totalMarks: 100,
+        rubric: {
+          criteria: [
+            { name: 'Technical Depth', description: 'Demonstrated mastery of stack fundamentals', maxMarks: 50, weight: 50 },
+            { name: 'Problem Solving', description: 'Clarity in algorithmic reasoning and edge-case handling', maxMarks: 50, weight: 50 }
+          ],
+          evaluationNotes: 'Recommended passing benchmark is 70%.'
+        }
+      });
+    } else if (promptText.includes('regenerate_blueprint_section')) {
+      text = JSON.stringify({
+        id: 'sec-regenerated-1',
+        title: 'Core Technical Assessment',
+        purpose: 'Comprehensive evaluation of candidate coding capabilities.',
+        skillsEvaluated: ['JavaScript', 'System Architecture'],
+        questionType: 'multiple-choice',
+        questionCount: 3,
+        difficulty: 'medium',
+        durationMinutes: 15,
+        sectionMarks: 30,
+        evaluationCriteria: ['Conceptual clarity', 'Best practices'],
+        relevanceExplanation: 'Aligned with technical requisition needs.',
+        proposedQuestions: []
+      });
     } else if (promptText.includes('job') || promptText.includes('hiringSummary')) {
       text = JSON.stringify({
         skills: { required: ['TypeScript', 'Node.js'], preferred: [], soft: [] },

@@ -47,7 +47,7 @@ export const categoryScoresSchema = z.object({
   requirementSpecificity: z.number().min(0).max(100).default(80),
   titleConsistency: z.number().min(0).max(100).default(80),
   fairnessAndInclusion: z.number().min(0).max(100).default(85)
-}).strict();
+}).passthrough();
 
 /**
  * Calculates deterministic overall score from weighted category scores.
@@ -69,7 +69,17 @@ export const calculateOverallScore = (categoryScores) => {
 };
 
 export const jobQualityAnalysisSchema = z.object({
-  categoryScores: categoryScoresSchema,
+  categoryScores: categoryScoresSchema.default({
+    clarity: 80,
+    responsibilities: 80,
+    skillSeparation: 80,
+    seniorityConsistency: 80,
+    qualificationRelevance: 80,
+    compensationTransparency: 80,
+    requirementSpecificity: 80,
+    titleConsistency: 80,
+    fairnessAndInclusion: 85
+  }),
   findings: z.array(jobQualityFindingSchema).default([]),
   summary: z.string().trim().default('Job quality evaluation complete.'),
   analysisMetadata: z.object({
@@ -77,8 +87,8 @@ export const jobQualityAnalysisSchema = z.object({
     promptVersion: z.number().default(1),
     analyzedAt: z.coerce.date().optional(),
     model: z.string().optional()
-  }).optional()
-}).strict().transform((data) => {
+  }).passthrough().optional()
+}).passthrough().transform((data) => {
   const overallScore = calculateOverallScore(data.categoryScores);
   return {
     ...data,

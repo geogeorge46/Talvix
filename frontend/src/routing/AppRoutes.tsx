@@ -205,7 +205,9 @@ function Protected({
     const isPending = vStatus === 'pending' || cStatus === 'pending';
     const isBothVerified = vStatus === 'verified' && cStatus === 'verified';
 
-    if (vStatus === 'none' || (isOnboardingPage && !isBothVerified)) {
+    const isMemberOfVerifiedCompany = Boolean(recruiter?.company && (cStatus === 'verified' || cStatus === 'approved'));
+
+    if (((vStatus === 'none' && !isMemberOfVerifiedCompany) || (isOnboardingPage && !isBothVerified && !isMemberOfVerifiedCompany))) {
       if (!isOnboardingPage) {
         return <Navigate to="/recruiter/onboarding" replace />;
       }
@@ -213,11 +215,11 @@ function Protected({
       if (!isStatusPage && !isOnboardingPage) {
         return <Navigate to="/recruiter/verification-status" replace />;
       }
-    } else if (isPending) {
+    } else if (isPending && !isMemberOfVerifiedCompany) {
       if (!isStatusPage) {
         return <Navigate to="/recruiter/verification-status" replace />;
       }
-    } else if (isBothVerified) {
+    } else if (isBothVerified || isMemberOfVerifiedCompany) {
       if (isOnboardingPage || isStatusPage) {
         return <Navigate to="/org" replace />;
       }

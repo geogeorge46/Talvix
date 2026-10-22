@@ -41,6 +41,7 @@ export function SignInPage() {
   const [fields, setFields] = useState<Record<string, string>>({});
   const summaryRef = useRef<HTMLDivElement>(null);
   const [loading, setLoading] = useState(false);
+  const inviteToken = new URLSearchParams(location.search).get('inviteToken');
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -79,8 +80,13 @@ export function SignInPage() {
     if (errors.length) summaryRef.current?.focus();
   }, [errors.length]);
 
-  if (status === 'authenticated' && user)
-    return <Navigate to={homeForRole(user.role)} replace />;
+  if (status === 'authenticated' && user) {
+    if (inviteToken) {
+      return <Navigate to={`/accept-invite?token=${inviteToken}`} replace />;
+    }
+    const returnTo = safeReturn(new URLSearchParams(location.search).get('returnTo'));
+    return <Navigate to={returnTo ?? homeForRole(user.role)} replace />;
+  }
 
   return (
     <AuthLayout type="login">
@@ -258,8 +264,13 @@ export function RegisterPage() {
     if (errors.length) summaryRef.current?.focus();
   }, [errors.length]);
 
-  if (status === 'authenticated' && user)
-    return <Navigate to={homeForRole(user.role)} replace />;
+  if (status === 'authenticated' && user) {
+    if (inviteToken) {
+      return <Navigate to={`/accept-invite?token=${inviteToken}`} replace />;
+    }
+    const returnTo = safeReturn(new URLSearchParams(location.search).get('returnTo'));
+    return <Navigate to={returnTo ?? homeForRole(user.role)} replace />;
+  }
 
   return (
     <AuthLayout type="register">

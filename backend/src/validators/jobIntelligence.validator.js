@@ -27,20 +27,32 @@ export const assessmentRecommendationSchema = z.object({
 
 export const structuredJobIntelligenceSchema = z.object({
   jobTitle: z.string().trim().max(150).default('Unknown'),
-  seniorityLevel: z.enum(['intern', 'entry', 'mid', 'senior', 'lead', 'executive', 'unknown']).default('unknown'),
-  employmentType: z.enum(['full-time', 'part-time', 'contract', 'internship', 'freelance', 'unknown']).default('unknown'),
-  minimumExperience: z.number().min(0).max(60).default(0),
-  maximumExperience: z.number().min(0).max(60).optional().nullable(),
+  seniorityLevel: z.preprocess(
+    (val) => (typeof val === 'string' ? val.trim().toLowerCase().replace('_', '-') : val),
+    z.enum(['intern', 'entry', 'mid', 'senior', 'lead', 'executive', 'unknown']).catch('unknown')
+  ).default('unknown'),
+  employmentType: z.preprocess(
+    (val) => (typeof val === 'string' ? val.trim().toLowerCase().replace('_', '-') : val),
+    z.enum(['full-time', 'part-time', 'contract', 'internship', 'freelance', 'unknown']).catch('unknown')
+  ).default('unknown'),
+  minimumExperience: z.preprocess(
+    (val) => (typeof val === 'number' ? val : typeof val === 'string' ? parseInt(val, 10) || 0 : 0),
+    z.number().min(0).max(60).catch(0)
+  ).default(0),
+  maximumExperience: z.preprocess(
+    (val) => (typeof val === 'number' ? val : typeof val === 'string' ? parseInt(val, 10) || null : null),
+    z.number().min(0).max(60).optional().nullable()
+  ).optional().nullable(),
   requiredSkills: z.array(extractedSkillSchema).default([]),
   preferredSkills: z.array(extractedSkillSchema).default([]),
   responsibilities: z.array(z.object({
     text: z.string().trim().min(1).max(1000),
     source: z.enum(['explicit', 'inferred']).default('explicit')
-  })).default([]),
+  }).passthrough()).default([]),
   qualifications: z.array(z.object({
     text: z.string().trim().min(1).max(1000),
     source: z.enum(['explicit', 'inferred']).default('explicit')
-  })).default([]),
+  }).passthrough()).default([]),
   educationRequirements: z.array(z.string().trim().max(300)).default([]),
   domainKnowledge: z.array(z.string().trim().max(200)).default([]),
   assessmentRecommendations: z.array(assessmentRecommendationSchema).default([]),
@@ -50,8 +62,8 @@ export const structuredJobIntelligenceSchema = z.object({
     extractedAt: z.coerce.date().optional(),
     confidenceScore: z.number().min(0).max(100).default(85),
     model: z.string().optional()
-  }).optional()
-}).strict().transform((data) => {
+  }).passthrough().optional()
+}).passthrough().transform((data) => {
   // Apply skill normalization and deduplication
   const allSkills = normalizeSkills([...data.requiredSkills, ...data.preferredSkills]);
   

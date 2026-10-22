@@ -126,6 +126,15 @@ export const acceptInvitation = async (userId, token, ipAddress = 'Unknown', use
     { $set: { company: invitation.company, permissions: invitation.permissions, isCompanyOwner: false } }
   );
 
+  // Mark recruiter verified if joining an active verified company
+  const company = await Company.findById(invitation.company);
+  if (company && (company.verificationStatus === 'verified' || company.verificationStatus === 'approved')) {
+    await User.updateOne(
+      { _id: userId },
+      { $set: { recruiterVerificationStatus: 'verified' } }
+    );
+  }
+
   // Force re-login
   await revokeUserSessions(userId);
 
