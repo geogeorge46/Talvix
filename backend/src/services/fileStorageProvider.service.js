@@ -40,9 +40,10 @@ export const createSignedDownloadUrl = async ({ publicId, resourceType = 'raw', 
   if (activeProvider() === 'memory') {
     if (!memory.has(publicId)) throw new AppError('Stored file not found', 404);
     const isTest = env.NODE_ENV === 'test';
+    const baseUrl = (process.env.RENDER_EXTERNAL_URL || process.env.API_URL || `http://localhost:${env.PORT || 5000}`).replace(/\/$/, '');
     const url = isTest
       ? `https://files.talvix.test/${encodeURIComponent(publicId)}?expires=${boundedExpiry.getTime()}&attachment=${attachment ? '1' : '0'}`
-      : `http://localhost:${env.PORT || 5000}/api/v1/documents/local-view/${encodeURIComponent(publicId)}?attachment=${attachment ? '1' : '0'}`;
+      : `${baseUrl}/api/v1/documents/local-view/${encodeURIComponent(publicId)}?attachment=${attachment ? '1' : '0'}`;
     return { url, expiresAt: boundedExpiry };
   }
   if (activeProvider() === 'disabled') return disabled();

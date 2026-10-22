@@ -201,20 +201,40 @@ export const listOfferDocuments = async (actor, id, company) => { const offer = 
 export const entityDownload = async (actor, documentId, context) => { const document = await Document.findById(documentId); if (!document) throw new AppError('Document not found', 404); authorizeDocumentAccess({ actor, document, action: 'download', context }); return signed(document); };
 export const ownerEntityDownload = ownerDownload;
 
-export const listVerification = async (company, query) => {
+const buildCompanyDocumentFilter = async (company) => {
   const companyObjectId = mongoose.Types.ObjectId.isValid(company)
     ? new mongoose.Types.ObjectId(company)
     : company;
 
-  const companyApps = await Application.find({ company: companyObjectId }).select('_id').lean();
-  const companyAppIds = companyApps.map((a) => a._id);
+  const [companyApps, companyAttempts, companyInterviews, companyOffers] = await Promise.all([
+    Application.find({ company: companyObjectId }).select('_id').lean(),
+    AssessmentAttempt.find({ company: companyObjectId }).select('_id').lean(),
+    InterviewProcess.find({ company: companyObjectId }).select('_id').lean(),
+    Offer.find({ company: companyObjectId }).select('_id').lean()
+  ]);
 
-  const filter = {
+  const companyAppIds = companyApps.map((a) => a._id);
+  const companyAttemptIds = companyAttempts.map((a) => a._id);
+  const companyInterviewIds = companyInterviews.map((a) => a._id);
+  const companyOfferIds = companyOffers.map((a) => a._id);
+
+  return {
     $or: [
       { company: companyObjectId },
       { company: String(company) },
-      ...(companyAppIds.length ? [{ entityType: 'application', entityId: { $in: companyAppIds } }] : [])
-    ],
+      ...(companyAppIds.length ? [{ entityType: 'application', entityId: { $in: companyAppIds } }] : []),
+      ...(companyAttemptIds.length ? [{ entityType: 'assessment-attempt', entityId: { $in: companyAttemptIds } }] : []),
+      ...(companyInterviewIds.length ? [{ entityType: 'interview-process', entityId: { $in: companyInterviewIds } }] : []),
+      ...(companyOfferIds.length ? [{ entityType: 'offer', entityId: { $in: companyOfferIds } }] : [])
+    ]
+  };
+};
+
+export const listVerification = async (company, query) => {
+  const companyFilter = await buildCompanyDocumentFilter(company);
+
+  const filter = {
+    ...companyFilter,
     isCurrent: true,
     status: 'active'
   };
@@ -251,19 +271,11 @@ export const listVerification = async (company, query) => {
 };
 
 export const getVerification = async (company, id) => {
-  const companyObjectId = mongoose.Types.ObjectId.isValid(company)
-    ? new mongoose.Types.ObjectId(company)
-    : company;
-  const companyApps = await Application.find({ company: companyObjectId }).select('_id');
-  const companyAppIds = companyApps.map((a) => a._id);
+  const companyFilter = await buildCompanyDocumentFilter(company);
 
   const document = await Document.findOne({
     _id: id,
-    $or: [
-      { company: companyObjectId },
-      { company: String(company) },
-      ...(companyAppIds.length ? [{ entityType: 'application', entityId: { $in: companyAppIds } }] : [])
-    ],
+    ...companyFilter,
     status: 'active'
   });
   if (!document) throw new AppError('Document not found', 404);
@@ -271,19 +283,11 @@ export const getVerification = async (company, id) => {
 };
 
 export const decideVerification = async (user, company, id, decision, input) => {
-  const companyObjectId = mongoose.Types.ObjectId.isValid(company)
-    ? new mongoose.Types.ObjectId(company)
-    : company;
-  const companyApps = await Application.find({ company: companyObjectId }).select('_id');
-  const companyAppIds = companyApps.map((a) => a._id);
+  const companyFilter = await buildCompanyDocumentFilter(company);
 
   const document = await Document.findOne({
     _id: id,
-    $or: [
-      { company: companyObjectId },
-      { company: String(company) },
-      ...(companyAppIds.length ? [{ entityType: 'application', entityId: { $in: companyAppIds } }] : [])
-    ],
+    ...companyFilter,
     status: 'active',
     isCurrent: true
   });
@@ -325,19 +329,11 @@ export const decideVerification = async (user, company, id, decision, input) => 
 };
 
 export const downloadVerificationDocument = async (actor, company, documentId) => {
-  const companyObjectId = mongoose.Types.ObjectId.isValid(company)
-    ? new mongoose.Types.ObjectId(company)
-    : company;
-  const companyApps = await Application.find({ company: companyObjectId }).select('_id');
-  const companyAppIds = companyApps.map((a) => a._id);
+  const companyFilter = await buildCompanyDocumentFilter(company);
 
   const document = await Document.findOne({
     _id: documentId,
-    $or: [
-      { company: companyObjectId },
-      { company: String(company) },
-      ...(companyAppIds.length ? [{ entityType: 'application', entityId: { $in: companyAppIds } }] : [])
-    ]
+    ...companyFilter
   });
   if (!document) throw new AppError('Document not found', 404);
   if (!['active', 'archived'].includes(document.status) || ['suspicious', 'infected', 'failed'].includes(document.malwareScan?.status)) {

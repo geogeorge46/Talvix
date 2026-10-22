@@ -2757,6 +2757,13 @@ export function RecruiterDocumentsPage() {
     [sp, setSp] = useSearchParams(),
     statusParam = sp.get('status'),
     categoryParam = sp.get('category'),
+    [previewDoc, setPreviewDoc] = useState<{
+      title: string;
+      url?: string;
+      mimeType?: string;
+      downloadPath?: string;
+      category?: string;
+    } | null>(null),
     q = useVerificationQueue(
       `page=${sp.get('page') ?? '1'}&limit=20${statusParam ? `&status=${statusParam}` : ''}${categoryParam ? `&category=${categoryParam}` : ''}`,
       can,
@@ -2782,6 +2789,7 @@ export function RecruiterDocumentsPage() {
               options={[
                 { value: '', label: 'All Statuses' },
                 { value: 'pending', label: 'Pending Verification' },
+                { value: 'not-required', label: 'Not Required / Deliverables' },
                 { value: 'verified', label: 'Verified' },
                 { value: 'rejected', label: 'Rejected' },
               ]}
@@ -2827,6 +2835,25 @@ export function RecruiterDocumentsPage() {
             <DocumentRow
               key={d.id}
               doc={d}
+              detailTo={`/org/documents/verification/${d.id}`}
+              onView={async () => {
+                try {
+                  const url = await getDocumentUrl(
+                    `/documents/manage/verification/${d.id}/download`,
+                  );
+                  setPreviewDoc({
+                    title: d.displayName,
+                    url,
+                    mimeType: d.mimeType,
+                    downloadPath: `/documents/manage/verification/${d.id}/download`,
+                    category: d.category,
+                  });
+                } catch {
+                  void safeDownload(
+                    `/documents/manage/verification/${d.id}/download`,
+                  );
+                }
+              }}
               onDownload={() =>
                 void safeDownload(
                   `/documents/manage/verification/${d.id}/download`,
@@ -2844,6 +2871,17 @@ export function RecruiterDocumentsPage() {
         <EmptyState
           title="Verification queue is clear"
           description="No application documents match this status."
+        />
+      )}
+      {previewDoc && (
+        <DocumentPreviewDialog
+          open={Boolean(previewDoc)}
+          onOpenChange={(open) => !open && setPreviewDoc(null)}
+          title={previewDoc.title}
+          url={previewDoc.url}
+          mimeType={previewDoc.mimeType}
+          downloadPath={previewDoc.downloadPath}
+          category={previewDoc.category}
         />
       )}
       {q.data && (
@@ -2872,7 +2910,14 @@ export function VerificationDetailPage() {
     { recruiter } = useAuth(),
     q = useVerification(documentId),
     m = useDocumentMutation(),
-    [reason, setReason] = useState('');
+    [reason, setReason] = useState(''),
+    [previewDoc, setPreviewDoc] = useState<{
+      title: string;
+      url?: string;
+      mimeType?: string;
+      downloadPath?: string;
+      category?: string;
+    } | null>(null);
   if (q.isLoading) return <LoadingState />;
   if (!q.data) return <ErrorState detail={errorText(q.error)} />;
   const d = q.data;
@@ -2900,21 +2945,53 @@ export function VerificationDetailPage() {
             <dd>{date(d.createdAt)}</dd>
           </div>
         </dl>
-        <Button
-          variant="secondary"
-          disabled={
-            !canDownload ||
-            d.status !== 'active' ||
-            ['suspicious', 'infected', 'failed'].includes(d.scanStatus)
-          }
-          onClick={() =>
-            void safeDownload(
-              `/documents/manage/verification/${d.id}/download`,
-            )
-          }
-        >
-          {canDownload ? 'Secure download' : 'Download requires documents.view'}
-        </Button>
+        <div style={{ display: 'flex', gap: '0.75rem', marginTop: '1rem', marginBottom: '1rem', flexWrap: 'wrap' }}>
+          <Button
+            variant="secondary"
+            disabled={
+              !canDownload ||
+              d.status !== 'active' ||
+              ['suspicious', 'infected', 'failed'].includes(d.scanStatus)
+            }
+            onClick={async () => {
+              try {
+                const url = await getDocumentUrl(
+                  `/documents/manage/verification/${d.id}/download`,
+                );
+                setPreviewDoc({
+                  title: d.displayName,
+                  url,
+                  mimeType: d.mimeType,
+                  downloadPath: `/documents/manage/verification/${d.id}/download`,
+                  category: d.category,
+                });
+              } catch {
+                void safeDownload(
+                  `/documents/manage/verification/${d.id}/download`,
+                );
+              }
+            }}
+            leadingIcon={<Eye size={16} />}
+          >
+            Preview Document
+          </Button>
+          <Button
+            variant="secondary"
+            disabled={
+              !canDownload ||
+              d.status !== 'active' ||
+              ['suspicious', 'infected', 'failed'].includes(d.scanStatus)
+            }
+            onClick={() =>
+              void safeDownload(
+                `/documents/manage/verification/${d.id}/download`,
+              )
+            }
+            leadingIcon={<Download size={16} />}
+          >
+            {canDownload ? 'Secure download' : 'Download requires documents.view'}
+          </Button>
+        </div>
         <TextArea
           label="Candidate-safe rejection reason"
           value={reason}
@@ -2955,6 +3032,17 @@ export function VerificationDetailPage() {
           />
         </FormActions>
       </Card>
+      {previewDoc && (
+        <DocumentPreviewDialog
+          open={Boolean(previewDoc)}
+          onOpenChange={(open) => !open && setPreviewDoc(null)}
+          title={previewDoc.title}
+          url={previewDoc.url}
+          mimeType={previewDoc.mimeType}
+          downloadPath={previewDoc.downloadPath}
+          category={previewDoc.category}
+        />
+      )}
     </main>
   );
 }

@@ -229,7 +229,16 @@ export async function getDocumentUrl(path: string): Promise<string> {
 }
 export async function safeDownload(path: string) {
   const url = await getDocumentUrl(path);
-  window.open(url, '_blank', 'noopener,noreferrer');
+  const win = window.open(url, '_blank', 'noopener,noreferrer');
+  if (!win || win.closed || typeof win.closed === 'undefined') {
+    const link = document.createElement('a');
+    link.href = url;
+    link.target = '_blank';
+    link.rel = 'noopener noreferrer';
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+  }
 }
 export interface UploadSession {
   id: string;
