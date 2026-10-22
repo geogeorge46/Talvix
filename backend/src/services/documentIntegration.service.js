@@ -41,7 +41,7 @@ const assertSession = async (user, id, category, entityType, entityId) => {
   return session;
 };
 const current = (filter) => Document.findOne({ ...filter, ...ACTIVE });
-const signed = (document) => createSignedDownloadUrl({ publicId: document.storage.publicId, resourceType: document.storage.resourceType, expiresAt: new Date(Date.now() + env.FILE_SIGNED_URL_TTL_SECONDS * 1000), attachment: true });
+const signed = (document) => createSignedDownloadUrl({ publicId: document.storage.publicId, resourceType: document.storage.resourceType, provider: document.storage?.provider, expiresAt: new Date(Date.now() + env.FILE_SIGNED_URL_TTL_SECONDS * 1000), attachment: true });
 const cleanup = (document) => deleteDocumentAssetIfUnreferenced(document).catch(() => null);
 
 const profileConfig = {

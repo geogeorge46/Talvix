@@ -33,11 +33,12 @@ export const deleteFile = async ({ publicId, resourceType = 'raw', invalidate = 
     throw new AppError('Stored file deletion failed', 502);
   }
 };
-export const createSignedDownloadUrl = async ({ publicId, resourceType = 'raw', expiresAt, attachment }) => {
+export const createSignedDownloadUrl = async ({ publicId, resourceType = 'raw', expiresAt, attachment, provider }) => {
   safePublicId(publicId);
   const maximumExpiry = new Date(Date.now() + env.FILE_SIGNED_URL_TTL_SECONDS * 1000);
   const boundedExpiry = expiresAt < maximumExpiry ? expiresAt : maximumExpiry;
-  if (activeProvider() === 'memory') {
+  const targetProvider = provider || activeProvider();
+  if (targetProvider === 'memory') {
     const isTest = env.NODE_ENV === 'test';
     if (isTest && !memory.has(publicId)) throw new AppError('Stored file not found', 404);
     const baseUrl = (process.env.RENDER_EXTERNAL_URL || process.env.API_URL || `http://localhost:${env.PORT || 5000}`).replace(/\/$/, '');
@@ -46,7 +47,7 @@ export const createSignedDownloadUrl = async ({ publicId, resourceType = 'raw', 
       : `${baseUrl}/api/v1/documents/local-view/${encodeURIComponent(publicId)}?attachment=${attachment ? '1' : '0'}`;
     return { url, expiresAt: boundedExpiry };
   }
-  if (activeProvider() === 'disabled') return disabled();
+  if (targetProvider === 'disabled') return disabled();
   configure();
   try {
     return {
