@@ -616,7 +616,12 @@ export const listJobs = async (query) => {
 };
 
 export const getJobDetail = async (jobId) => {
-  const job = await Job.findById(jobId).populate('company', 'name').populate('createdBy', 'fullName').lean();
+  const job = await Job.findById(jobId)
+    .populate('company', 'name slug verificationStatus logo')
+    .populate('createdBy', 'fullName email')
+    .populate('hiringManager', 'fullName email')
+    .populate('reviewedBy', 'fullName email')
+    .lean();
   if (!job) throw new AppError('Job not found', 404);
 
   const [applicants, pipeline] = await Promise.all([

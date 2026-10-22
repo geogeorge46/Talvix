@@ -1149,39 +1149,293 @@ const detailConfig = {
   questions: { base: '/admin/management/questions', actions: [] },
   audits: { base: '/admin/management/audits', actions: [] },
 } as const;
+
+function JobInspectionDetail({ job, onOpenDescription }: { job: any; onOpenDescription: () => void }) {
+  const statusColor = (s: string) => {
+    switch (s) {
+      case 'published':
+      case 'approved':
+        return { bg: '#ecfdf5', text: '#065f46', border: '#a7f3d0' };
+      case 'pending-review':
+        return { bg: '#fffbeb', text: '#92400e', border: '#fde68a' };
+      case 'rejected':
+        return { bg: '#fef2f2', text: '#991b1b', border: '#fecaca' };
+      case 'paused':
+      case 'closed':
+        return { bg: '#f1f5f9', text: '#475569', border: '#cbd5e1' };
+      default:
+        return { bg: '#f8fafc', text: '#64748b', border: '#e2e8f0' };
+    }
+  };
+
+  const sc = statusColor(job.status);
+  const locationText = [job.location?.city, job.location?.state, job.location?.country].filter(Boolean).join(', ') || (job.workMode === 'remote' ? 'Remote' : '—');
+  const salaryText = job.salary?.minimum
+    ? `${job.salary.currency || 'USD'} ${Number(job.salary.minimum).toLocaleString()} – ${Number(job.salary.maximum).toLocaleString()} / ${job.salary.period || 'year'} ${job.salary.isVisible ? '· Visible' : '· Private'}`
+    : 'Not specified';
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', marginTop: '20px' }}>
+      {/* Hero Overview Card */}
+      <div style={{ background: 'var(--color-surface-primary, #ffffff)', border: '1px solid var(--color-border-default, #e2e8f0)', borderRadius: '12px', padding: '20px' }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: '12px', borderBottom: '1px solid var(--color-border-subtle, #f1f5f9)', paddingBottom: '16px' }}>
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <h2 style={{ fontSize: '1.35rem', fontWeight: 700, margin: 0, color: 'var(--color-text-strong)' }}>
+                {job.title}
+              </h2>
+              <span style={{ background: sc.bg, color: sc.text, border: `1px solid ${sc.border}`, padding: '3px 10px', borderRadius: '9999px', fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase' }}>
+                {job.status}
+              </span>
+              {job.isFeatured && (
+                <span style={{ background: '#fef3c7', color: '#92400e', border: '1px solid #fde68a', padding: '3px 8px', borderRadius: '9999px', fontSize: '0.7rem', fontWeight: 700 }}>
+                  FEATURED
+                </span>
+              )}
+            </div>
+            <p style={{ margin: '4px 0 0', fontSize: '0.85rem', color: 'var(--color-text-secondary)' }}>
+              <strong>{job.company?.name || 'Company'}</strong> · {label(job.employmentType || '')} · {label(job.workMode || '')} · {locationText}
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={onOpenDescription}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '8px 16px',
+              borderRadius: '8px',
+              background: '#4f46e5',
+              color: '#ffffff',
+              border: 'none',
+              fontWeight: 600,
+              fontSize: '0.85rem',
+              cursor: 'pointer',
+              boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
+            }}
+          >
+            <FileText size={16} />
+            <span>View Full Description in Pop-up</span>
+          </button>
+        </div>
+
+        {/* Description Snippet Preview */}
+        <div style={{ marginTop: '14px', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '16px', background: 'var(--color-surface-secondary, #f8fafc)', padding: '12px 16px', borderRadius: '8px', border: '1px solid var(--color-border-subtle, #f1f5f9)' }}>
+          <div style={{ fontSize: '0.85rem', color: 'var(--color-text-primary)', lineHeight: 1.5, maxHeight: '3.2em', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            <span style={{ fontWeight: 600, color: 'var(--color-text-secondary)', marginRight: '6px' }}>DESCRIPTION SNIPPET:</span>
+            {job.description ? job.description.replace(/[#*`_]/g, '').slice(0, 240) + '...' : 'No description provided'}
+          </div>
+          <button
+            type="button"
+            onClick={onOpenDescription}
+            style={{ color: '#4f46e5', background: 'transparent', border: 'none', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' }}
+          >
+            Open Full Window →
+          </button>
+        </div>
+      </div>
+
+      {/* Grid of Key Inspection Sections */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '20px' }}>
+        {/* Card 1: Role Specification & Timeline */}
+        <div style={{ background: 'var(--color-surface-primary, #ffffff)', border: '1px solid var(--color-border-default, #e2e8f0)', borderRadius: '12px', padding: '18px' }}>
+          <h3 style={{ fontSize: '0.95rem', fontWeight: 700, margin: '0 0 14px', color: 'var(--color-text-strong)', borderBottom: '1px solid var(--color-border-subtle, #f1f5f9)', paddingBottom: '8px' }}>
+            Role Specification & Timeline
+          </h3>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', fontSize: '0.85rem' }}>
+            <div>
+              <span style={{ fontSize: '0.7rem', color: 'var(--color-text-secondary)', textTransform: 'uppercase', display: 'block' }}>Employment Type</span>
+              <strong>{label(job.employmentType || '—')}</strong>
+            </div>
+            <div>
+              <span style={{ fontSize: '0.7rem', color: 'var(--color-text-secondary)', textTransform: 'uppercase', display: 'block' }}>Work Mode</span>
+              <strong>{label(job.workMode || '—')}</strong>
+            </div>
+            <div>
+              <span style={{ fontSize: '0.7rem', color: 'var(--color-text-secondary)', textTransform: 'uppercase', display: 'block' }}>Department</span>
+              <span>{job.department || 'General'}</span>
+            </div>
+            <div>
+              <span style={{ fontSize: '0.7rem', color: 'var(--color-text-secondary)', textTransform: 'uppercase', display: 'block' }}>Openings</span>
+              <strong>{job.openings ?? 1} positions</strong>
+            </div>
+            <div>
+              <span style={{ fontSize: '0.7rem', color: 'var(--color-text-secondary)', textTransform: 'uppercase', display: 'block' }}>Experience Needed</span>
+              <strong>{job.minimumExperience ?? 0}{job.maximumExperience ? ` – ${job.maximumExperience}` : '+'} years</strong>
+            </div>
+            <div>
+              <span style={{ fontSize: '0.7rem', color: 'var(--color-text-secondary)', textTransform: 'uppercase', display: 'block' }}>Location</span>
+              <span>{locationText}</span>
+            </div>
+            <div>
+              <span style={{ fontSize: '0.7rem', color: 'var(--color-text-secondary)', textTransform: 'uppercase', display: 'block' }}>Application Deadline</span>
+              <span>{job.applicationDeadline ? new Date(job.applicationDeadline).toLocaleDateString() : 'No deadline'}</span>
+            </div>
+            <div>
+              <span style={{ fontSize: '0.7rem', color: 'var(--color-text-secondary)', textTransform: 'uppercase', display: 'block' }}>Scheduled Publish</span>
+              <span>{job.scheduledPublishAt ? new Date(job.scheduledPublishAt).toLocaleDateString() : 'Immediate'}</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Card 2: Compensation & Application Policy */}
+        <div style={{ background: 'var(--color-surface-primary, #ffffff)', border: '1px solid var(--color-border-default, #e2e8f0)', borderRadius: '12px', padding: '18px' }}>
+          <h3 style={{ fontSize: '0.95rem', fontWeight: 700, margin: '0 0 14px', color: 'var(--color-text-strong)', borderBottom: '1px solid var(--color-border-subtle, #f1f5f9)', paddingBottom: '8px' }}>
+            Compensation & Policy Settings
+          </h3>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', fontSize: '0.85rem' }}>
+            <div style={{ gridColumn: 'span 2' }}>
+              <span style={{ fontSize: '0.7rem', color: 'var(--color-text-secondary)', textTransform: 'uppercase', display: 'block' }}>Salary & Compensation</span>
+              <strong>{salaryText}</strong>
+            </div>
+            <div>
+              <span style={{ fontSize: '0.7rem', color: 'var(--color-text-secondary)', textTransform: 'uppercase', display: 'block' }}>Assessment Required</span>
+              <strong>{job.assessmentRequired ? 'Yes (Mandatory)' : 'No'}</strong>
+            </div>
+            <div>
+              <span style={{ fontSize: '0.7rem', color: 'var(--color-text-secondary)', textTransform: 'uppercase', display: 'block' }}>Resume Required</span>
+              <strong>{job.resumeRequired ? 'Yes' : 'Optional'}</strong>
+            </div>
+            <div>
+              <span style={{ fontSize: '0.7rem', color: 'var(--color-text-secondary)', textTransform: 'uppercase', display: 'block' }}>Min Profile Completion</span>
+              <strong>{job.minimumProfileCompletion ?? 0}%</strong>
+            </div>
+            <div>
+              <span style={{ fontSize: '0.7rem', color: 'var(--color-text-secondary)', textTransform: 'uppercase', display: 'block' }}>Questions Configured</span>
+              <span>{job.applicationQuestions?.length ? `${job.applicationQuestions.length} custom questions` : 'None'}</span>
+            </div>
+            <div>
+              <span style={{ fontSize: '0.7rem', color: 'var(--color-text-secondary)', textTransform: 'uppercase', display: 'block' }}>Applications Received</span>
+              <strong>{job.applicationsCount ?? job.candidateCount ?? 0} candidates</strong>
+            </div>
+            <div>
+              <span style={{ fontSize: '0.7rem', color: 'var(--color-text-secondary)', textTransform: 'uppercase', display: 'block' }}>Job Views</span>
+              <span>{job.viewsCount ?? 0} views</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Card 3: Publishing & Stakeholder Identifiers */}
+        <div style={{ background: 'var(--color-surface-primary, #ffffff)', border: '1px solid var(--color-border-default, #e2e8f0)', borderRadius: '12px', padding: '18px' }}>
+          <h3 style={{ fontSize: '0.95rem', fontWeight: 700, margin: '0 0 14px', color: 'var(--color-text-strong)', borderBottom: '1px solid var(--color-border-subtle, #f1f5f9)', paddingBottom: '8px' }}>
+            Stakeholder & Verification Records
+          </h3>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '10px', fontSize: '0.85rem' }}>
+            <div>
+              <span style={{ fontSize: '0.7rem', color: 'var(--color-text-secondary)', textTransform: 'uppercase', display: 'block' }}>Publishing Company</span>
+              <strong>{job.company?.name || '—'}</strong>
+              <small className="sys-mono" style={{ display: 'block', color: 'var(--color-text-secondary)', fontSize: '0.75rem' }}>
+                ID: {job.company?._id || job.company || '—'}
+              </small>
+            </div>
+            <div>
+              <span style={{ fontSize: '0.7rem', color: 'var(--color-text-secondary)', textTransform: 'uppercase', display: 'block' }}>Publishing Recruiter</span>
+              <strong>{job.createdBy?.fullName || '—'}</strong>
+              <small className="sys-mono" style={{ display: 'block', color: 'var(--color-text-secondary)', fontSize: '0.75rem' }}>
+                {job.createdBy?.email ? `${job.createdBy.email} · ` : ''}ID: {job.createdBy?._id || job.createdBy || '—'}
+              </small>
+            </div>
+            <div>
+              <span style={{ fontSize: '0.7rem', color: 'var(--color-text-secondary)', textTransform: 'uppercase', display: 'block' }}>Hiring Manager</span>
+              <span>{job.hiringManager?.fullName ? `${job.hiringManager.fullName} (${job.hiringManager.email})` : 'Unassigned'}</span>
+            </div>
+            <div>
+              <span style={{ fontSize: '0.7rem', color: 'var(--color-text-secondary)', textTransform: 'uppercase', display: 'block' }}>Reviewer Audit</span>
+              <span>{job.reviewedBy?.fullName ? `${job.reviewedBy.fullName} (${job.reviewedAt ? new Date(job.reviewedAt).toLocaleDateString() : ''})` : (job.status === 'pending-review' ? 'Awaiting administrative review' : 'Not reviewed')}</span>
+            </div>
+            {job.rejectionReason && (
+              <div style={{ background: '#fef2f2', padding: '8px 12px', borderRadius: '6px', border: '1px solid #fecaca' }}>
+                <span style={{ fontSize: '0.7rem', color: '#991b1b', textTransform: 'uppercase', display: 'block', fontWeight: 700 }}>Rejection Reason</span>
+                <span style={{ color: '#991b1b' }}>{job.rejectionReason}</span>
+              </div>
+            )}
+            {job.closedReason && (
+              <div style={{ background: '#f8fafc', padding: '8px 12px', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
+                <span style={{ fontSize: '0.7rem', color: 'var(--color-text-secondary)', textTransform: 'uppercase', display: 'block', fontWeight: 700 }}>Closed Reason</span>
+                <span>{job.closedReason}</span>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Card 4: Required Skills & Competencies */}
+        <div style={{ background: 'var(--color-surface-primary, #ffffff)', border: '1px solid var(--color-border-default, #e2e8f0)', borderRadius: '12px', padding: '18px' }}>
+          <h3 style={{ fontSize: '0.95rem', fontWeight: 700, margin: '0 0 14px', color: 'var(--color-text-strong)', borderBottom: '1px solid var(--color-border-subtle, #f1f5f9)', paddingBottom: '8px' }}>
+            Structured Skills & Requirements
+          </h3>
+          <div>
+            <span style={{ fontSize: '0.7rem', color: 'var(--color-text-secondary)', textTransform: 'uppercase', display: 'block', marginBottom: '6px' }}>
+              Required & Preferred Skills ({job.skills?.length || 0})
+            </span>
+            {job.skills && job.skills.length > 0 ? (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                {job.skills.map((s: any, idx: number) => (
+                  <span
+                    key={idx}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                      padding: '3px 8px',
+                      background: '#f1f5f9',
+                      border: '1px solid #e2e8f0',
+                      borderRadius: '6px',
+                      fontSize: '0.78rem',
+                    }}
+                  >
+                    <strong>{s.name}</strong>
+                    <span style={{ color: 'var(--color-text-secondary)', fontSize: '0.7rem' }}>
+                      · {label(s.minimumProficiency || '')} · {s.minimumYearsOfExperience}y
+                    </span>
+                    {s.required && (
+                      <span style={{ color: '#dc2626', fontWeight: 700, fontSize: '0.65rem' }}>*</span>
+                    )}
+                  </span>
+                ))}
+              </div>
+            ) : (
+              <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--color-text-secondary)' }}>No skills formally structured.</p>
+            )}
+
+            {job.requirements && job.requirements.length > 0 && (
+              <div style={{ marginTop: '12px' }}>
+                <span style={{ fontSize: '0.7rem', color: 'var(--color-text-secondary)', textTransform: 'uppercase', display: 'block', marginBottom: '4px' }}>
+                  Requirements ({job.requirements.length})
+                </span>
+                <ul style={{ margin: 0, paddingLeft: '18px', fontSize: '0.82rem', color: 'var(--color-text-primary)' }}>
+                  {job.requirements.slice(0, 4).map((r: string, i: number) => (
+                    <li key={i} style={{ marginBottom: '2px' }}>{r}</li>
+                  ))}
+                  {job.requirements.length > 4 && (
+                    <li style={{ color: 'var(--color-text-secondary)', listStyleType: 'none', marginTop: '2px' }}>
+                      +{job.requirements.length - 4} more requirements
+                    </li>
+                  )}
+                </ul>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function AdminRecordDetailPage() {
   const { type = '', id = '' } = useParams(); const valid = objectId.test(id) && type in detailConfig;
   const config = valid ? detailConfig[type as keyof typeof detailConfig] : detailConfig.applications; const path = `${config.base}/${id}`; const query = useQuery({ queryKey: ['system-admin', path], queryFn: () => adminApi.detail(path), enabled: valid });
   const [pending, setPending] = useState<PendingAction | null>(null);
+  const [descriptionModalOpen, setDescriptionModalOpen] = useState(false);
   if (!valid) return <Navigate to="/not-found" replace />;
   return <main className="sys-page"><Header eyebrow={`Operations / ${label(type)}`} title="Record inspection" intro={`Immutable identifier ${id}`} />
-    {query.isLoading ? <State kind="loading">Loading record…</State> : query.isError ? <State kind="error">{errorText(query.error)}</State> : query.data && <><section className="sys-detail"><dl>{Object.entries(query.data).filter(([, v]) => typeof v !== 'object' || v === null).slice(0, 24).map(([key, value]) => <div key={key}><dt>{label(key)}</dt><dd className={key.includes('Id') || key.startsWith('_') ? 'sys-mono' : ''}>{displayValue(value)}</dd></div>)}</dl></section>
-      {type === 'jobs' && (() => {
-        const job = query.data as any;
-        return (
-          <section className="sys-detail" style={{ marginTop: '20px', borderTop: '1px solid var(--color-border-subtle)', paddingTop: '20px' }}>
-            <h2 style={{ fontSize: '1.1rem', margin: '0 0 12px 0', color: 'var(--color-text-strong)' }}>Publishing details</h2>
-            <dl>
-              <div>
-                <dt>Publishing company</dt>
-                <dd><strong>{job.company?.name || '—'}</strong></dd>
-              </div>
-              <div>
-                <dt>Company ID</dt>
-                <dd className="sys-mono">{job.company?._id || job.company || '—'}</dd>
-              </div>
-              <div>
-                <dt>Publishing recruiter</dt>
-                <dd><strong>{job.createdBy?.fullName || '—'}</strong></dd>
-              </div>
-              <div>
-                <dt>Recruiter ID</dt>
-                <dd className="sys-mono">{job.createdBy?._id || job.createdBy || '—'}</dd>
-              </div>
-            </dl>
-          </section>
-        );
-      })()}
+    {query.isLoading ? <State kind="loading">Loading record…</State> : query.isError ? <State kind="error">{errorText(query.error)}</State> : query.data && <>
+      {type === 'jobs' ? (
+        <JobInspectionDetail job={query.data} onOpenDescription={() => setDescriptionModalOpen(true)} />
+      ) : (
+        <section className="sys-detail"><dl>{Object.entries(query.data).filter(([, v]) => typeof v !== 'object' || v === null).slice(0, 24).map(([key, value]) => <div key={key}><dt>{label(key)}</dt><dd className={key.includes('Id') || key.startsWith('_') ? 'sys-mono' : ''}>{displayValue(value)}</dd></div>)}</dl></section>
+      )}
       {type === 'applications' && Array.isArray(query.data.notes) && query.data.notes.length > 0 && <section className="sys-notes"><h2>Administrative notes</h2>{(query.data.notes as AdminRecord[]).map((note) => <article key={recordId(note)}><p>{displayValue(note.note ?? note.text)}</p><button onClick={() => setPending({ title: 'Delete this application note?', path: `${path}/notes/${recordId(note)}`, method: 'DELETE' })}>Delete note</button></article>)}</section>}
       <section className="sys-action-strip">
         <div>
@@ -1262,6 +1516,68 @@ export function AdminRecordDetailPage() {
         )}
       </section></>}
     {pending && <ActionDialog action={pending} onClose={() => setPending(null)} onDone={() => query.refetch()} />}
+    {descriptionModalOpen && query.data && (
+      <div
+        className="sys-dialog-backdrop"
+        style={{ zIndex: 20000, display: 'grid', placeItems: 'center', background: 'rgba(0, 0, 0, 0.65)' }}
+        onClick={() => setDescriptionModalOpen(false)}
+      >
+        <section
+          className="sys-dialog"
+          role="dialog"
+          aria-modal="true"
+          style={{
+            zIndex: 20001,
+            maxWidth: '780px',
+            width: 'calc(100% - 32px)',
+            maxHeight: '85vh',
+            display: 'flex',
+            flexDirection: 'column',
+            background: 'var(--color-surface-primary, #ffffff)',
+            borderRadius: '12px',
+            border: '1px solid var(--color-border-default, #e2e8f0)',
+            borderTop: '5px solid #4f46e5',
+            padding: '24px',
+            boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
+          }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', borderBottom: '1px solid var(--color-border-subtle, #f1f5f9)', paddingBottom: '12px', marginBottom: '16px' }}>
+            <div>
+              <span style={{ fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--color-text-secondary)' }}>
+                Job Description Specification
+              </span>
+              <h2 style={{ fontSize: '1.25rem', margin: '4px 0 0', fontWeight: 700, color: 'var(--color-text-strong)' }}>
+                {(query.data as any).title}
+              </h2>
+            </div>
+            <button
+              type="button"
+              onClick={() => setDescriptionModalOpen(false)}
+              style={{ background: 'transparent', border: 'none', cursor: 'pointer', padding: '6px', color: 'var(--color-text-secondary)', borderRadius: '6px' }}
+              title="Close dialog"
+            >
+              <X size={20} />
+            </button>
+          </div>
+
+          <div style={{ overflowY: 'auto', flex: 1, paddingRight: '8px', whiteSpace: 'pre-wrap', lineHeight: '1.6', fontSize: '0.9rem', color: 'var(--color-text-primary)' }}>
+            {(query.data as any).description}
+          </div>
+
+          <div style={{ borderTop: '1px solid var(--color-border-subtle, #f1f5f9)', paddingTop: '16px', marginTop: '16px', display: 'flex', justifyContent: 'flex-end' }}>
+            <button
+              type="button"
+              onClick={() => setDescriptionModalOpen(false)}
+              className="sys-button"
+              style={{ padding: '8px 18px', borderRadius: '6px', background: 'var(--color-surface-secondary, #f1f5f9)', border: '1px solid var(--color-border-default, #e2e8f0)', cursor: 'pointer', fontWeight: 600 }}
+            >
+              Close
+            </button>
+          </div>
+        </section>
+      </div>
+    )}
   </main>;
 }
 
