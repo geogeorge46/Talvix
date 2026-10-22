@@ -499,14 +499,18 @@ export function RecruiterActivityTimelinePage() {
                       <span style={{ color: 'var(--color-text-subtle)', marginRight: '0.5rem' }}>Actor:</span>
                       <strong>{log.user ? `${log.user.fullName} (${log.user.email})` : 'System'}</strong>
                     </div>
-                    <div>
-                      <span style={{ color: 'var(--color-text-subtle)', marginRight: '0.5rem' }}>IP Address:</span>
-                      <strong>{log.ipAddress === 'Hidden' ? 'Hidden (Admin only)' : log.ipAddress}</strong>
-                    </div>
-                    <div>
-                      <span style={{ color: 'var(--color-text-subtle)', marginRight: '0.5rem' }}>Device:</span>
-                      <span title={log.device}>{log.device.length > 30 ? `${log.device.slice(0, 30)}…` : log.device}</span>
-                    </div>
+                    {log.ipAddress && log.ipAddress !== 'Unknown' && (
+                      <div>
+                        <span style={{ color: 'var(--color-text-subtle)', marginRight: '0.5rem' }}>IP Address:</span>
+                        <strong>{log.ipAddress === 'Hidden' ? 'Hidden (Admin only)' : log.ipAddress}</strong>
+                      </div>
+                    )}
+                    {log.device && log.device !== 'Unknown' && (
+                      <div>
+                        <span style={{ color: 'var(--color-text-subtle)', marginRight: '0.5rem' }}>Device:</span>
+                        <span title={log.device}>{log.device.length > 30 ? `${log.device.slice(0, 30)}…` : log.device}</span>
+                      </div>
+                    )}
                   </div>
 
                   {log.relatedEntity && (

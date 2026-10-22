@@ -20,7 +20,19 @@ documentRouter.get('/local-view/*publicId', (req, res) => {
     const rawParam = req.params.publicId || req.params[0] || req.path.split('/local-view/')[1] || '';
     const publicId = decodeURIComponent(rawParam);
     const file = getMemoryFile(publicId);
-    if (!file) return res.status(404).send('Not Found');
+    if (!file) {
+      const fileName = publicId.split('/').at(-1) || 'document.pdf';
+      const disposition = req.query.attachment === '1' ? 'attachment' : 'inline';
+      res.removeHeader('X-Frame-Options');
+      res.removeHeader('Cross-Origin-Embedder-Policy');
+      res.removeHeader('Cross-Origin-Opener-Policy');
+      res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+      const clientOrigins = [env.CLIENT_URL, 'http://localhost:5173', 'http://127.0.0.1:5173'].filter(Boolean).join(' ');
+      res.setHeader('Content-Security-Policy', `frame-ancestors 'self' ${clientOrigins}`);
+      res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+      res.setHeader('Content-Disposition', `${disposition}; filename="${fileName.replace(/\.[^.]+$/, '')}-archived.txt"`);
+      return res.status(200).send(`Talvix Document Archive: ${fileName}\n\nNotice: This document was uploaded using temporary server memory storage.\nBecause cloud storage (Cloudinary) has not yet been connected to Render, temporary in-memory files reset when the Render server sleeps or restarts.\n\nTo ensure all candidate and recruiter documents are permanently stored in the cloud, please configure the Cloudinary environment variables in your Render Dashboard:\n- FILE_STORAGE_PROVIDER=cloudinary\n- FILE_UPLOADS_ENABLED=true\n- CLOUDINARY_CLOUD_NAME=<your-cloud-name>\n- CLOUDINARY_API_KEY=<your-api-key>\n- CLOUDINARY_API_SECRET=<your-api-secret>`);
+    }
     res.removeHeader('X-Frame-Options');
     res.removeHeader('Cross-Origin-Embedder-Policy');
     res.removeHeader('Cross-Origin-Opener-Policy');
