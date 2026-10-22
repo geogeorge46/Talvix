@@ -1,6 +1,6 @@
 import React from 'react';
 import { Sparkles, RefreshCw, AlertCircle, CheckCircle2, Clock, HelpCircle, Layers, Award, BookOpen } from 'lucide-react';
-import { Alert, Button, Card, StatusTag } from '../../design-system';
+import { Alert, Button, StatusTag } from '../../design-system';
 import { useExtractJobIntelligence, useJobIntelligence } from './api';
 
 interface JobIntelligenceCardProps {
@@ -28,20 +28,20 @@ export function JobIntelligenceCard({ jobId, title = '', description = '', initi
   const getStatusBadge = () => {
     switch (status) {
       case 'completed':
-        return <StatusTag status="verified" label="Intelligence Active" />;
+        return <StatusTag tone="success">Intelligence Active</StatusTag>;
       case 'stale':
-        return <StatusTag status="warning" label="Outdated (Job Edited)" />;
+        return <StatusTag tone="warning">Outdated (Job Edited)</StatusTag>;
       case 'pending':
-        return <StatusTag status="info" label="Extracting..." />;
+        return <StatusTag tone="info">Extracting...</StatusTag>;
       case 'failed':
-        return <StatusTag status="rejected" label="Extraction Failed" />;
+        return <StatusTag tone="danger">Extraction Failed</StatusTag>;
       default:
-        return <StatusTag status="draft" label="Not Extracted" />;
+        return <StatusTag tone="neutral">Not Extracted</StatusTag>;
     }
   };
 
   return (
-    <Card className="p-6 border border-slate-200 shadow-sm rounded-xl bg-white mb-6">
+    <div className="p-6 border border-slate-200 shadow-xs rounded-xl bg-white mb-6">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-slate-100">
         <div className="flex items-center gap-3">
           <div className="p-2.5 bg-indigo-50 text-indigo-600 rounded-lg">
@@ -61,7 +61,7 @@ export function JobIntelligenceCard({ jobId, title = '', description = '', initi
         <Button
           type="button"
           variant="secondary"
-          size="sm"
+          size="compact"
           onClick={handleExtract}
           disabled={extractMutation.isPending || (!isRealId && !title.trim())}
           className="flex items-center gap-2 self-start md:self-auto"
@@ -73,11 +73,10 @@ export function JobIntelligenceCard({ jobId, title = '', description = '', initi
 
       {/* Stale Warning Banner */}
       {status === 'stale' && (
-        <Alert variant="warning" className="my-4">
+        <Alert tone="warning" title="Job Description Edited" className="my-4">
           <div className="flex items-start gap-2">
             <Clock className="w-4 h-4 mt-0.5 text-amber-600 shrink-0" />
             <div>
-              <p className="text-sm font-medium text-amber-900">Job Description Edited</p>
               <p className="text-xs text-amber-700 mt-0.5">
                 The job content was updated after intelligence was extracted. Click 'Refresh Intelligence' to update skills and recommendations.
               </p>
@@ -88,11 +87,10 @@ export function JobIntelligenceCard({ jobId, title = '', description = '', initi
 
       {/* Error Alert */}
       {(extractMutation.isError || (status === 'failed' && intelligence?.error)) && (
-        <Alert variant="error" className="my-4">
+        <Alert tone="danger" title="Intelligence Extraction Error" className="my-4">
           <div className="flex items-start gap-2">
             <AlertCircle className="w-4 h-4 mt-0.5 text-red-600 shrink-0" />
             <div>
-              <p className="text-sm font-medium text-red-900">Intelligence Extraction Error</p>
               <p className="text-xs text-red-700 mt-0.5">
                 {extractMutation.error ? (
                   (extractMutation.error as any).details && Array.isArray((extractMutation.error as any).details)
@@ -245,6 +243,6 @@ export function JobIntelligenceCard({ jobId, title = '', description = '', initi
           )}
         </div>
       )}
-    </Card>
+    </div>
   );
 }

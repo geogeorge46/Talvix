@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { FileText, RefreshCw, AlertTriangle, CheckCircle2, Check, Sparkles, Layers, Clock, Award, ArrowRight } from 'lucide-react';
-import { Alert, Button, Card, StatusTag } from '../../design-system';
+import { Alert, Button, StatusTag } from '../../design-system';
 import {
   useJobBlueprint,
   useGenerateJobBlueprint,
@@ -69,25 +69,25 @@ export function JobBlueprintCard({ jobId, title = '', description = '', initialB
 
   const getStatusTag = () => {
     switch (status) {
-      case 'proposed':
-        return <StatusTag status="info" label="Proposed Blueprint" />;
       case 'approved':
-        return <StatusTag status="verified" label="Approved by Recruiter" />;
+        return <StatusTag tone="success">Approved by Recruiter</StatusTag>;
       case 'converted':
-        return <StatusTag status="active" label="Converted to Assessment" />;
+        return <StatusTag tone="success">Converted to Assessment</StatusTag>;
+      case 'proposed':
+        return <StatusTag tone="info">Ready for Review</StatusTag>;
       case 'stale':
-        return <StatusTag status="warning" label="Stale (Job edited)" />;
+        return <StatusTag tone="warning">Stale (Job edited)</StatusTag>;
       case 'pending':
-        return <StatusTag status="info" label="Generating..." />;
+        return <StatusTag tone="info">Generating...</StatusTag>;
       case 'failed':
-        return <StatusTag status="rejected" label="Generation Failed" />;
+        return <StatusTag tone="danger">Generation Failed</StatusTag>;
       default:
-        return <StatusTag status="draft" label="No Blueprint" />;
+        return <StatusTag tone="neutral">No Blueprint</StatusTag>;
     }
   };
 
   return (
-    <Card className="p-6 border border-slate-200 shadow-sm rounded-xl bg-white mb-6">
+    <div className="p-6 border border-slate-200 shadow-xs rounded-xl bg-white mb-6">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-slate-100">
         <div className="flex items-center gap-3">
           <div className="p-2.5 bg-indigo-50 text-indigo-600 rounded-lg">
@@ -107,7 +107,7 @@ export function JobBlueprintCard({ jobId, title = '', description = '', initialB
         <Button
           type="button"
           variant="secondary"
-          size="sm"
+          size="compact"
           onClick={handleGenerate}
           disabled={generateMutation.isPending || (!jobId && (!title.trim() || !description.trim()))}
           className="flex items-center gap-2 self-start md:self-auto"
@@ -118,11 +118,10 @@ export function JobBlueprintCard({ jobId, title = '', description = '', initialB
       </div>
 
       {status === 'stale' && (
-        <Alert variant="warning" className="my-4">
+        <Alert tone="warning" title="Blueprint Outdated" className="my-4">
           <div className="flex items-start gap-2">
             <AlertTriangle className="w-4 h-4 mt-0.5 text-amber-600 shrink-0" />
             <div>
-              <p className="text-sm font-medium text-amber-900">Blueprint Outdated</p>
               <p className="text-xs text-amber-700 mt-0.5">
                 The job description was modified after blueprint generation. Click 'Regenerate Blueprint' to update alignment.
               </p>
@@ -132,7 +131,7 @@ export function JobBlueprintCard({ jobId, title = '', description = '', initialB
       )}
 
       {convertSuccessMsg && (
-        <Alert variant="success" className="my-4">
+        <Alert tone="success" title="Converted Successfully" className="my-4">
           <div className="flex items-center gap-2">
             <CheckCircle2 className="w-4 h-4 text-emerald-600" />
             <p className="text-sm text-emerald-900">{convertSuccessMsg}</p>
@@ -307,6 +306,6 @@ export function JobBlueprintCard({ jobId, title = '', description = '', initialB
           )}
         </div>
       )}
-    </Card>
+    </div>
   );
 }

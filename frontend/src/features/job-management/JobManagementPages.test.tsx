@@ -23,6 +23,15 @@ vi.mock('./api', () => ({
     isError: false,
     mutateAsync: mocks.action,
   }),
+  useJobIntelligence: () => ({ data: null, isLoading: false, isError: false, refetch: vi.fn() }),
+  useExtractJobIntelligence: () => ({ isPending: false, mutate: vi.fn() }),
+  useJobQuality: () => ({ data: null, isLoading: false, isError: false, refetch: vi.fn() }),
+  useAnalyzeJobQuality: () => ({ isPending: false, mutate: vi.fn() }),
+  useJobBlueprint: () => ({ data: null, isLoading: false, isError: false, refetch: vi.fn() }),
+  useGenerateJobBlueprint: () => ({ isPending: false, mutate: vi.fn() }),
+  useRegenerateBlueprintSection: () => ({ isPending: false, mutate: vi.fn() }),
+  useApproveJobBlueprint: () => ({ isPending: false, mutate: vi.fn() }),
+  useConvertBlueprintToAssessment: () => ({ isPending: false, mutate: vi.fn() }),
 }));
 import {
   JobDetailsPage,

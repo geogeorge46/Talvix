@@ -60,6 +60,8 @@ import {
   MapPin,
   Building2,
   Sparkles,
+  ShieldCheck,
+  Layers,
   Eye,
   Copy,
   Send,
@@ -843,6 +845,7 @@ export function JobDetailsPage() {
     message: string;
     stale: boolean;
   } | null>(null);
+  const [activeAiTab, setActiveAiTab] = useState<'intelligence' | 'quality' | 'blueprint' | 'all'>('intelligence');
   if (!a.has('jobs.update')) return <PermissionState />;
   if (a.blocked) return <Block />;
   if (q.isLoading) return <LoadingState label="Loading job" />;
@@ -965,10 +968,91 @@ export function JobDetailsPage() {
           This job is retained for historical reference.
         </Alert>
       )}
+      {/* AI Intelligence & Assessment Workspace */}
+      <section className="bg-slate-50/70 border border-slate-200/90 rounded-2xl p-5 shadow-xs mb-8" aria-label="AI Intelligence and Blueprint Suite">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-200/80 mb-5">
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 bg-indigo-600 text-white rounded-xl shadow-xs">
+              <Sparkles className="w-5 h-5" />
+            </div>
+            <div>
+              <h2 className="text-base font-bold text-slate-900 tracking-tight flex items-center gap-2">
+                AI Copilot & Optimization Suite
+                <span className="text-[11px] font-semibold bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded-full border border-indigo-200/60">
+                  Talvix AI
+                </span>
+              </h2>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Autonomous skill categorization, fairness & quality auditing, and role assessment blueprint generation.
+              </p>
+            </div>
+          </div>
+
+          <div className="inline-flex p-1 bg-white rounded-xl border border-slate-200 shadow-2xs text-xs font-medium text-slate-600 self-start sm:self-auto">
+            <button
+              type="button"
+              onClick={() => setActiveAiTab('intelligence')}
+              className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 ${
+                activeAiTab === 'intelligence'
+                  ? 'bg-indigo-600 text-white font-semibold shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+              }`}
+            >
+              <Sparkles className="w-3.5 h-3.5" />
+              <span>Intelligence</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveAiTab('quality')}
+              className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 ${
+                activeAiTab === 'quality'
+                  ? 'bg-indigo-600 text-white font-semibold shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+              }`}
+            >
+              <ShieldCheck className="w-3.5 h-3.5" />
+              <span>Quality Audit</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveAiTab('blueprint')}
+              className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 ${
+                activeAiTab === 'blueprint'
+                  ? 'bg-indigo-600 text-white font-semibold shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+              }`}
+            >
+              <Layers className="w-3.5 h-3.5" />
+              <span>Blueprint</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveAiTab('all')}
+              className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 ${
+                activeAiTab === 'all'
+                  ? 'bg-indigo-600 text-white font-semibold shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+              }`}
+            >
+              <span>View All</span>
+            </button>
+          </div>
+        </div>
+
+        <div className="space-y-4">
+          {(activeAiTab === 'intelligence' || activeAiTab === 'all') && (
+            <JobIntelligenceCard jobId={j.id} initialIntelligence={j.intelligence} />
+          )}
+          {(activeAiTab === 'quality' || activeAiTab === 'all') && (
+            <JobQualityCard jobId={j.id} initialQuality={j.quality} />
+          )}
+          {(activeAiTab === 'blueprint' || activeAiTab === 'all') && (
+            <JobBlueprintCard jobId={j.id} initialBlueprint={j.blueprint} />
+          )}
+        </div>
+      </section>
+
       <div className="job-detail-grid">
-        <JobIntelligenceCard jobId={j.id} initialIntelligence={j.intelligence} />
-        <JobQualityCard jobId={j.id} initialQuality={j.quality} />
-        <JobBlueprintCard jobId={j.id} initialBlueprint={j.blueprint} />
         <Card heading="Role overview">
           <p className="job-description">{j.description}</p>
           <DescriptionList

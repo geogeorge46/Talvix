@@ -59,7 +59,7 @@ export function JobQualityCard({ jobId, title = '', description = '', initialQua
   };
 
   return (
-    <Card className="p-6 border border-slate-200 shadow-sm rounded-xl bg-white mb-6">
+    <div className="p-6 border border-slate-200 shadow-xs rounded-xl bg-white mb-6">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-slate-100">
         <div className="flex items-center gap-3">
           <div className="p-2.5 bg-blue-50 text-blue-600 rounded-lg">
@@ -163,18 +163,20 @@ export function JobQualityCard({ jobId, title = '', description = '', initialQua
           {/* Category Scores Breakdown Grid */}
           <div>
             <h4 className="text-xs font-semibold text-slate-700 uppercase tracking-wider mb-3">Dimension Scores</h4>
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
               {Object.entries(categoryScores).map(([key, score]: [string, any]) => (
-                <div key={key} className="p-3 bg-white rounded-lg border border-slate-200 text-xs">
-                  <div className="flex justify-between items-center mb-1">
-                    <span className="font-medium text-slate-700 capitalize">{key.replace(/([A-Z])/g, ' $1')}</span>
-                    <span className={`font-bold ${score >= 80 ? 'text-emerald-600' : score >= 60 ? 'text-amber-600' : 'text-red-600'}`}>
+                <div key={key} className="p-3 bg-slate-50/80 rounded-xl border border-slate-200 text-xs flex flex-col justify-between gap-1.5 shadow-2xs min-w-0">
+                  <div className="flex items-start justify-between gap-2 min-w-0">
+                    <span className="font-medium text-slate-700 capitalize text-xs leading-snug line-clamp-2 min-w-0" title={key.replace(/([A-Z])/g, ' $1')}>
+                      {key.replace(/([A-Z])/g, ' $1')}
+                    </span>
+                    <span className={`font-bold shrink-0 text-xs ${score >= 80 ? 'text-emerald-600' : score >= 60 ? 'text-amber-600' : 'text-red-600'}`}>
                       {score}/100
                     </span>
                   </div>
-                  <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden">
+                  <div className="w-full bg-slate-200 h-1.5 rounded-full overflow-hidden mt-1">
                     <div
-                      className={`h-full rounded-full ${score >= 80 ? 'bg-emerald-500' : score >= 60 ? 'bg-amber-500' : 'bg-red-500'}`}
+                      className={`h-full rounded-full transition-all duration-300 ${score >= 80 ? 'bg-emerald-500' : score >= 60 ? 'bg-amber-500' : 'bg-red-500'}`}
                       style={{ width: `${Math.min(100, Math.max(0, score))}%` }}
                     />
                   </div>
@@ -280,6 +282,6 @@ export function JobQualityCard({ jobId, title = '', description = '', initialQua
           </div>
         </div>
       )}
-    </Card>
+    </div>
   );
 }
