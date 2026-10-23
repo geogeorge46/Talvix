@@ -938,6 +938,7 @@ export function ManagedOfferDetailPage() {
                 'negotiation-requested',
                 'revised',
                 'accepted',
+                'onboarding-started',
               ].includes(o.status) && (
                 <OfferAction
                   label="Archive"
@@ -949,6 +950,12 @@ export function ManagedOfferDetailPage() {
               <OfferAction
                 label="Confirm hire"
                 path={`/offers/manage/${offerId}/confirm-hire`}
+              />
+            )}
+            {manage && o.status === 'onboarding-started' && (
+              <OfferAction
+                label="Complete onboarding"
+                path={`/offers/manage/${offerId}/onboarding/complete`}
               />
             )}
             {manage && o.status === 'negotiation-requested' && (
@@ -980,6 +987,28 @@ export function ManagedOfferDetailPage() {
           </>
         }
       />
+      {o.status === 'onboarding-started' && (
+        <div style={{ marginBottom: '16px' }}>
+          <Alert tone="info" title="Candidate Hired — Onboarding In Progress">
+            <p style={{ marginTop: '4px', fontSize: '0.9rem' }}>
+              The candidate has accepted the offer and is officially marked as <strong>Hired</strong>. 
+              The onboarding checklist has been automatically initiated (contract submission, verification, and first-day sync).
+            </p>
+            <p style={{ marginTop: '6px', fontSize: '0.85rem', color: '#475569' }}>
+              Once the candidate completes their onboarding requirements and joining preparations, click <strong>Complete onboarding</strong> above to finalize the offer lifecycle.
+            </p>
+          </Alert>
+        </div>
+      )}
+      {o.status === 'completed' && (
+        <div style={{ marginBottom: '16px' }}>
+          <Alert tone="success" title="Offer & Onboarding Completed">
+            <p style={{ marginTop: '4px', fontSize: '0.9rem' }}>
+              The candidate has successfully completed onboarding and joined the organization. This offer process is complete.
+            </p>
+          </Alert>
+        </div>
+      )}
       {o.negotiation && (
         <div style={{ marginBottom: '16px' }}>
           <Alert
@@ -1802,6 +1831,27 @@ export function CandidateOfferDetailPage() {
         <Alert tone="warning" title={`This offer is ${o.status}`}>
           <p>This revision can no longer be accepted or declined.</p>
         </Alert>
+      )}
+      {o.status === 'accepted' && (
+        <div style={{ marginBottom: '16px' }}>
+          <Alert tone="success" title="Offer Accepted">
+            <p>You have accepted this offer! The recruiting team has been notified to confirm hiring and initiate onboarding.</p>
+          </Alert>
+        </div>
+      )}
+      {o.status === 'onboarding-started' && (
+        <div style={{ marginBottom: '16px' }}>
+          <Alert tone="success" title="🎉 Congratulations! Onboarding In Progress">
+            <p>Your hire has been confirmed and onboarding has started. Welcome to the team!</p>
+          </Alert>
+        </div>
+      )}
+      {o.status === 'completed' && (
+        <div style={{ marginBottom: '16px' }}>
+          <Alert tone="success" title="Onboarding Completed">
+            <p>All onboarding steps have been successfully completed.</p>
+          </Alert>
+        </div>
       )}
       {m.isError && (
         <div style={{ marginBottom: '16px' }}>
