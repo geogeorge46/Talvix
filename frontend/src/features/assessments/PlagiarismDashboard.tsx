@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { Card, DataTable, StatusTag, Button, PageHeader } from '../../design-system';
+import { apiRequest } from '../../api/client';
 
 export function PlagiarismDashboard() {
   const { assessmentId } = useParams<{ assessmentId: string }>();
@@ -9,11 +10,8 @@ export function PlagiarismDashboard() {
 
   const fetchReport = async () => {
     try {
-      const res = await fetch(`/api/v1/assessments/manage/${assessmentId}/plagiarism`);
-      const json = await res.json();
-      if (json.success) {
-        setReport(json.data.report);
-      }
+      const data = await apiRequest<{ report: any[] }>(`/assessments/manage/${assessmentId}/plagiarism`);
+      setReport(data.report || []);
     } catch (err) {
       console.error('Failed to load plagiarism report', err);
     } finally {
@@ -24,7 +22,7 @@ export function PlagiarismDashboard() {
   const triggerScan = async () => {
     try {
       setLoading(true);
-      await fetch(`/api/v1/assessments/manage/${assessmentId}/plagiarism/scan`, { method: 'POST' });
+      await apiRequest(`/assessments/manage/${assessmentId}/plagiarism/scan`, { method: 'POST' });
       await fetchReport();
     } catch (err) {
       console.error('Failed to scan for plagiarism', err);

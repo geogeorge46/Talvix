@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Card, DataTable, PageHeader, Button } from '../../design-system';
+import { apiRequest } from '../../api/client';
 
 export function AssessmentLeaderboards() {
   const [leaderboard, setLeaderboard] = useState<any[]>([]);
@@ -11,16 +12,13 @@ export function AssessmentLeaderboards() {
   const fetchStats = async () => {
     try {
       setLoading(true);
-      const [lRes, bRes] = await Promise.all([
-        fetch(`/api/v1/assessments/manage/${assessmentId || 'all'}/leaderboard?university=${universityFilter}`),
-        fetch(`/api/v1/assessments/benchmarking?assessmentId=${assessmentId}`)
+      const [lData, bData] = await Promise.all([
+        apiRequest<{ leaderboard: any[] }>(`/assessments/manage/${assessmentId || 'all'}/leaderboard?university=${universityFilter}`),
+        apiRequest<any>(`/assessments/benchmarking?assessmentId=${assessmentId}`),
       ]);
       
-      const lJson = await lRes.json();
-      const bJson = await bRes.json();
-      
-      if (lJson.success) setLeaderboard(lJson.data.leaderboard || []);
-      if (bJson.success) setBenchmarks(bJson.data || null);
+      setLeaderboard(lData.leaderboard || []);
+      setBenchmarks(bData || null);
     } catch (err) {
       console.error('Failed to load leaderboards statistics', err);
     } finally {

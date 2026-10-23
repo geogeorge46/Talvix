@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { PageHeader, TextField, TextArea, LoadingState, ErrorState, EmptyState } from '../../design-system';
 import { Tabs } from './Pages';
+import { apiRequest } from '../../api/client';
 
 interface BlueprintItem {
   _id: string;
@@ -42,13 +43,8 @@ export function BlueprintBuilder() {
     try {
       setLoading(true);
       setError(null);
-      const res = await fetch('/api/v1/assessments/blueprints');
-      const json = await res.json();
-      if (json.success) {
-        setBlueprints(json.data.blueprints || []);
-      } else {
-        setError(json.message || 'Failed to load blueprints');
-      }
+      const res = await apiRequest<{ blueprints: BlueprintItem[] }>('/assessments/blueprints');
+      setBlueprints(res.blueprints || []);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Network error');
     } finally {
@@ -61,10 +57,9 @@ export function BlueprintBuilder() {
     if (!name.trim()) return;
     try {
       setLoading(true);
-      await fetch('/api/v1/assessments/blueprints', {
+      await apiRequest('/assessments/blueprints', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+        body: {
           name: name.trim(),
           description: desc.trim(),
           sections: [
@@ -73,7 +68,7 @@ export function BlueprintBuilder() {
           ],
           defaultDuration: Number(duration) || 60,
           passingScore: Number(passingScore) || 50,
-        }),
+        },
       });
       setName('');
       setDesc('');
@@ -88,7 +83,7 @@ export function BlueprintBuilder() {
   const cloneBlueprint = async (id: string) => {
     try {
       setLoading(true);
-      await fetch(`/api/v1/assessments/blueprints/${id}/clone`, { method: 'POST' });
+      await apiRequest(`/assessments/blueprints/${id}/clone`, { method: 'POST' });
       await fetchBlueprints();
     } catch (err) {
       console.error('Failed to clone blueprint', err);
@@ -99,44 +94,18 @@ export function BlueprintBuilder() {
   const generateAssessment = async (id: string) => {
     try {
       setLoading(true);
-      const res = await fetch(`/api/v1/assessments/blueprints/${id}/generate`, { method: 'POST' });
-      const json = await res.json();
-      if (json.success) {
-        alert('Assessment successfully generated in Draft state from blueprint sections!');
-      } else {
-        alert(json.message || 'Failed to generate assessment');
-      }
+      await apiRequest(`/assessments/blueprints/${id}/generate`, { method: 'POST' });
+      alert('Assessment successfully generated in Draft state from blueprint sections!');
     } catch (err) {
       console.error('Failed to generate assessment', err);
-      alert('Failed to generate assessment');
+      alert(err instanceof Error ? err.message : 'Failed to generate assessment');
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    let ignore = false;
-    fetch('/api/v1/assessments/blueprints')
-      .then((res) => res.json())
-      .then((json) => {
-        if (!ignore) {
-          if (json.success) {
-            setBlueprints(json.data.blueprints || []);
-          } else {
-            setError(json.message || 'Failed to load blueprints');
-          }
-          setLoading(false);
-        }
-      })
-      .catch((err: unknown) => {
-        if (!ignore) {
-          setError(err instanceof Error ? err.message : 'Network error');
-          setLoading(false);
-        }
-      });
-    return () => {
-      ignore = true;
-    };
+    void fetchBlueprints();
   }, []);
 
   const totalBlueprints = blueprints.length;

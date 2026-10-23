@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { Card, DataTable, StatusTag, Button, PageHeader } from '../../design-system';
+import { apiRequest } from '../../api/client';
 
 export function AssessmentsMonitor() {
   const { assessmentId } = useParams<{ assessmentId: string }>();
@@ -11,11 +12,8 @@ export function AssessmentsMonitor() {
   useEffect(() => {
     const fetchAttempts = async () => {
       try {
-        const res = await fetch(`/api/v1/assessments/manage/${assessmentId}/active-attempts`);
-        const json = await res.json();
-        if (json.success) {
-          setAttempts(json.data.attempts);
-        }
+        const data = await apiRequest<{ attempts: any[] }>(`/assessments/manage/${assessmentId}/active-attempts`);
+        setAttempts(data.attempts || []);
       } catch (err) {
         console.error('Failed to load active attempts', err);
       } finally {
