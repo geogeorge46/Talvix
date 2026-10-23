@@ -41,7 +41,7 @@ const assertSession = async (user, id, category, entityType, entityId) => {
   return session;
 };
 const current = (filter) => Document.findOne({ ...filter, ...ACTIVE });
-const signed = (document) => createSignedDownloadUrl({ publicId: document.storage.publicId, resourceType: document.storage.resourceType, provider: document.storage?.provider, expiresAt: new Date(Date.now() + env.FILE_SIGNED_URL_TTL_SECONDS * 1000), attachment: true });
+const signed = (document, inline = false) => createSignedDownloadUrl({ publicId: document.storage.publicId, resourceType: document.storage.resourceType, provider: document.storage?.provider, expiresAt: new Date(Date.now() + env.FILE_SIGNED_URL_TTL_SECONDS * 1000), attachment: !inline });
 const cleanup = (document) => deleteDocumentAssetIfUnreferenced(document).catch(() => null);
 
 const profileConfig = {
@@ -343,7 +343,7 @@ export const downloadVerificationDocument = async (actor, company, documentId) =
 };
 
 const scopedDocument = async (filter) => { const document = await Document.findOne({ ...filter, status: 'active', isCurrent: true }); if (!document) throw new AppError('Document not found', 404); return document; };
-export const downloadManagedApplicationDocument = async (actor, company, applicationId, documentId, ipAddress = 'Unknown', userAgent = 'Unknown') => {
+export const downloadManagedApplicationDocument = async (actor, company, applicationId, documentId, ipAddress = 'Unknown', userAgent = 'Unknown', inline = false) => {
   await companyApplication(company, applicationId);
   const app = await Application.findById(applicationId);
   if (!app) throw new AppError('Application not found', 404);
@@ -394,15 +394,15 @@ export const downloadManagedApplicationDocument = async (actor, company, applica
     });
   }
 
-  return signed(document);
+  return signed(document, inline);
 };
-export const downloadManagedAttemptDocument = async (actor, company, attemptId, documentId) => { const attempt = await AssessmentAttempt.findOne({ _id: attemptId, company }); if (!attempt) throw new AppError('Assessment attempt not found', 404); const document = await scopedDocument({ _id: documentId, company, entityType: 'assessment-attempt', entityId: attempt.id }); authorizeDocumentAccess({ actor, document, action: 'download', context: { company, recruiter: true } }); return signed(document); };
-export const downloadCandidateAttemptDocument = async (actor, attemptId, documentId) => {
+export const downloadManagedAttemptDocument = async (actor, company, attemptId, documentId, inline = false) => { const attempt = await AssessmentAttempt.findOne({ _id: attemptId, company }); if (!attempt) throw new AppError('Assessment attempt not found', 404); const document = await scopedDocument({ _id: documentId, company, entityType: 'assessment-attempt', entityId: attempt.id }); authorizeDocumentAccess({ actor, document, action: 'download', context: { company, recruiter: true } }); return signed(document, inline); };
+export const downloadCandidateAttemptDocument = async (actor, attemptId, documentId, inline = false) => {
   const { attempt } = await attemptForCandidate(actor, attemptId, false);
   const document = await scopedDocument({ _id: documentId, owner: actor.id, entityType: 'assessment-attempt', entityId: attempt.id });
   authorizeDocumentAccess({ actor, document, action: 'download', context: { candidate: true, attempt } });
-  return signed(document);
+  return signed(document, inline);
 };
-export const downloadInterviewDocument = async (actor, processId, documentId, company) => { const interview = await processFor(processId, company); if (!company && !['active', 'completed'].includes(interview.status)) throw new AppError('Interview process not found', 404); const document = await scopedDocument({ _id: documentId, entityType: 'interview-process', entityId: interview.id, ...(company ? { company } : { access: 'candidate-visible' }) }); authorizeDocumentAccess({ actor, document, action: 'download', context: company ? { company, recruiter: true } : { candidate: true, interview } }); return signed(document); };
+export const downloadInterviewDocument = async (actor, processId, documentId, company, inline = false) => { const interview = await processFor(processId, company); if (!company && !['active', 'completed'].includes(interview.status)) throw new AppError('Interview process not found', 404); const document = await scopedDocument({ _id: documentId, entityType: 'interview-process', entityId: interview.id, ...(company ? { company } : { access: 'candidate-visible' }) }); authorizeDocumentAccess({ actor, document, action: 'download', context: company ? { company, recruiter: true } : { candidate: true, interview } }); return signed(document, inline); };
 export const updateInterviewAccess = async (company, processId, documentId, access) => { await processFor(processId, company); const document = await scopedDocument({ _id: documentId, company, entityType: 'interview-process', entityId: processId }); document.access = access; await document.save(); return serializeDocument(document); };
-export const downloadOfferDocument = async (actor, offerId, documentId, company) => { const offer = await offerFor(offerId, company, company ? undefined : actor.id); if (!company && !candidateCanViewOfferDocuments(offer)) throw new AppError('Offer not found', 404); const document = await scopedDocument({ _id: documentId, entityType: 'offer', entityId: offer.id, ...(company ? { company } : { access: 'candidate-visible' }) }); authorizeDocumentAccess({ actor, document, action: 'download', context: company ? { company, recruiter: true } : { candidate: true, offer } }); return signed(document); };
+export const downloadOfferDocument = async (actor, offerId, documentId, company, inline = false) => { const offer = await offerFor(offerId, company, company ? undefined : actor.id); if (!company && !candidateCanViewOfferDocuments(offer)) throw new AppError('Offer not found', 404); const document = await scopedDocument({ _id: documentId, entityType: 'offer', entityId: offer.id, ...(company ? { company } : { access: 'candidate-visible' }) }); authorizeDocumentAccess({ actor, document, action: 'download', context: company ? { company, recruiter: true } : { candidate: true, offer } }); return signed(document, inline); };

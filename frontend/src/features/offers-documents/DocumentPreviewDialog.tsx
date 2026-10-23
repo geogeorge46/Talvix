@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { ExternalLink, Download, FileText, AlertCircle } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { ExternalLink, Download, FileText, AlertCircle, Loader2 } from 'lucide-react';
 import { Dialog, Button } from '../../design-system';
 import { safeDownload } from './api';
 
@@ -23,41 +23,102 @@ export function DocumentPreviewDialog({
   category,
 }: DocumentPreviewDialogProps) {
   const [frameError, setFrameError] = useState(false);
-  const url = rawUrl && /^https?:\/\//i.test(rawUrl) ? rawUrl : undefined;
+  const [blobUrl, setBlobUrl] = useState<string | null>(null);
+  const [loadingBlob, setLoadingBlob] = useState(false);
+
+  // Normalize url so inline viewing doesn't force attachment download
+  const cleanUrl = rawUrl && /^https?:\/\//i.test(rawUrl) ? rawUrl : undefined;
+  const previewUrl = cleanUrl
+    ? cleanUrl
+        .replace(/([?&])attachment=1(&|$)/g, '$1attachment=0$2')
+        .replace(/([?&])attachment=true(&|$)/g, '$1attachment=false$2')
+    : undefined;
 
   const isImage = Boolean(
     mimeType?.startsWith('image/') ||
-      (url && /\.(png|jpe?g|webp|gif|svg)(\?.*)?$/i.test(url)) ||
+      (previewUrl && /\.(png|jpe?g|webp|gif|svg)(\?.*)?$/i.test(previewUrl)) ||
       (title && /\.(png|jpe?g|webp|gif|svg)$/i.test(title)),
   );
   const isWord = Boolean(
     mimeType === 'application/msword' ||
       mimeType ===
         'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
-      (url && /\.(docx?|doc)(\?.*)?$/i.test(url)) ||
+      (previewUrl && /\.(docx?|doc)(\?.*)?$/i.test(previewUrl)) ||
       (title && /\.(docx?|doc)$/i.test(title)),
   );
   const isPdf = Boolean(
     !isWord &&
       !isImage &&
       (mimeType === 'application/pdf' ||
-        (url && /\.pdf(\?.*)?$/i.test(url)) ||
+        (previewUrl && /\.pdf(\?.*)?$/i.test(previewUrl)) ||
         (title && /\.pdf$/i.test(title)) ||
         mimeType === undefined),
   );
 
+  // Fetch as local blob to completely bypass iframe cross-origin restrictions and forced attachment downloads
+  useEffect(() => {
+    if (!open || !isPdf || !previewUrl) {
+      if (blobUrl) {
+        URL.revokeObjectURL(blobUrl);
+        setBlobUrl(null);
+      }
+      setLoadingBlob(false);
+      return;
+    }
+
+    let active = true;
+    setLoadingBlob(true);
+
+    fetch(previewUrl)
+      .then(async (res) => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const blob = await res.blob();
+        if (active) {
+          const objectUrl = URL.createObjectURL(
+            new Blob([blob], { type: 'application/pdf' }),
+          );
+          setBlobUrl(objectUrl);
+          setLoadingBlob(false);
+        }
+      })
+      .catch(() => {
+        if (active) {
+          setLoadingBlob(false);
+        }
+      });
+
+    return () => {
+      active = false;
+      if (blobUrl) {
+        URL.revokeObjectURL(blobUrl);
+      }
+    };
+  }, [open, isPdf, previewUrl]);
+
+  const activePdfUrl = blobUrl || previewUrl;
 
   const handleDownload = () => {
+    if (blobUrl) {
+      const a = document.createElement('a');
+      a.href = blobUrl;
+      a.download = title.endsWith('.pdf') ? title : `${title}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      return;
+    }
     if (downloadPath) {
       void safeDownload(downloadPath);
-    } else if (url) {
-      window.open(url, '_blank', 'noopener,noreferrer');
+    } else if (previewUrl) {
+      window.open(previewUrl, '_blank', 'noopener,noreferrer');
     }
   };
 
   const handleOpenExternal = () => {
-    if (url) {
-      window.open(url, '_blank', 'noopener,noreferrer');
+    if (blobUrl) {
+      window.open(blobUrl, '_blank', 'noopener,noreferrer');
+    } else if (previewUrl) {
+      window.open(previewUrl, '_blank', 'noopener,noreferrer');
     }
   };
 
@@ -84,7 +145,7 @@ export function DocumentPreviewDialog({
           }}
         >
           <div style={{ display: 'flex', gap: '8px' }}>
-            {url && (
+            {(activePdfUrl || previewUrl) && (
               <Button
                 variant="secondary"
                 onClick={handleOpenExternal}
@@ -115,7 +176,7 @@ export function DocumentPreviewDialog({
           minHeight: '400px',
         }}
       >
-        {!url ? (
+        {!previewUrl ? (
           <div
             style={{
               padding: '48px 24px',
@@ -147,7 +208,7 @@ export function DocumentPreviewDialog({
             }}
           >
             <img
-              src={url}
+              src={previewUrl}
               alt={title}
               style={{
                 maxWidth: '100%',
@@ -223,7 +284,7 @@ export function DocumentPreviewDialog({
               >
                 Download to view
               </Button>
-              {url && (
+              {previewUrl && (
                 <Button
                   variant="secondary"
                   onClick={handleOpenExternal}
@@ -252,21 +313,34 @@ export function DocumentPreviewDialog({
                 borderRadius: '8px',
                 overflow: 'hidden',
                 border: '1px solid #e2e8f0',
+                position: 'relative',
               }}
             >
-              <object
-                data={`${url}#toolbar=1`}
-                type="application/pdf"
-                style={{ width: '100%', height: '100%', display: 'block' }}
+              {loadingBlob && !blobUrl && (
+                <div
+                  style={{
+                    position: 'absolute',
+                    inset: 0,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    background: '#f8fafc',
+                    zIndex: 2,
+                    color: '#64748b',
+                    gap: '10px',
+                    fontSize: '14px',
+                  }}
+                >
+                  <Loader2 size={20} className="animate-spin" />
+                  <span>Loading document preview...</span>
+                </div>
+              )}
+              <iframe
+                src={`${activePdfUrl}#toolbar=1`}
+                title={title}
                 onError={() => setFrameError(true)}
-              >
-                <iframe
-                  src={`${url}#toolbar=1`}
-                  title={title}
-                  onError={() => setFrameError(true)}
-                  style={{ width: '100%', height: '100%', border: 'none' }}
-                />
-              </object>
+                style={{ width: '100%', height: '100%', border: 'none' }}
+              />
             </div>
             <div
               style={{

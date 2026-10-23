@@ -75,8 +75,6 @@ import {
   Plus,
   Trash2,
   ExternalLink,
-  MessageSquare,
-  MoreHorizontal,
   Info,
   CheckCircle2,
   MapPin,
@@ -805,13 +803,7 @@ function DomainSummaryCard({
                   <span>View Portfolio</span>
                 </button>
               )}
-              <button type="button" className="btn-pill-light">
-                <MessageSquare size={15} />
-                <span>Message</span>
-              </button>
-              <button type="button" className="btn-pill-icon-only" aria-label="More actions">
-                <MoreHorizontal size={18} />
-              </button>
+
             </div>
           </div>
         </div>

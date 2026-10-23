@@ -2015,7 +2015,7 @@ export function ApplicationDetailPage() {
       let url = (a.resume as any).url;
       let downloadPath = undefined;
       if (a.resume.documentId) {
-        downloadPath = `/documents/manage/applications/${applicationId}/${a.resume.documentId}/download`;
+        downloadPath = `/documents/manage/applications/${applicationId}/${a.resume.documentId}/download?inline=true`;
         try {
           url = await getDocumentUrl(downloadPath);
         } catch {
