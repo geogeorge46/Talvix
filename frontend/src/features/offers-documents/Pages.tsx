@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { Award, FileText, Eye, Download, CheckCircle2, Clock, Sparkles, Users, Search, X, UploadCloud, ChevronLeft, Briefcase, Calendar, DollarSign, MapPin, ShieldCheck, ArrowRight } from 'lucide-react';
 import {
   Link as RouterLink,
@@ -837,6 +838,7 @@ function OfferAction({
 }
 export function ManagedOfferDetailPage() {
   const { offerId = '' } = useParams(),
+    qc = useQueryClient(),
     { recruiter } = useAuth(),
     q = useManagedOffer(offerId, validId(offerId)),
     history = useOfferHistory(offerId, validId(offerId)),
@@ -1052,7 +1054,10 @@ export function ManagedOfferDetailPage() {
           documents={docs.data ?? []}
           loading={docs.isLoading}
           canManage={canManageDocs}
-          onUploaded={() => void docs.refetch()}
+          onUploaded={() => {
+            void docs.refetch();
+            void qc.invalidateQueries({ queryKey: ['documents', 'offer', offerId] });
+          }}
         />
       ) : (
         <PermissionState
@@ -2129,10 +2134,9 @@ export function UploadControl({
     const file = e.target.files?.[0] ?? null;
     if (file) {
       setSelectedFile(file);
-      if (state === 'error' || state === 'success') {
-        setState('idle');
-        setError('');
-      }
+      setState('idle');
+      setError('');
+      void run(file);
     }
   };
 
@@ -2156,19 +2160,19 @@ export function UploadControl({
     const file = e.dataTransfer.files?.[0] ?? null;
     if (file) {
       setSelectedFile(file);
-      if (state === 'error' || state === 'success') {
-        setState('idle');
-        setError('');
-      }
+      setState('idle');
+      setError('');
+      void run(file);
     }
   };
 
-  const run = async () => {
-    if (!selectedFile) {
+  const run = async (overrideFile?: File) => {
+    const fileToUpload = overrideFile || selectedFile;
+    if (!fileToUpload) {
       fileInputRef.current?.click();
       return;
     }
-    if (selectedFile.size === 0) {
+    if (fileToUpload.size === 0) {
       setError('The selected file is empty.');
       setState('error');
       return;
@@ -2182,7 +2186,7 @@ export function UploadControl({
         entityId,
         purpose: 'Supporting document',
       });
-      if (selectedFile.size > session.maximumBytes)
+      if (fileToUpload.size > session.maximumBytes)
         throw new Error(`File too large. Max ${formatBytes(session.maximumBytes)}.`);
 
       setState('uploading');
@@ -2193,11 +2197,11 @@ export function UploadControl({
         {
           uploadSessionId: session.id,
           purpose: 'Supporting document',
-          displayName: selectedFile.name,
+          displayName: fileToUpload.name,
           ...(integratedOffer ? { access: selectedAccess } : {}),
           ...(!integratedOffer && !isProfileUpload ? { category } : {}),
         },
-        selectedFile,
+        fileToUpload,
         setProgress,
       );
       setState('success');
@@ -2217,6 +2221,9 @@ export function UploadControl({
         type="file"
         accept={computedAccept}
         disabled={busy}
+        onClick={(e) => {
+          (e.target as HTMLInputElement).value = '';
+        }}
         onChange={handleFileChange}
         style={{ display: 'none' }}
       />
@@ -2247,6 +2254,10 @@ export function UploadControl({
             </div>
             <button
               type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                fileInputRef.current?.click();
+              }}
               className="mt-2 px-3 py-1.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-bold transition-colors cursor-pointer"
             >
               Choose File
@@ -2321,12 +2332,12 @@ export function UploadControl({
         }`}
       >
         {busy
-          ? 'Uploading...'
+          ? `Uploading ${selectedFile?.name ?? 'file'} (${progress}%)...`
           : !selectedFile
-          ? 'Select & Upload Offer File'
+          ? 'Choose Offer Letter File'
           : replaceId
           ? 'Replace Document'
-          : 'Upload Offer Attachment'}
+          : `Upload ${selectedFile.name}`}
       </Button>
     </div>
   );
