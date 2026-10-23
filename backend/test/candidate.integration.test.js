@@ -150,6 +150,77 @@ describe('nested candidate data', () => {
     const profile = await CandidateProfile.findOne({ user: candidate.user._id });
     expect(profile.profileCompletion).toBe(30);
   });
+
+  it('validates date of birth, experience dates, and certification issue dates', async () => {
+    const candidate = await register();
+
+    // 1. Rejects date of birth under 18 years old
+    const under18 = new Date();
+    under18.setFullYear(under18.getFullYear() - 17);
+    await authenticated('patch', '/api/v1/candidates/me', candidate.token)
+      .send({ dateOfBirth: under18.toISOString() })
+      .expect(400);
+
+    // Accepts date of birth at least 18 years old
+    const over18 = new Date();
+    over18.setFullYear(over18.getFullYear() - 22);
+    await authenticated('patch', '/api/v1/candidates/me', candidate.token)
+      .send({ dateOfBirth: over18.toISOString() })
+      .expect(200);
+
+    // 2. Experience validation: rejects future start date
+    const futureDate = new Date();
+    futureDate.setDate(futureDate.getDate() + 10);
+    await authenticated('post', '/api/v1/candidates/me/experience', candidate.token)
+      .send({
+        company: 'Future Corp',
+        title: 'Engineer',
+        startDate: futureDate.toISOString(),
+        currentlyWorking: true,
+      })
+      .expect(400);
+
+    // Past experience: rejects future end date
+    const pastStart = new Date();
+    pastStart.setFullYear(pastStart.getFullYear() - 2);
+    await authenticated('post', '/api/v1/candidates/me/experience', candidate.token)
+      .send({
+        company: 'Past Corp',
+        title: 'Developer',
+        startDate: pastStart.toISOString(),
+        endDate: futureDate.toISOString(),
+        currentlyWorking: false,
+      })
+      .expect(400);
+
+    // Experience: accepts currently working before today
+    await authenticated('post', '/api/v1/candidates/me/experience', candidate.token)
+      .send({
+        company: 'Current Corp',
+        title: 'Software Engineer',
+        startDate: pastStart.toISOString(),
+        currentlyWorking: true,
+      })
+      .expect(201);
+
+    // 3. Certification validation: rejects future issue date
+    await authenticated('post', '/api/v1/candidates/me/certifications', candidate.token)
+      .send({
+        name: 'AWS Certified Solutions Architect',
+        issuingOrganization: 'Amazon Web Services',
+        issueDate: futureDate.toISOString(),
+      })
+      .expect(400);
+
+    // Accepts certification with issue date before today
+    await authenticated('post', '/api/v1/candidates/me/certifications', candidate.token)
+      .send({
+        name: 'AWS Certified Solutions Architect',
+        issuingOrganization: 'Amazon Web Services',
+        issueDate: pastStart.toISOString(),
+      })
+      .expect(201);
+  });
 });
 
 describe('candidate privacy and search', () => {

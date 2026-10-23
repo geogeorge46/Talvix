@@ -35,7 +35,25 @@ export const candidateProfileUpdateSchema = z
     bio: text(1500).optional(),
     phone: z.string().trim().regex(/^[+()\-\s\d]{7,20}$/, 'Invalid phone number').optional(),
     location: locationSchema.optional(),
-    dateOfBirth: date.max(new Date(), 'Date of birth cannot be in the future').optional(),
+    dateOfBirth: date
+      .max(new Date(), 'Date of birth cannot be in the future')
+      .refine(
+        (val) => {
+          const minAge = new Date();
+          minAge.setFullYear(minAge.getFullYear() - 18);
+          return val <= minAge;
+        },
+        { message: 'Candidate must be at least 18 years old' },
+      )
+      .refine(
+        (val) => {
+          const maxAge = new Date();
+          maxAge.setFullYear(maxAge.getFullYear() - 100);
+          return val >= maxAge;
+        },
+        { message: 'Date of birth cannot be more than 100 years ago' },
+      )
+      .optional(),
     gender: z.enum(['female', 'male', 'non-binary', 'prefer-not-to-say']).optional(),
     profilePhoto: assetSchema.nullable().optional(),
     resume: z
@@ -128,8 +146,15 @@ const experienceBase = z
   })
   .strict();
 const validateDateRange = (entry, context, currentField) => {
+  const now = new Date();
+  if (entry.startDate && entry.startDate > now) {
+    context.addIssue({ code: 'custom', path: ['startDate'], message: 'Start date cannot be in the future' });
+  }
   if (entry[currentField] && entry.endDate) {
     context.addIssue({ code: 'custom', path: ['endDate'], message: 'Current entry cannot have an end date' });
+  }
+  if (!entry[currentField] && entry.endDate && entry.endDate > now) {
+    context.addIssue({ code: 'custom', path: ['endDate'], message: 'End date cannot be in the future' });
   }
   if (entry.startDate && entry.endDate && entry.endDate < entry.startDate) {
     context.addIssue({ code: 'custom', path: ['endDate'], message: 'End date cannot precede start date' });
@@ -173,6 +198,10 @@ const certificationBase = z
   })
   .strict();
 const validateCertificationDates = (entry, context) => {
+  const now = new Date();
+  if (entry.issueDate && entry.issueDate > now) {
+    context.addIssue({ code: 'custom', path: ['issueDate'], message: 'Issue date cannot be in the future' });
+  }
   if (entry.issueDate && entry.expirationDate && entry.expirationDate < entry.issueDate) {
     context.addIssue({ code: 'custom', path: ['expirationDate'], message: 'Expiration date cannot precede issue date' });
   }

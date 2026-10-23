@@ -144,19 +144,38 @@ export const updateOwnCandidateProfile = async (userId, input) => {
 };
 
 const validateNestedDates = (collectionName, entry) => {
+  const now = new Date();
   if (collectionName === 'education') {
     if (entry.currentlyStudying && entry.endYear) throw new AppError('Current education cannot have an end year', 400);
     if (entry.endYear && entry.endYear < entry.startYear) throw new AppError('End year cannot precede start year', 400);
   }
   if (collectionName === 'experience') {
+    if (entry.startDate && new Date(entry.startDate) > now) {
+      throw new AppError('Experience start date cannot be in the future', 400);
+    }
     if (entry.currentlyWorking && entry.endDate) throw new AppError('Current experience cannot have an end date', 400);
-    if (entry.endDate && entry.startDate && entry.endDate < entry.startDate) throw new AppError('End date cannot precede start date', 400);
+    if (!entry.currentlyWorking && entry.endDate && new Date(entry.endDate) > now) {
+      throw new AppError('Experience end date cannot be in the future', 400);
+    }
+    if (entry.endDate && entry.startDate && new Date(entry.endDate) < new Date(entry.startDate)) {
+      throw new AppError('End date cannot precede start date', 400);
+    }
   }
-  if (collectionName === 'projects' && entry.endDate && entry.startDate && entry.endDate < entry.startDate) {
-    throw new AppError('End date cannot precede start date', 400);
+  if (collectionName === 'projects') {
+    if (entry.startDate && new Date(entry.startDate) > now) {
+      throw new AppError('Project start date cannot be in the future', 400);
+    }
+    if (entry.endDate && entry.startDate && new Date(entry.endDate) < new Date(entry.startDate)) {
+      throw new AppError('End date cannot precede start date', 400);
+    }
   }
-  if (collectionName === 'certifications' && entry.expirationDate && entry.issueDate && entry.expirationDate < entry.issueDate) {
-    throw new AppError('Expiration date cannot precede issue date', 400);
+  if (collectionName === 'certifications') {
+    if (entry.issueDate && new Date(entry.issueDate) > now) {
+      throw new AppError('Certification issue date cannot be in the future', 400);
+    }
+    if (entry.expirationDate && entry.issueDate && new Date(entry.expirationDate) < new Date(entry.issueDate)) {
+      throw new AppError('Expiration date cannot precede issue date', 400);
+    }
   }
 };
 

@@ -552,6 +552,12 @@ function DomainSummaryCard({
   const completionPercentage = Math.round((completedSections / totalSections) * 100);
   const strokeDashoffset = 175.93 - (175.93 * completionPercentage) / 100;
 
+  const todayDateObj = new Date();
+  const maxDobDate = new Date(todayDateObj.getFullYear() - 18, todayDateObj.getMonth(), todayDateObj.getDate());
+  const maxDobString = maxDobDate.toISOString().split('T')[0];
+  const minDobDate = new Date(todayDateObj.getFullYear() - 100, todayDateObj.getMonth(), todayDateObj.getDate());
+  const minDobString = minDobDate.toISOString().split('T')[0];
+
   const currentCurrency = p.expectedSalary?.currency ?? 'INR';
   const currencyOptions = [
     { value: 'INR', label: 'INR (₹)' },
@@ -1389,13 +1395,15 @@ function DomainSummaryCard({
                 )}
               </FormField>
 
-              <FormField label="Date of Birth">
+              <FormField label="Date of Birth" hint="Must be at least 18 years old">
                 {({ id, ...control }) => (
                   <TextField
                     id={id}
                     {...control}
                     name="dateOfBirth"
                     type="date"
+                    max={maxDobString}
+                    min={minDobString}
                     value={draft.dateOfBirth ?? ''}
                     onChange={(e) => updateDraft('dateOfBirth', e.target.value)}
                   />
@@ -1913,11 +1921,16 @@ function CollectionEditor({
   );
 
   const mutation = useCandidateProfileMutation();
+  const [localError, setLocalError] = useState<string | null>(null);
+  const todayDateIso = new Date().toISOString().split('T')[0];
   const [current, setCurrent] = useState(
     Boolean(data?.currentlyWorking ?? data?.currentlyStudying),
   );
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    setLocalError(null);
+    const today = new Date();
+    today.setHours(23, 59, 59, 999);
     const f = new FormData(event.currentTarget),
       value = (name: string) => String(f.get(name) ?? '').trim();
     let body: Record<string, unknown>;
@@ -1928,13 +1941,40 @@ function CollectionEditor({
         yearsOfExperience: Number(value('yearsOfExperience') || 0),
       };
     }
-    else if (kind === 'experience')
+    else if (kind === 'experience') {
+      const startDateVal = value('startDate');
+      const isCurrent = f.get('current') === 'on';
+      const endDateVal = value('endDate');
+
+      if (!startDateVal) {
+        setLocalError('Experience start date is required.');
+        return;
+      }
+      if (new Date(startDateVal) > today) {
+        setLocalError('Experience start date cannot be in the future (must be before or on today).');
+        return;
+      }
+      if (!isCurrent) {
+        if (!endDateVal) {
+          setLocalError('End date is required for past experience, or mark "I currently work here".');
+          return;
+        }
+        if (new Date(endDateVal) > today) {
+          setLocalError('Experience end date cannot be in the future (must be before or on today).');
+          return;
+        }
+        if (new Date(endDateVal) < new Date(startDateVal)) {
+          setLocalError('Experience end date cannot precede start date.');
+          return;
+        }
+      }
+
       body = {
         company: value('company'),
         title: value('title'),
-        startDate: value('startDate'),
-        currentlyWorking: f.get('current') === 'on',
-        ...(f.get('current') === 'on' ? {} : { endDate: value('endDate') }),
+        startDate: startDateVal,
+        currentlyWorking: isCurrent,
+        ...(isCurrent ? {} : { endDate: endDateVal }),
         employmentType: value('employmentType') || undefined,
         location: value('location') || undefined,
         description: value('description') || undefined,
@@ -1943,6 +1983,7 @@ function CollectionEditor({
           .map((x) => x.trim())
           .filter(Boolean),
       };
+    }
     else if (kind === 'education')
       body = {
         institution: value('institution'),
@@ -1956,25 +1997,49 @@ function CollectionEditor({
         grade: value('grade') || undefined,
         description: value('description') || undefined,
       };
-    else if (kind === 'projects')
+    else if (kind === 'projects') {
+      const projStart = value('startDate');
+      const projEnd = value('endDate');
+      if (projStart && new Date(projStart) > today) {
+        setLocalError('Project start date cannot be in the future.');
+        return;
+      }
+      if (projStart && projEnd && new Date(projEnd) < new Date(projStart)) {
+        setLocalError('Project end date cannot precede start date.');
+        return;
+      }
       body = {
         title: value('title'),
         description: value('description'),
         technologies: [],
         githubUrl: value('githubUrl') || undefined,
         liveUrl: value('liveUrl') || undefined,
-        startDate: value('startDate') || undefined,
-        endDate: value('endDate') || undefined,
+        startDate: projStart || undefined,
+        endDate: projEnd || undefined,
       };
-    else
+    }
+    else {
+      const issueDateVal = value('issueDate');
+      const expirationDateVal = value('expirationDate');
+
+      if (issueDateVal && new Date(issueDateVal) > today) {
+        setLocalError('Certification issue date cannot be in the future (must be before or on today).');
+        return;
+      }
+      if (issueDateVal && expirationDateVal && new Date(expirationDateVal) < new Date(issueDateVal)) {
+        setLocalError('Certification expiration date cannot precede issue date.');
+        return;
+      }
+
       body = {
         name: value('name'),
         issuingOrganization: value('issuingOrganization'),
-        issueDate: value('issueDate') || undefined,
-        expirationDate: value('expirationDate') || undefined,
+        issueDate: issueDateVal || undefined,
+        expirationDate: expirationDateVal || undefined,
         credentialId: value('credentialId') || undefined,
         credentialUrl: value('credentialUrl') || undefined,
       };
+    }
     mutation.mutate(
       {
         path: `/candidates/me/${kind}${id ? `/${id}` : ''}`,
@@ -2072,6 +2137,7 @@ function CollectionEditor({
                 name="startDate"
                 type="date"
                 required
+                max={todayDateIso}
                 defaultValue={String(data?.startDate ?? '').slice(0, 10)}
               />
             </label>
@@ -2089,6 +2155,7 @@ function CollectionEditor({
               aria-label="Experience end date"
               type="date"
               disabled={current}
+              max={todayDateIso}
               defaultValue={String(data?.endDate ?? '').slice(0, 10)}
             />
             <Select
@@ -2256,6 +2323,7 @@ function CollectionEditor({
                 id="collection-cert-date"
                 name="issueDate"
                 type="date"
+                max={todayDateIso}
                 defaultValue={String(data?.issueDate ?? '').slice(0, 10)}
               />
             </label>
@@ -2276,9 +2344,9 @@ function CollectionEditor({
             />
           </>
         )}
-        {mutation.isError && (
-          <Alert tone="danger" title="Entry not saved">
-            {message(mutation.error)}
+        {(localError || mutation.isError) && (
+          <Alert tone="danger" title="Validation error">
+            {localError || message(mutation.error)}
           </Alert>
         )}
         <FormActions>
