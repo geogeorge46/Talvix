@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
+import { ArrowLeft } from 'lucide-react';
 import {
   Alert,
   Button,
@@ -17,6 +18,7 @@ import { label } from './model';
 
 export function RecruiterReviewDetailPage() {
   const { attemptId = '' } = useParams();
+  const nav = useNavigate();
   const { recruiter } = useAuth();
   const canReview = Boolean(
     recruiter?.permissions.includes('assessments.review'),
@@ -28,6 +30,15 @@ export function RecruiterReviewDetailPage() {
   const mutation = useReviewAction(attemptId);
   const [scores, setScores] = useState<Record<string, string>>({});
   const [feedback, setFeedback] = useState<Record<string, string>>({});
+
+  const handleBack = () => {
+    if (window.history.length > 1) {
+      nav(-1);
+    } else {
+      nav('/org/assessments/reviews');
+    }
+  };
+
   if (!canReview)
     return (
       <PermissionState description="The assessments.review permission is required." />
@@ -52,10 +63,30 @@ export function RecruiterReviewDetailPage() {
   );
   return (
     <div className="as-page">
+      <div className="mb-4">
+        <Button
+          variant="quiet"
+          size="compact"
+          leadingIcon={<ArrowLeft size={16} />}
+          onClick={handleBack}
+        >
+          Back to Reviews
+        </Button>
+      </div>
+
       <PageHeader
         title={attempt.title}
         eyebrow="Manual assessment review"
         description="Score only the submitted snapshot. Correct answers and private explanations are not rendered."
+        secondaryActions={
+          <Button
+            variant="secondary"
+            leadingIcon={<ArrowLeft size={16} />}
+            onClick={handleBack}
+          >
+            Back
+          </Button>
+        }
         primaryAction={
           reviewable ? (
             <Button
