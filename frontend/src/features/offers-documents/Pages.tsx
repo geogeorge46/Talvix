@@ -1047,24 +1047,7 @@ export function ManagedOfferDetailPage() {
             )}
         </Card>
       </div>
-      {canViewDocs ? (
-        <DocumentPanel
-          offerId={offerId}
-          recruiter
-          documents={docs.data ?? []}
-          loading={docs.isLoading}
-          canManage={canManageDocs}
-          onUploaded={() => {
-            void docs.refetch();
-            void qc.invalidateQueries({ queryKey: ['documents', 'offer', offerId] });
-          }}
-        />
-      ) : (
-        <PermissionState
-          title="Attachments unavailable"
-          description="The documents.view permission is required to list or download offer attachments."
-        />
-      )}
+      {/* Offer attachments / document upload temporarily hidden as requested */}
     </main>
   );
 }
@@ -1997,12 +1980,14 @@ export function CandidateOfferDetailPage() {
           </ol>
         </Card>
       </div>
-      <DocumentPanel
-        offerId={offerId}
-        recruiter={false}
-        documents={docs.data ?? []}
-        loading={docs.isLoading}
-      />
+      {docs.data && docs.data.length > 0 && (
+        <DocumentPanel
+          offerId={offerId}
+          recruiter={false}
+          documents={docs.data ?? []}
+          loading={docs.isLoading}
+        />
+      )}
     </main>
   );
 }
