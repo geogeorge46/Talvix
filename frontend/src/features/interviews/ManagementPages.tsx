@@ -41,7 +41,8 @@ import {
   useFeedbackAction,
   useTemplates,
 } from './api';
-import { useApplication } from '../ats-workspace/api';
+import { useApplication, useApplications } from '../ats-workspace/api';
+import type { ApplicationRow } from '../ats-workspace/model';
 import { label, type Process, type Template } from './model';
 import { InterviewTabs } from './Pages';
 
@@ -157,6 +158,9 @@ export function ProcessCreatePage() {
     [applicationId, setApplicationId] = useState(searchParams.get('applicationId') || ''),
     [templateId, setTemplateId] = useState('preset:standard-tech');
 
+  const applicationsQuery = useApplications('limit=50', can);
+  const appItems = (applicationsQuery.data?.items ?? []) as ApplicationRow[];
+
   const appQuery = useApplication(applicationId, Boolean(applicationId) && can);
   const existingProcessesQuery = useProcesses(
     `applicationId=${applicationId}&limit=1`,
@@ -169,6 +173,17 @@ export function ProcessCreatePage() {
     return (
       <PermissionState description="The interviews.manage permission is required." />
     );
+
+  const applicationOptions = [
+    { value: '', label: '-- Select Candidate Application --' },
+    ...(applicationId && !appItems.some((x) => x.id === applicationId)
+      ? [{ value: applicationId, label: `Selected Application (${applicationId.slice(-6)})` }]
+      : []),
+    ...appItems.map((a) => ({
+      value: a.id,
+      label: `${a.candidateName || 'Candidate'} — ${a.jobTitle || 'Role'} [${a.number ? `#${a.number} · ` : ''}Stage: ${label(a.status)}]`,
+    })),
+  ];
 
   const customTemplates = ((templates.data?.items ?? []) as Template[]).map((t) => ({
     value: t.id,
@@ -216,6 +231,16 @@ export function ProcessCreatePage() {
         }
       />
       <Card heading="Process source" headingLevel={2}>
+        {appItems.length > 0 && (
+          <Select
+            label="Candidate Application"
+            value={applicationId}
+            onChange={(e) => setApplicationId(e.target.value)}
+            options={applicationOptions}
+            hint={applicationsQuery.isLoading ? 'Loading active applications...' : 'Choose an applicant from your pipeline to create their interview process.'}
+          />
+        )}
+
         {existingProcess && (
           <div
             style={{
@@ -248,6 +273,22 @@ export function ProcessCreatePage() {
           </div>
         )}
 
+        {appQuery.isLoading && applicationId && (
+          <div
+            style={{
+              padding: '12px 16px',
+              background: '#f8fafc',
+              borderRadius: '8px',
+              border: '1px solid #e2e8f0',
+              marginBottom: '16px',
+              fontSize: '0.875rem',
+              color: '#64748b',
+            }}
+          >
+            Fetching candidate details for application...
+          </div>
+        )}
+
         {appQuery.data && (
           <div
             style={{
@@ -258,7 +299,7 @@ export function ProcessCreatePage() {
               marginBottom: '16px',
             }}
           >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
               <div>
                 <strong style={{ fontSize: '1rem', display: 'block', color: '#0f172a' }}>
                   {appQuery.data.candidateName || 'Candidate Application'}
@@ -266,18 +307,41 @@ export function ProcessCreatePage() {
                 <span style={{ fontSize: '0.875rem', color: '#64748b' }}>
                   {appQuery.data.jobTitle ? `${appQuery.data.jobTitle} · ` : ''}
                   {appQuery.data.candidateEmail || ''}
+                  {appQuery.data.number ? ` · #${appQuery.data.number}` : ''}
                 </span>
               </div>
               {appQuery.data.status && <StatusTag>{appQuery.data.status}</StatusTag>}
             </div>
+            {!['shortlisted', 'assessment-completed', 'interview-scheduled', 'interview-completed'].includes(appQuery.data.status) && (
+              <div style={{ marginTop: '8px', fontSize: '0.85rem', color: '#b45309' }}>
+                ⚠️ Notice: Candidate is currently in the <strong>{label(appQuery.data.status)}</strong> stage. Interview processes are normally scheduled once candidates are shortlisted or assessments are completed.
+              </div>
+            )}
           </div>
         )}
+
+        {appQuery.isError && applicationId && (
+          <div
+            style={{
+              padding: '12px 16px',
+              background: '#fef2f2',
+              borderRadius: '8px',
+              border: '1px solid #fecaca',
+              marginBottom: '16px',
+              fontSize: '0.875rem',
+              color: '#b91c1c',
+            }}
+          >
+            ⚠️ Application not found. Please verify the Application ID or select an applicant from the dropdown above.
+          </div>
+        )}
+
         <TextField
           required
           label="Application ID"
           value={applicationId}
-          onChange={(e) => setApplicationId(e.target.value)}
-          hint="Use the application identifier from the ATS workspace."
+          onChange={(e) => setApplicationId(e.target.value.trim())}
+          hint="Selecting a candidate from the dropdown above auto-fills this ID, or you can paste an ID from ATS."
         />
         <Select
           required

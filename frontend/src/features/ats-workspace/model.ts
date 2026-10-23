@@ -85,6 +85,7 @@ export interface ApplicationRow {
   number: string;
   profileId?: string | undefined;
   candidateName: string;
+  candidateEmail?: string | undefined;
   jobTitle: string;
   skills: string[];
   matchScore: number;
@@ -105,7 +106,8 @@ export function toApplicationRow(v: unknown): ApplicationRow {
     id: text(x._id),
     number: text(x.applicationNumber),
     profileId: text(x.candidateProfile) || undefined,
-    candidateName: text(c.fullName) || 'Candidate',
+    candidateName: text(c.fullName) || text(obj(x.candidate).fullName) || text(obj(x.candidateProfile).fullName) || 'Candidate',
+    candidateEmail: text(c.email) || text(obj(x.candidate).email) || undefined,
     jobTitle: text(obj(x.jobSnapshot).title) || 'Role unavailable',
     skills: strings(c.skills),
     matchScore: num(m.score),
