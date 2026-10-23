@@ -694,7 +694,8 @@ export function FeedbackDetailPage() {
     ...(visibleFeedback.trim() ? { candidateVisibleFeedback: visibleFeedback.trim() } : {}),
     attachments,
   };
-  const missing = scorecard.criteria.filter((x) => x.required && !scores[x.id]?.score).map((x) => x.name);
+  const hasScore = (id: string) => scores[id]?.score !== undefined && scores[id]?.score !== '';
+  const missing = scorecard.criteria.filter((x) => x.required && !hasScore(x.id)).map((x) => x.name);
   const save = () => action.mutateAsync({ body: payload });
   const submit = async () => { await save(); await action.mutateAsync({ submit: true }); };
   const removeAttachment = (id: string) => {
@@ -707,23 +708,6 @@ export function FeedbackDetailPage() {
   return (
     <div className="iv-page">
       <PageHeader
-        eyebrow={
-          <Link
-            to={backUrl}
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '6px',
-              fontSize: '0.875rem',
-              fontWeight: 600,
-              color: '#2563eb',
-              textDecoration: 'none',
-              marginBottom: '4px',
-            }}
-          >
-            <ArrowLeft size={14} /> Back to Interview Process
-          </Link>
-        }
         title={scorecard.name}
         description={`${label(scorecard.type)} scorecard · ${label(scorecard.status)}`}
         secondaryActions={
@@ -777,14 +761,25 @@ export function FeedbackDetailPage() {
           <Card key={criterion.id} heading={`${index + 1}. ${criterion.name}`} headingLevel={2}>
             <p>{criterion.description || label(criterion.category)}</p>
             <div className="iv-score-row">
-              <TextField type="number" min={0} max={criterion.maximumScore} step={1} required={criterion.required} disabled={immutable} label={`Score out of ${criterion.maximumScore}${criterion.required ? ' (required)' : ''}`} value={scores[criterion.id]?.score ?? ''} onChange={(e) => setScores((old) => ({ ...old, [criterion.id]: { score: e.target.value, comment: old[criterion.id]?.comment ?? '' } }))} />
+              <TextField type="number" min={0} max={criterion.maximumScore} step={1} required={criterion.required} disabled={immutable} label={`Score out of ${criterion.maximumScore}`} value={scores[criterion.id]?.score ?? ''} onChange={(e) => {
+                let val = e.target.value;
+                if (val !== '' && !isNaN(Number(val))) {
+                  const n = Number(val);
+                  if (n > criterion.maximumScore) val = String(criterion.maximumScore);
+                  if (n < 0) val = '0';
+                }
+                setScores((old) => ({ ...old, [criterion.id]: { score: val, comment: old[criterion.id]?.comment ?? '' } }));
+              }} />
               <TextArea disabled={immutable} label="Criterion comment" value={scores[criterion.id]?.comment ?? ''} onChange={(e) => setScores((old) => ({ ...old, [criterion.id]: { score: old[criterion.id]?.score ?? '', comment: e.target.value } }))} />
             </div>
           </Card>
         ))}
       </section>
       <Card heading="Overall recommendation" headingLevel={2}>
-        <Select required disabled={immutable} label="Recommendation" value={recommendation} onChange={(e) => setRecommendation(e.target.value)} options={['strong-hire', 'hire', 'neutral', 'hold', 'no-hire', 'strong-no-hire'].map((value) => ({ value, label: label(value) }))} />
+        <Select required disabled={immutable} label="Recommendation" value={recommendation} onChange={(e) => setRecommendation(e.target.value)} options={[
+          { value: '', label: 'Select a recommendation (required)...' },
+          ...['strong-hire', 'hire', 'neutral', 'hold', 'no-hire', 'strong-no-hire'].map((value) => ({ value, label: label(value) }))
+        ]} />
         <TextArea disabled={immutable} label="Strengths (one per line)" value={strengths} onChange={(e) => setStrengths(e.target.value)} />
         <TextArea disabled={immutable} label="Concerns (one per line)" value={concerns} onChange={(e) => setConcerns(e.target.value)} />
         <TextArea disabled={immutable} label="Private notes" hint="Visible only to you and authorized internal users." value={privateNotes} onChange={(e) => setPrivateNotes(e.target.value)} />

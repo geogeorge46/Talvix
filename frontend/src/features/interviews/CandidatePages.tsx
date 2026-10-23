@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react';
 import { CalendarDays, ArrowLeft, CheckCircle2, Award, MessageSquare } from 'lucide-react';
 import { Link, useParams } from 'react-router-dom';
 import {
@@ -184,23 +185,6 @@ export function CandidateInterviewDetailPage() {
   return (
     <div className="iv-page">
       <PageHeader
-        eyebrow={
-          <Link
-            to="/candidate/interviews"
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '6px',
-              fontSize: '0.875rem',
-              fontWeight: 600,
-              color: '#2563eb',
-              textDecoration: 'none',
-              marginBottom: '4px',
-            }}
-          >
-            <ArrowLeft size={14} /> Back to My Interviews
-          </Link>
-        }
         title="Interview Process Details"
         description={jobDisplay}
         secondaryActions={
@@ -532,6 +516,27 @@ export function AvailabilityPage() {
       <PageHeader
         title="Interview availability"
         description="Publish non-overlapping availability with an explicit IANA timezone."
+        secondaryActions={
+          <Link
+            to="/candidate/interviews"
+            className="tvx-button tvx-button--secondary"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '6px 14px',
+              borderRadius: '6px',
+              textDecoration: 'none',
+              fontWeight: 600,
+              fontSize: '0.85rem',
+              color: '#334155',
+              border: '1px solid #cbd5e1',
+              backgroundColor: '#ffffff',
+            }}
+          >
+            <ArrowLeft size={14} /> Back to Interviews
+          </Link>
+        }
       />
       <div className="iv-split">
         <form
@@ -592,7 +597,28 @@ export function AvailabilityPage() {
                 />
               </div>
             ))}
-            {invalid && (
+            <div style={{ display: 'flex', gap: '8px', marginTop: '10px', marginBottom: '14px' }}>
+              <Button
+                type="button"
+                variant="secondary"
+                size="compact"
+                onClick={() => setSlots([...slots, { startTime: '', endTime: '' }])}
+                disabled={slots.length >= 10}
+              >
+                + Add Another Slot
+              </Button>
+              {slots.length > 1 && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="compact"
+                  onClick={() => setSlots(slots.slice(0, -1))}
+                >
+                  Remove Slot
+                </Button>
+              )}
+            </div>
+            {slots.some((s) => s.startTime || s.endTime) && invalid && (
               <Alert tone="danger" title="Check availability">
                 {invalid}
               </Alert>
@@ -622,20 +648,39 @@ export function AvailabilityPage() {
               description="Add times when you can interview."
             />
           ) : (
-            <ul className="iv-availability">
+            <ul className="iv-availability" style={{ listStyle: 'none', padding: 0 }}>
               {q.data.map((v, i) => {
                 const x = v as Record<string, unknown>,
-                  id = String(x.id ?? x._id ?? i);
+                  id = String(x.id ?? x._id ?? i),
+                  parsedDate = x.date ? new Date(String(x.date)).toLocaleDateString(undefined, { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' }) : 'Availability',
+                  slotList = Array.isArray(x.slots) ? (x.slots as any[]) : [];
                 return (
-                  <li key={id}>
-                    <strong>{String(x.date ?? 'Availability')}</strong>
-                    <span>{String(x.timezone ?? '')}</span>
-                    <Button
-                      variant="quiet"
-                      onClick={() => void remove.mutateAsync(id)}
-                    >
-                      Delete
-                    </Button>
+                  <li key={id} style={{ display: 'flex', flexDirection: 'column', gap: '8px', padding: '12px 0', borderBottom: '1px solid #e2e8f0' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <div>
+                        <strong style={{ fontSize: '0.95rem', color: '#0f172a' }}>{parsedDate}</strong>
+                        <span style={{ fontSize: '0.8rem', color: '#64748b', marginLeft: '8px' }}>({String(x.timezone ?? '')})</span>
+                      </div>
+                      <Button
+                        variant="quiet"
+                        onClick={() => void remove.mutateAsync(id)}
+                      >
+                        Delete
+                      </Button>
+                    </div>
+                    {slotList.length > 0 && (
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                        {slotList.map((slot, sIdx) => {
+                          const start = slot.startTime ? new Date(slot.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
+                          const end = slot.endTime ? new Date(slot.endTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
+                          return (
+                            <span key={sIdx} style={{ fontSize: '0.8rem', backgroundColor: '#f1f5f9', padding: '2px 8px', borderRadius: '4px', color: '#334155' }}>
+                              🕒 {start} – {end}
+                            </span>
+                          );
+                        })}
+                      </div>
+                    )}
                   </li>
                 );
               })}
