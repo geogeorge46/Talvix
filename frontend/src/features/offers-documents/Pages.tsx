@@ -1719,7 +1719,7 @@ function CandidateOfferCard({ offer }: { offer: Offer }) {
         </span>
         <RouterLink
           to={`/candidate/offers/${offer.id}`}
-          className="inline-flex items-center gap-1 px-4 py-2 text-xs font-bold rounded-xl bg-slate-900 hover:bg-slate-800 text-white transition-all shadow-xs shrink-0"
+          className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-bold rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white transition-all shadow-xs hover:shadow-sm shrink-0"
         >
           View Details <ArrowRight className="w-3.5 h-3.5" />
         </RouterLink>
