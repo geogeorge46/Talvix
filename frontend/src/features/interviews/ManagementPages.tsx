@@ -199,6 +199,21 @@ export function ProcessCreatePage() {
       <PageHeader
         title="Create interview process"
         description="Start from an eligible application and select an interview round structure."
+        secondaryActions={
+          <Button
+            variant="secondary"
+            leadingIcon={<ArrowLeft size={16} />}
+            onClick={() => {
+              if (window.history.length > 1) {
+                nav(-1);
+              } else {
+                nav('/org/interviews');
+              }
+            }}
+          >
+            Back
+          </Button>
+        }
       />
       <Card heading="Process source" headingLevel={2}>
         {existingProcess && (
