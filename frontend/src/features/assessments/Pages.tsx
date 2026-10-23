@@ -4766,6 +4766,7 @@ function ReviewQuestionCard({
 
 export function ReviewDetailPage() {
   const { attemptId = '' } = useParams();
+  const nav = useNavigate();
   const { recruiter } = useAuth();
   const canReview = has(recruiter?.permissions ?? [], 'assessments.review');
   const query = useReview(attemptId, canReview && Boolean(attemptId));
@@ -4851,6 +4852,21 @@ export function ReviewDetailPage() {
         eyebrow={attempt.title}
         description={`Status: ${label(attempt.status)}`}
         secondaryActions={
+          <Button
+            variant="secondary"
+            leadingIcon={<ArrowLeft size={16} />}
+            onClick={() => {
+              if (window.history.length > 1) {
+                nav(-1);
+              } else {
+                nav('/org/assessments/reviews');
+              }
+            }}
+          >
+            Back
+          </Button>
+        }
+        primaryAction={
           attempt.status === 'review-pending' && pendingQuestions.length === 0 ? (
             <Button onClick={handleCompleteReview} loading={action.isPending}>
               Finalize & Complete Review
