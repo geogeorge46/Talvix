@@ -1297,23 +1297,6 @@ export function ProcessDetailPage() {
   return (
     <div className="iv-page">
       <PageHeader
-        eyebrow={
-          <Link
-            to="/org/interviews"
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '6px',
-              fontSize: '0.875rem',
-              fontWeight: 600,
-              color: '#2563eb',
-              textDecoration: 'none',
-              marginBottom: '4px',
-            }}
-          >
-            <ArrowLeft size={14} /> Back to Interviews List
-          </Link>
-        }
         title={p.candidateName ? `Interview Process: ${p.candidateName}` : "Interview runbook"}
         description={`${p.candidateName ? `Candidate: ${p.candidateName}` : `Candidate ID: ${p.candidateId}`}${p.jobTitle ? ` · Job: ${p.jobTitle}` : ''} · Application ${p.applicationId}`}
         secondaryActions={
