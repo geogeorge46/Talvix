@@ -4766,7 +4766,6 @@ function ReviewQuestionCard({
 
 export function ReviewDetailPage() {
   const { attemptId = '' } = useParams();
-  const nav = useNavigate();
   const { recruiter } = useAuth();
   const canReview = has(recruiter?.permissions ?? [], 'assessments.review');
   const query = useReview(attemptId, canReview && Boolean(attemptId));
@@ -4791,14 +4790,6 @@ export function ReviewDetailPage() {
 
   const attempt = query.data;
   if (!attempt) return null;
-
-  const handleBack = () => {
-    if (window.history.length > 1) {
-      nav(-1);
-    } else {
-      nav('/org/assessments/reviews');
-    }
-  };
 
   const handleSaveQuestionScore = async (
     questionId: string,
@@ -4855,36 +4846,16 @@ export function ReviewDetailPage() {
 
   return (
     <div className="as-page">
-      <div className="mb-4">
-        <Button
-          variant="quiet"
-          size="compact"
-          leadingIcon={<ArrowLeft size={16} />}
-          onClick={handleBack}
-        >
-          Back to Reviews
-        </Button>
-      </div>
-
       <PageHeader
         title="Assessment Submission Review"
         eyebrow={attempt.title}
         description={`Status: ${label(attempt.status)}`}
         secondaryActions={
-          <div className="flex items-center gap-2">
-            <Button
-              variant="secondary"
-              leadingIcon={<ArrowLeft size={16} />}
-              onClick={handleBack}
-            >
-              Back
+          attempt.status === 'review-pending' && pendingQuestions.length === 0 ? (
+            <Button onClick={handleCompleteReview} loading={action.isPending}>
+              Finalize & Complete Review
             </Button>
-            {attempt.status === 'review-pending' && pendingQuestions.length === 0 && (
-              <Button onClick={handleCompleteReview} loading={action.isPending}>
-                Finalize & Complete Review
-              </Button>
-            )}
-          </div>
+          ) : undefined
         }
       />
 
