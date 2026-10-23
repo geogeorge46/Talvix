@@ -208,12 +208,14 @@ export const adminNavigation: NavigationItem[] = [
     to: '/admin/company-verification',
     icon: <Building2 />,
   },
+  /* Hidden per admin preference: Disputes & Claims
   {
     id: 'claims',
     label: 'Disputes & Claims',
     to: '/admin/claims',
     icon: <ShieldAlert />,
   },
+  */
   {
     id: 'operations',
     label: 'Operations',
@@ -226,12 +228,14 @@ export const adminNavigation: NavigationItem[] = [
     to: '/admin/communications',
     icon: <MessageSquareText />,
   },
+  /* Hidden per admin preference: Analytics
   {
     id: 'analytics',
     label: 'Analytics',
     to: '/admin/analytics',
     icon: <BarChart3 />,
   },
+  */
   {
     id: 'ai-gateway',
     label: 'AI Console',
