@@ -1227,7 +1227,7 @@ export function ApprovalDetailPage() {
               onConfirm={async () => {
                 await m.mutateAsync({
                   path: `/offers/approvals/${offerId}/approve`,
-                  body: { notes: reason },
+                  body: { comments: reason.trim() || undefined },
                 });
                 navigate(`/org/offers/${offerId}`);
               }}
