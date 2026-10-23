@@ -4823,6 +4823,27 @@ export function ReviewDetailPage() {
   const pendingQuestions = attempt.questionResults?.filter(q => q.requiresManualReview) ?? [];
   const evalData = attempt.evaluation;
 
+  const liveResults = attempt.questionResults ?? [];
+  const liveObjScore = liveResults
+    .filter(r => ['single-choice', 'multiple-choice', 'true-false', 'short-answer', 'output-prediction'].includes(r.questionType))
+    .reduce((sum, r) => sum + (r.awardedMarks || 0), 0);
+  const liveCodeScore = liveResults
+    .filter(r => ['coding', 'sql', 'debugging'].includes(r.questionType))
+    .reduce((sum, r) => sum + (r.awardedMarks || 0), 0);
+  const liveSubjScore = liveResults
+    .filter(r => ['long-answer', 'file-upload', 'work-sample'].includes(r.questionType))
+    .reduce((sum, r) => sum + (r.awardedMarks || 0), 0);
+  const totalScoreCalc = liveObjScore + liveCodeScore + liveSubjScore;
+  const maxPossibleMarks = attempt.questions?.reduce((sum, q) => sum + (q.defaultMarks || q.marks || 0), 0) || 100;
+  const livePercentage = maxPossibleMarks ? Math.round((totalScoreCalc / maxPossibleMarks) * 100) : 0;
+
+  const summaryObjScore = evalData?.objectiveScore || liveObjScore;
+  const summarySubjScore = evalData?.subjectiveScore || liveSubjScore;
+  const summaryCodeScore = evalData?.codingScore || liveCodeScore;
+  const summaryTotalScore = evalData?.totalScore && evalData.totalScore > 0 ? evalData.totalScore : totalScoreCalc;
+  const summaryPercentage = evalData?.percentage && evalData.percentage > 0 ? evalData.percentage : livePercentage;
+  const summaryPassed = evalData?.passed ?? (summaryPercentage >= 70);
+
   return (
     <div className="as-page">
       <PageHeader
@@ -4847,20 +4868,18 @@ export function ReviewDetailPage() {
       {completionError && <Alert tone="danger" title="Review Finalization Error">{completionError}</Alert>}
 
       <div className="space-y-6 mt-6">
-        {evalData && (
-          <Card heading="Evaluation Summary" headingLevel={2}>
-            <DescriptionList
-              items={[
-                { term: 'Current Score Percentage', description: `${evalData.percentage}%` },
-                { term: 'Objective/MCQ Score', description: `${evalData.objectiveScore} marks` },
-                { term: 'Subjective/Manual Score', description: `${evalData.subjectiveScore} marks` },
-                { term: 'Coding Score', description: `${evalData.codingScore} marks` },
-                { term: 'Total Score Calculated', description: `${evalData.totalScore} marks` },
-                { term: 'Passing Status', description: evalData.passed ? 'Passed' : 'Failed' },
-              ]}
-            />
-          </Card>
-        )}
+        <Card heading="Evaluation Summary" headingLevel={2}>
+          <DescriptionList
+            items={[
+              { term: 'Current Score Percentage', description: `${summaryPercentage}%` },
+              { term: 'Objective/MCQ Score', description: `${summaryObjScore} marks` },
+              { term: 'Subjective/Manual Score', description: `${summarySubjScore} marks` },
+              { term: 'Coding Score', description: `${summaryCodeScore} marks` },
+              { term: 'Total Score Calculated', description: `${summaryTotalScore} marks` },
+              { term: 'Passing Status', description: summaryPassed ? 'Passed' : 'Failed' },
+            ]}
+          />
+        </Card>
 
         <RecruiterAttemptDocuments attemptId={attempt.id} />
 

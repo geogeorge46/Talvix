@@ -147,6 +147,43 @@ const buildContextualQuestions = (promptText) => {
         evaluationNotes: 'Evaluate based on reusability, performance, and accessibility.'
       }
     });
+    pool.push({
+      type: 'debugging',
+      prompt: 'Fix the memory leak and infinite re-render loop in this custom React `useInterval` hook.',
+      defaultMarks: 10,
+      difficulty: diff,
+      category: 'Frontend',
+      skills: ['React Hooks', 'Memory Leaks', 'Cleanups'],
+      options: [],
+      correctAnswer: null,
+      coding: {
+        languageSupport: ['javascript'],
+        buggyCode: {
+          javascript: 'function useInterval(callback, delay) {\n  useEffect(() => {\n    setInterval(callback, delay);\n  });\n}'
+        },
+        starterCode: {
+          javascript: 'function useInterval(callback, delay) {\n  const savedCallback = useRef(callback);\n  useEffect(() => {\n    savedCallback.current = callback;\n  }, [callback]);\n  useEffect(() => {\n    if (delay !== null) {\n      const id = setInterval(() => savedCallback.current(), delay);\n      return () => clearInterval(id);\n    }\n  }, [delay]);\n}'
+        },
+        testCases: [
+          { input: 'cleanup_test', expectedOutput: 'timer_cleared', weight: 10, isHidden: false }
+        ]
+      }
+    });
+    pool.push({
+      type: 'multiple-choice',
+      prompt: 'Which of the following techniques directly optimize Core Web Vitals (LCP, INP, and CLS) in a modern web application?',
+      defaultMarks: 5,
+      difficulty: diff,
+      category: 'Frontend',
+      skills: ['Web Performance', 'Core Web Vitals'],
+      options: [
+        { id: 'a', text: 'Specifying explicit width and height attributes on responsive images.' },
+        { id: 'b', text: 'Preloading critical above-the-fold hero images with <link rel="preload">.' },
+        { id: 'c', text: 'Yielding the main thread during lengthy tasks via scheduler.yield() or requestIdleCallback.' },
+        { id: 'd', text: 'Executing all heavy computation synchronously inside the main UI thread.' }
+      ],
+      correctAnswer: ['a', 'b', 'c']
+    });
   } else if (userScope.includes('sql') || userScope.includes('postgres') || userScope.includes('database') || userScope.includes('mongo') || userScope.includes('schema') || userScope.includes('b-tree')) {
     pool.push({
       type: 'single-choice',
@@ -349,7 +386,15 @@ const buildContextualQuestions = (promptText) => {
 
   const result = [];
   for (let i = 0; i < targetCount; i++) {
-    result.push(pool[i % pool.length]);
+    const q = pool[i % pool.length];
+    if (i >= pool.length) {
+      result.push({
+        ...q,
+        prompt: `${q.prompt} (Part ${i + 1})`
+      });
+    } else {
+      result.push(q);
+    }
   }
   return result;
 };

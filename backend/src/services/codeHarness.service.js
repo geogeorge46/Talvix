@@ -67,9 +67,7 @@ function executeJavaScriptLocal({ code, functionName, executionMode = 'function'
   // Validate syntax first
   let script;
   try {
-    const fnName = functionName || 'solution';
-    const wrappedCode = `${code}\n;if (typeof ${fnName} !== 'function' && '${executionMode}' === 'function') { throw new Error('Function "${fnName}" is not defined.'); }`;
-    script = new vm.Script(wrappedCode, { filename: 'candidate_code.js' });
+    script = new vm.Script(code, { filename: 'candidate_code.js' });
   } catch (err) {
     compileError = err.message || 'Syntax Error';
     return {
@@ -127,17 +125,26 @@ function executeJavaScriptLocal({ code, functionName, executionMode = 'function'
       script.runInContext(context, { timeout: timeLimitMs });
 
       let actualOutput;
-      const fnName = functionName || 'solution';
+      let fnName = functionName || 'solution';
       if (['stdout', 'stdin-stdout', 'stdin', 'full-program'].includes(executionMode)) {
         actualOutput = sandboxConsole.join('\n').trim();
       } else {
         let fn = context[fnName];
         if (typeof fn !== 'function') {
+          // Attempt to detect declared function name from candidate code
+          const fnMatch = code.match(/function\s+([a-zA-Z0-9_$]+)/) || code.match(/(?:const|let|var)\s+([a-zA-Z0-9_$]+)\s*=\s*(?:function|\([^)]*\)\s*=>)/);
+          if (fnMatch && typeof context[fnMatch[1]] === 'function') {
+            fn = context[fnMatch[1]];
+            fnName = fnMatch[1];
+          }
+        }
+        if (typeof fn !== 'function') {
           const userFnKey = Object.keys(sandbox).find((k) => typeof sandbox[k] === 'function' && !['console', 'JSON', 'Math', 'Array', 'Object', 'String', 'Number', 'Boolean', 'Date', 'RegExp', 'Map', 'Set', 'parseInt', 'parseFloat', 'isNaN', 'isFinite'].includes(k));
           if (userFnKey) {
             fn = sandbox[userFnKey];
+            fnName = userFnKey;
           } else {
-            throw new Error(`Function "${fnName}" was not found or is not exported.`);
+            throw new Error(`Function "${fnName}" is not defined.`);
           }
         }
         const args = parseFunctionArgs(tc.input);

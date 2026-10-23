@@ -9,6 +9,47 @@ import { cancelReminders } from './reminderEvent.service.js';
 const companyAttempt = async (company, id) => { const attempt = await AssessmentAttempt.findOne({ _id: id, company }).populate('assignment'); if (!attempt) throw new AppError('Assessment attempt not found', 404); return attempt; };
 export const listPendingReviews = (company) => AssessmentAttempt.find({ company, status: 'review-pending' }).sort({ submittedAt: 1 });
 export const getReviewAttempt = (company, id) => companyAttempt(company, id);
+export const updateAttemptEvaluation = (attempt, snapshot) => {
+  const roundNum = (n) => Math.round((n || 0) * 100) / 100;
+  let objectiveScore = 0;
+  let subjectiveScore = 0;
+  let codingScore = 0;
+
+  for (const qr of attempt.questionResults || []) {
+    const marks = Number(qr.awardedMarks) || 0;
+    if (['single-choice', 'multiple-choice', 'true-false', 'short-answer', 'output-prediction'].includes(qr.questionType)) {
+      objectiveScore += marks;
+    } else if (['coding', 'sql', 'debugging'].includes(qr.questionType)) {
+      codingScore += marks;
+    } else if (['long-answer', 'file-upload', 'work-sample'].includes(qr.questionType)) {
+      subjectiveScore += marks;
+    } else {
+      subjectiveScore += marks;
+    }
+  }
+
+  const negativeMarks = Number(attempt.evaluation?.negativeMarks) || 0;
+  const totalScore = roundNum(Math.max(0, objectiveScore + codingScore + subjectiveScore - negativeMarks));
+  const totalMarks = Number(snapshot?.totalMarks) || 100;
+  const passingPercentage = Number(snapshot?.passingPercentage) || 70;
+  const percentage = Math.min(100, Math.max(0, roundNum((totalScore / totalMarks) * 100)));
+  const passed = percentage >= passingPercentage;
+
+  attempt.evaluation = {
+    ...(attempt.evaluation?.toObject ? attempt.evaluation.toObject() : attempt.evaluation || {}),
+    objectiveScore: roundNum(objectiveScore),
+    subjectiveScore: roundNum(subjectiveScore),
+    codingScore: roundNum(codingScore),
+    negativeMarks: roundNum(negativeMarks),
+    totalScore,
+    percentage,
+    passed,
+    evaluatedAt: new Date(),
+  };
+
+  return attempt.evaluation;
+};
+
 export const scoreQuestion = async (company, id, questionId, input) => {
   const attempt = await companyAttempt(company, id);
   if (attempt.status !== 'review-pending') throw new AppError('Attempt is not pending review', 409);
@@ -16,7 +57,7 @@ export const scoreQuestion = async (company, id, questionId, input) => {
   if (!result || !result.requiresManualReview) throw new AppError('Reviewable question not found', 404);
   if (input.rubricScores) {
     // Rubric-based scoring path (work-sample questions)
-    const snapshotQuestion = attempt.assignment.assessmentSnapshot?.questions?.find(
+    const snapshotQuestion = attempt.assignment?.assessmentSnapshot?.questions?.find(
       (q) => q.questionId.toString() === questionId.toString(),
     );
     const rubric = snapshotQuestion?.rubric;
@@ -51,8 +92,37 @@ export const scoreQuestion = async (company, id, questionId, input) => {
     result.feedback = input.feedback ?? '';
     result.requiresManualReview = false;
   }
+
+  updateAttemptEvaluation(attempt, attempt.assignment?.assessmentSnapshot);
   await attempt.save();
   return result;
 };
-export const completeReview = async (company, id, reviewer) => { const attempt = await companyAttempt(company, id); if (attempt.status !== 'review-pending') throw new AppError('Attempt is not pending review', 409); if (attempt.questionResults.some((item) => item.requiresManualReview)) throw new AppError('Every subjective question must be reviewed', 409); const assignment = await AssessmentAssignment.findOne({ _id: attempt.assignment, company }); const roundNum = (n) => Math.round((n || 0) * 100) / 100; const subjectiveScore = roundNum(attempt.questionResults.filter((item) => ['long-answer', 'coding', 'file-upload', 'work-sample'].includes(item.questionType)).reduce((sum, item) => sum + item.awardedMarks, 0)); const totalScore = roundNum(Math.max(0, attempt.evaluation.objectiveScore + subjectiveScore + attempt.evaluation.codingScore - attempt.evaluation.negativeMarks)); const percentage = Math.min(100, roundNum(totalScore / assignment.assessmentSnapshot.totalMarks * 100)); attempt.evaluation.subjectiveScore = subjectiveScore; attempt.evaluation.totalScore = totalScore; attempt.evaluation.percentage = percentage; attempt.evaluation.passed = percentage >= assignment.assessmentSnapshot.passingPercentage; attempt.evaluation.reviewedBy = reviewer; attempt.evaluation.reviewedAt = new Date(); attempt.status = 'completed'; attempt.completedAt = new Date(); assignment.status = 'completed'; assignment.completedAt = new Date(); if (assignment.bestPercentage === undefined || percentage > assignment.bestPercentage) { assignment.bestAttempt = attempt.id; assignment.bestScore = totalScore; assignment.bestPercentage = percentage; assignment.passed = attempt.evaluation.passed; } await Promise.all([attempt.save(), assignment.save()]); const application = await Application.findById(assignment.application); if (application?.status === 'assessment-in-progress') { changeApplicationStatus(application, 'assessment-completed', reviewer, 'Assessment review completed'); await application.save(); } return attempt; };
+export const completeReview = async (company, id, reviewer) => {
+  const attempt = await companyAttempt(company, id);
+  if (attempt.status !== 'review-pending') throw new AppError('Attempt is not pending review', 409);
+  if (attempt.questionResults.some((item) => item.requiresManualReview)) throw new AppError('Every subjective question must be reviewed', 409);
+  const assignment = await AssessmentAssignment.findOne({ _id: attempt.assignment, company });
+
+  updateAttemptEvaluation(attempt, assignment.assessmentSnapshot);
+  attempt.evaluation.reviewedBy = reviewer;
+  attempt.evaluation.reviewedAt = new Date();
+  attempt.status = 'completed';
+  attempt.completedAt = new Date();
+
+  assignment.status = 'completed';
+  assignment.completedAt = new Date();
+  if (assignment.bestPercentage === undefined || attempt.evaluation.percentage > assignment.bestPercentage) {
+    assignment.bestAttempt = attempt.id;
+    assignment.bestScore = attempt.evaluation.totalScore;
+    assignment.bestPercentage = attempt.evaluation.percentage;
+    assignment.passed = attempt.evaluation.passed;
+  }
+  await Promise.all([attempt.save(), assignment.save()]);
+  const application = await Application.findById(assignment.application);
+  if (application?.status === 'assessment-in-progress') {
+    changeApplicationStatus(application, 'assessment-completed', reviewer, 'Assessment review completed');
+    await application.save();
+  }
+  return attempt;
+};
 export const releaseResult = async (company, assignmentId, actor) => { const assignment = await AssessmentAssignment.findOne({ _id: assignmentId, company, status: 'completed' }); if (!assignment) throw new AppError('Completed assessment assignment not found', 404); if (assignment.resultReleasedAt) return assignment; assignment.resultReleasedAt = new Date(); assignment.resultReleasedBy = actor; await assignment.save(); await cancelReminders(`assessment.reminder:${assignment.id}:`); await publishOptionalDomainEvent({ type: DOMAIN_EVENTS.ASSESSMENT_RESULT_RELEASED, actor: String(actor), company: String(company), recipientIds: [String(assignment.candidate)], payload: { assessmentId: String(assignment.assessment), assignmentId: String(assignment.id), attemptId: String(assignment.bestAttempt ?? assignment.latestAttempt), applicationId: String(assignment.application), candidateId: String(assignment.candidate), assessmentTitle: assignment.assessmentSnapshot.title, percentage: assignment.bestPercentage, passed: assignment.passed, actionUrl: `/candidate/assessments/${assignment.id}` }, deduplicationKey: `assessment.result-released:${assignment.id}:${assignment.resultReleasedAt.toISOString()}` }); return assignment; };

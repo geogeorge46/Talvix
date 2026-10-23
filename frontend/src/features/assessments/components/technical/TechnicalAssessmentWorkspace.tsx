@@ -252,6 +252,7 @@ export const TechnicalAssessmentWorkspace: React.FC<Props> = ({
 
     if (currentIndex < questions.length - 1) {
       handleNavigate(currentIndex + 1);
+      onNavigate?.(currentIndex + 1);
     } else {
       onSubmitAttempt?.();
     }
